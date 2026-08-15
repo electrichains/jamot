@@ -10,6 +10,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@copilotkit/a2ui-renderer':
+        specifier: ^1.68.1
+        version: 1.68.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@copilotkit/react-core':
         specifier: ^1.67.1
         version: 1.67.1(@types/mdast@4.0.4)(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(graphql@16.14.2)(micromark-util-types@2.0.2)(micromark@4.0.2(supports-color@7.2.0))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(supports-color@7.2.0)(zod@3.25.76)
@@ -479,6 +482,17 @@ packages:
 
   '@copilotkit/a2ui-renderer@1.67.1':
     resolution: {integrity: sha512-/fELhn0gvC+LCurKwdxrF1BRiPbpYUU5UmZjwy1bu1q8brQbXs8UjCcz7oCiCRfhXirzAwEH2LwdPS9ElHJPNw==}
+    peerDependencies:
+      react: ^18 || ^19 || ^19.0.0-rc
+      react-dom: ^18 || ^19 || ^19.0.0-rc
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+
+  '@copilotkit/a2ui-renderer@1.68.1':
+    resolution: {integrity: sha512-2BFlqNEoVdDBQjN7juTzUWW5rxKxJPpJFrxJfEhjPo9mJhiCCtyWPCWp5ozCPuoqisj74rtoPFntmtQQRMfOFg==}
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
@@ -6808,6 +6822,17 @@ snapshots:
   '@chevrotain/types@11.1.2': {}
 
   '@copilotkit/a2ui-renderer@1.67.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@a2ui/web_core': 0.10.4
+      clsx: 2.1.1
+      lit: 3.3.3
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
+    optionalDependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+
+  '@copilotkit/a2ui-renderer@1.68.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@a2ui/web_core': 0.10.4
       clsx: 2.1.1

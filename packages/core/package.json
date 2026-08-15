@@ -21,7 +21,11 @@
     "./channels": "./src/channels/index.ts",
     "./memory": "./src/memory/index.ts",
     "./knowledge": "./src/knowledge/index.ts",
-    "./scheduler": "./src/scheduler/index.ts"
+    "./scheduler": "./src/scheduler/index.ts",
+    "./apps": "./src/apps/index.ts",
+    "./resolver": "./src/resolver/index.ts",
+    "./reputation": "./src/reputation/index.ts",
+    "./treasury": "./src/treasury/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
