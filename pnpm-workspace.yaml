@@ -3,6 +3,7 @@ packages:
   - "apps/*"
 
 allowBuilds:
+  '@scarf/scarf': false
   unrs-resolver: false
 
 onlyBuiltDependencies:
