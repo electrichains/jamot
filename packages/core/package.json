@@ -15,7 +15,10 @@
     "./secrets/secret-store": "./src/secrets/secret-store.ts",
     "./secrets/credential-resolution": "./src/secrets/credential-resolution.ts",
     "./services/connectors": "./src/services/connectors.ts",
-    "./services/capabilities": "./src/services/capabilities.ts"
+    "./services/capabilities": "./src/services/capabilities.ts",
+    "./harness": "./src/harness/index.ts",
+    "./mcp": "./src/mcp/index.ts",
+    "./channels": "./src/channels/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

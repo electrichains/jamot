@@ -20,8 +20,10 @@
   "dependencies": {
     "@jamot/contracts": "workspace:*",
     "@jamot/core": "workspace:*",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "bullmq": "^5.34.0",
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "matrix-js-sdk": "^42.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
