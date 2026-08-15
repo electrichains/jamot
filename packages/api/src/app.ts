@@ -4,8 +4,13 @@ import session from "@fastify/session";
 import helmet from "@fastify/helmet";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
+import { createHash } from "node:crypto";
 import type { JamotRepository } from "./repository.js";
 import { sessionOptions } from "./auth.js";
+import { createSecretStore } from "@jamot/core/secrets/secret-store";
+import { createCredentialResolver } from "@jamot/core/secrets/credential-resolution";
+import { createLLMProvider } from "@jamot/core/llm";
+import type { LLMProvider } from "@jamot/core/llm";
 import { healthRoutes } from "./routes/health.js";
 import { actorsRoutes } from "./routes/actors.js";
 import { peopleRoutes } from "./routes/people.js";
@@ -14,15 +19,34 @@ import { spacesRoutes } from "./routes/spaces.js";
 import { rolesRoutes } from "./routes/roles.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { authRoutes } from "./routes/auth.js";
+import connectorsRoutes from "./routes/connectors.js";
+import capabilitiesRoutes from "./routes/capabilities.js";
+import skillsRoutes from "./routes/skills.js";
+import vaultRoutes from "./routes/vault.js";
+import assignmentsRoutes from "./routes/assignments.js";
+
+export interface SecretStoreLike {
+  encrypt(plaintext: string): string;
+  decrypt(ciphertext: string): string;
+}
 
 export interface BuildAppOptions {
   repository: JamotRepository;
   secret: string;
   logger?: boolean;
+  secretStore?: SecretStoreLike;
+  llm?: LLMProvider;
 }
+
+const deriveKey = (secret: string): string =>
+  createHash("sha256").update(secret).digest("base64");
 
 export async function buildApp(opts: BuildAppOptions) {
   const app = Fastify({ logger: opts.logger ?? false });
+
+  const secretStore = opts.secretStore ?? createSecretStore({ encryptionKey: deriveKey(opts.secret) });
+  const credentialResolver = createCredentialResolver({ repo: opts.repository, store: secretStore });
+  const llm = opts.llm ?? createLLMProvider("mock");
 
   app.decorateRequest("actor", null);
   app.decorateRequest("person", null);
@@ -42,6 +66,12 @@ export async function buildApp(opts: BuildAppOptions) {
     }
   });
 
+  const routeOpts = {
+    repository: opts.repository,
+    secretStore,
+    credentialResolver: credentialResolver.resolveCredential,
+  };
+
   await app.register(healthRoutes);
   await app.register(actorsRoutes(opts.repository), { prefix: "/api" });
   await app.register(peopleRoutes(opts.repository), { prefix: "/api" });
@@ -50,6 +80,11 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(rolesRoutes(opts.repository), { prefix: "/api" });
   await app.register(tasksRoutes(opts.repository), { prefix: "/api" });
   await app.register(authRoutes(opts.repository), { prefix: "/api" });
+  await app.register(connectorsRoutes, { prefix: "/api", ...routeOpts });
+  await app.register(capabilitiesRoutes, { prefix: "/api", ...routeOpts });
+  await app.register(skillsRoutes, { prefix: "/api", ...routeOpts });
+  await app.register(vaultRoutes, { prefix: "/api", ...routeOpts });
+  await app.register(assignmentsRoutes, { prefix: "/api", repository: opts.repository, llm });
 
   return app;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bot,
@@ -146,13 +147,13 @@ function SpaceSwitcher() {
         ) : null}
       </AnimatePresence>
 
-      <button
-        type="button"
+      <Link
+        href="/settings"
         className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <Settings className="size-4" />
         Settings
-      </button>
+      </Link>
     </div>
   );
 }

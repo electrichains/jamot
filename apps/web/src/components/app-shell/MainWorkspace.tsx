@@ -1,10 +1,11 @@
 "use client";
 
-import { PanelRightClose, PanelRightOpen, Sparkles } from "lucide-react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 
 export interface MainWorkspaceProps {
   onToggleDock?: () => void;
@@ -35,21 +36,8 @@ export function MainWorkspace({ onToggleDock, dockOpen = true }: MainWorkspacePr
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-5 px-6 text-center">
-        <div className="flex size-12 items-center justify-center rounded-xl bg-space-accent/10 text-space-accent">
-          <Sparkles className="size-6" />
-        </div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-          Ask Jamot anything…
-        </h1>
-        <p className="max-w-md text-sm text-muted-foreground">
-          Your calm cockpit for people, projects, and context, all in one place.
-        </p>
-        <div className="w-full max-w-xl rounded-xl border border-border bg-card p-2 shadow-sm">
-          <div className="flex h-10 items-center px-3 text-sm text-muted-foreground">
-            Message Jamot (coming soon)
-          </div>
-        </div>
+      <main className="flex min-h-0 flex-1 flex-col">
+        <ChatWorkspace />
       </main>
     </div>
   );

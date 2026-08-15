@@ -46,7 +46,7 @@ export function tasksRoutes(repo: JamotRepository) {
       if (query.spaceId) {
         const spaceId = parse(Id, query.spaceId, reply);
         if (!spaceId) return;
-        return { items: await repo.listTasks(spaceId) };
+        return { items: await repo.listTasks({ spaceId }) };
       }
       return { items: await repo.listTasks() };
     });
@@ -77,7 +77,7 @@ export function tasksRoutes(repo: JamotRepository) {
       const hasRole = roles.some((r) => r.spaceId === task.spaceId);
       if (!ownsSpace && !hasRole) return fail(reply, 403, "no access to task space");
 
-      const updated = await repo.updateTask(id, { status: body.status });
+      const updated = await repo.updateTaskStatus(id, body.status);
       if (!updated) return fail(reply, 404, "task not found");
       return updated;
     });

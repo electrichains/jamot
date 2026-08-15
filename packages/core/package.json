@@ -6,7 +6,16 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./llm": "./src/llm/index.ts",
+    "./routing": "./src/routing/index.ts",
+    "./repository": "./src/repository/repository.ts",
+    "./repository/memory": "./src/repository/memory.ts",
+    "./repository/pg": "./src/repository/pg.ts",
+    "./secrets/secret-store": "./src/secrets/secret-store.ts",
+    "./secrets/credential-resolution": "./src/secrets/credential-resolution.ts",
+    "./services/connectors": "./src/services/connectors.ts",
+    "./services/capabilities": "./src/services/capabilities.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

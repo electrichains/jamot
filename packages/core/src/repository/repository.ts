@@ -159,7 +159,7 @@ export interface JamotRepository {
   createActor(input: NewActor): Promise<Actor>;
   getActor(id: string): Promise<Actor | null>;
   listActors(filter?: { spaceId?: string }): Promise<Actor[]>;
-  updateActor(id: string, patch: Partial<Pick<Actor, "displayName" | "status">>): Promise<Actor | null>;
+  updateActor(id: string, patch: Partial<Pick<Actor, "displayName" | "status" | "personalSpaceId">>): Promise<Actor | null>;
 
   // people
   createPerson(input: NewPerson): Promise<Person>;

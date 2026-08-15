@@ -1,32 +1,28 @@
-import type { JamotRepository } from "./repository.js";
+import { createDb } from "@jamot/core";
+import { createPgRepository as createCorePgRepository } from "@jamot/core/repository/pg";
+import type { JamotRepository, StoredUser } from "./repository.js";
 
-export function createPgRepository(): JamotRepository {
-  const notImplemented = (): never => {
-    throw new Error("not implemented");
-  };
+/**
+ * Postgres-backed repository. Domain state lives in Postgres via the core
+ * repository; auth users are held in-memory until a `users` table lands.
+ */
+export function createPgRepository(
+  databaseUrl: string = process.env.DATABASE_URL ?? "",
+): JamotRepository {
+  if (!databaseUrl) throw new Error("DATABASE_URL is required for the pg repository");
+
+  const db = createDb(databaseUrl);
+  const core = createCorePgRepository(db);
+  const users = new Map<string, StoredUser>();
 
   return {
-    createActor: notImplemented,
-    getActor: notImplemented,
-    listActors: notImplemented,
-    updateActor: notImplemented,
-    createPerson: notImplemented,
-    getPerson: notImplemented,
-    listPeople: notImplemented,
-    updatePerson: notImplemented,
-    createSpace: notImplemented,
-    getSpace: notImplemented,
-    createOrganization: notImplemented,
-    getOrganization: notImplemented,
-    listOrganizations: notImplemented,
-    createRole: notImplemented,
-    listRolesForActor: notImplemented,
-    listRolesForSpace: notImplemented,
-    createTask: notImplemented,
-    getTask: notImplemented,
-    listTasks: notImplemented,
-    updateTask: notImplemented,
-    createUser: notImplemented,
-    findUserByEmail: notImplemented,
+    ...core,
+    async createUser(input) {
+      const email = input.person.email;
+      if (email) users.set(email.toLowerCase(), input);
+    },
+    async findUserByEmail(email) {
+      return users.get(email.toLowerCase()) ?? null;
+    },
   };
 }

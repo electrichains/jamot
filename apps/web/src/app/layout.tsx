@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
-import { ThemeProvider } from "@/components/theme-provider";
+import { Providers } from "@/app/providers";
 import "./globals.css";
 
 const inter = Inter({
@@ -33,14 +33,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${inter.variable} ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full bg-background text-foreground">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
