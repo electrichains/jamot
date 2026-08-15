@@ -28,10 +28,20 @@ import agentsRoutes from "./routes/agents.js";
 import channelsRoutes from "./routes/channels.js";
 import memoryRoutes from "./routes/memory.js";
 import knowledgeRoutes from "./routes/knowledge.js";
+import appsRoutes from "./routes/apps.js";
+import resolveAppsRoutes from "./routes/resolver.js";
+import reputationRoutes from "./routes/reputation.js";
+import treasuryRoutes from "./routes/treasury.js";
 import type { MemoryProvider } from "@jamot/core/memory";
 import type { KnowledgeStore } from "@jamot/core/knowledge";
 import { createInMemoryMemoryProvider } from "@jamot/core/memory";
 import { createInMemoryKnowledgeStore } from "@jamot/core/knowledge";
+import { createAppRegistry } from "@jamot/core/apps";
+import type { AppRegistry } from "@jamot/core/apps";
+import { createInMemoryReputationService } from "@jamot/core/reputation";
+import type { ReputationService } from "@jamot/core/reputation";
+import { createInMemoryTreasuryService } from "@jamot/core/treasury";
+import type { TreasuryService } from "@jamot/core/treasury";
 
 export interface SecretStoreLike {
   encrypt(plaintext: string): string;
@@ -46,6 +56,9 @@ export interface BuildAppOptions {
   llm?: LLMProvider;
   memoryProvider?: MemoryProvider;
   knowledgeStore?: KnowledgeStore;
+  apps?: AppRegistry;
+  reputation?: ReputationService;
+  treasury?: TreasuryService;
 }
 
 const deriveKey = (secret: string): string =>
@@ -59,6 +72,9 @@ export async function buildApp(opts: BuildAppOptions) {
   const llm = opts.llm ?? createLLMProvider("mock");
   const memoryProvider = opts.memoryProvider ?? createInMemoryMemoryProvider();
   const knowledgeStore = opts.knowledgeStore ?? createInMemoryKnowledgeStore();
+  const apps = opts.apps ?? createAppRegistry();
+  const reputation = opts.reputation ?? createInMemoryReputationService();
+  const treasury = opts.treasury ?? createInMemoryTreasuryService();
 
   app.decorateRequest("actor", null);
   app.decorateRequest("person", null);
@@ -76,6 +92,15 @@ export async function buildApp(opts: BuildAppOptions) {
       const personId = request.session?.personId;
       if (personId) request.person = await opts.repository.getPerson(personId);
     }
+  });
+
+  app.addHook("onResponse", async (request, reply) => {
+    const mutating = ["POST", "PUT", "PATCH", "DELETE"].includes(request.method);
+    if (!mutating || !request.url.startsWith("/api/")) return;
+    request.log.info(
+      { actorId: request.session?.actorId ?? null, method: request.method, url: request.url, status: reply.statusCode },
+      "audit",
+    );
   });
 
   const routeOpts = {
@@ -101,6 +126,10 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(channelsRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(memoryRoutes, { prefix: "/api", memoryProvider });
   await app.register(knowledgeRoutes, { prefix: "/api", knowledgeStore });
+  await app.register(appsRoutes, { prefix: "/api", apps });
+  await app.register(resolveAppsRoutes, { prefix: "/api", repo: opts.repository, apps });
+  await app.register(reputationRoutes, { prefix: "/api", reputation });
+  await app.register(treasuryRoutes, { prefix: "/api", treasury });
 
   return app;
 }

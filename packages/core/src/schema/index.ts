@@ -530,24 +530,37 @@ export const knowledgeEdges = pgTable(
   ],
 );
 
-export const reputationEntries = pgTable("reputation_entries", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  actorId: uuid("actor_id").notNull(),
-  spaceId: uuid("space_id"),
-  kind: text("kind").notNull(),
-  value: numeric("value").notNull(),
-  provenance: jsonb("provenance").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at", { mode: "string", withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const reputationEntries = pgTable(
+  "reputation_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    actorId: uuid("actor_id").notNull(),
+    capability: text("capability").notNull(),
+    score: numeric("score").notNull(),
+    evidence: jsonb("evidence")
+      .$type<{
+        taskId?: string | null;
+        outcome: Record<string, unknown>;
+        feedback?: number | null;
+        verified: boolean;
+      }>()
+      .notNull(),
+    provenance: jsonb("provenance").$type<Provenance>().notNull(),
+    ...timestamps(),
+  },
+  (table) => [
+    index("reputation_entries_actor_capability_idx").on(
+      table.actorId,
+      table.capability,
+    ),
+  ],
+);
 
 export const treasuryAccounts = pgTable("treasury_accounts", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id").notNull(),
-  name: text("name").notNull(),
+  organizationId: uuid("organization_id").notNull(),
+  currency: text("currency").notNull().default("USD"),
   balance: numeric("balance").notNull().default("0"),
-  ...timestamps(),
 });
 
 export const treasuryLedger = pgTable("treasury_ledger", {
@@ -555,6 +568,7 @@ export const treasuryLedger = pgTable("treasury_ledger", {
   accountId: uuid("account_id").notNull(),
   entryType: text("entry_type").notNull(),
   amount: numeric("amount").notNull(),
+  description: text("description"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at", { mode: "string", withTimezone: true })
     .notNull()
@@ -563,20 +577,21 @@ export const treasuryLedger = pgTable("treasury_ledger", {
 
 export const treasuryProposals = pgTable("treasury_proposals", {
   id: uuid("id").defaultRandom().primaryKey(),
-  accountId: uuid("account_id").notNull(),
-  proposerActorId: uuid("proposer_actor_id").notNull(),
-  status: text("status").notNull().default("proposed"),
+  organizationId: uuid("organization_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
   amount: numeric("amount").notNull(),
-  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  status: text("status").notNull().default("proposed"),
+  proposedByActorId: uuid("proposed_by_actor_id").notNull(),
   ...timestamps(),
 });
 
 export const contributionCredits = pgTable("contribution_credits", {
   id: uuid("id").defaultRandom().primaryKey(),
   actorId: uuid("actor_id").notNull(),
-  spaceId: uuid("space_id"),
+  organizationId: uuid("organization_id").notNull(),
+  capability: text("capability").notNull(),
   amount: numeric("amount").notNull(),
-  reason: text("reason"),
   createdAt: timestamp("created_at", { mode: "string", withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -584,12 +599,9 @@ export const contributionCredits = pgTable("contribution_credits", {
 
 export const distributionRules = pgTable("distribution_rules", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id").notNull(),
-  name: text("name").notNull(),
-  rules: jsonb("rules")
-    .$type<Record<string, unknown>>()
-    .notNull()
-    .default(sql`'{}'::jsonb`),
+  organizationId: uuid("organization_id").notNull(),
+  capability: text("capability").notNull(),
+  share: numeric("share").notNull(),
   ...timestamps(),
 });
 

@@ -10,6 +10,7 @@ import {
   ChevronDown,
   FolderKanban,
   House,
+  LayoutGrid,
   MessageSquare,
   Plus,
   Search,
@@ -31,6 +32,7 @@ const NAV_ITEMS: { label: string; icon: LucideIcon; href?: string; active?: bool
   { label: "People", icon: Users, href: "/people" },
   { label: "Agents", icon: Bot, href: "/agents" },
   { label: "Organization", icon: Building2, href: "/organization" },
+  { label: "Canvas", icon: LayoutGrid, href: "/canvas" },
 ];
 
 export function LeftSidebar() {

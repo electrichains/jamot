@@ -14,6 +14,7 @@ const copilotRuntime = new CopilotRuntime({
       maxSteps: 5,
     }),
   },
+  a2ui: {},
 });
 
 const handler = createCopilotRuntimeHandler({
