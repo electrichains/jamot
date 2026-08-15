@@ -24,13 +24,13 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { SPACES, useAppShell } from "./app-shell-context";
 
-const NAV_ITEMS: { label: string; icon: LucideIcon; active?: boolean }[] = [
-  { label: "Home", icon: House, active: true },
-  { label: "Chats", icon: MessageSquare },
+const NAV_ITEMS: { label: string; icon: LucideIcon; href?: string; active?: boolean }[] = [
+  { label: "Home", icon: House, href: "/", active: true },
+  { label: "Chats", icon: MessageSquare, href: "/" },
   { label: "Projects", icon: FolderKanban },
   { label: "People", icon: Users },
   { label: "Agents", icon: Bot },
-  { label: "Organization", icon: Building2 },
+  { label: "Organization", icon: Building2, href: "/organization" },
 ];
 
 export function LeftSidebar() {
@@ -58,20 +58,25 @@ export function LeftSidebar() {
         <ul className="flex flex-col gap-0.5">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
+            const className = cn(
+              "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              item.active
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            );
             return (
               <li key={item.label}>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    item.active
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {item.label}
-                </button>
+                {item.href ? (
+                  <Link href={item.href} className={className}>
+                    <Icon className="size-4" />
+                    {item.label}
+                  </Link>
+                ) : (
+                  <button type="button" className={className}>
+                    <Icon className="size-4" />
+                    {item.label}
+                  </button>
+                )}
               </li>
             );
           })}

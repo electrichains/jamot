@@ -24,6 +24,8 @@ import capabilitiesRoutes from "./routes/capabilities.js";
 import skillsRoutes from "./routes/skills.js";
 import vaultRoutes from "./routes/vault.js";
 import assignmentsRoutes from "./routes/assignments.js";
+import agentsRoutes from "./routes/agents.js";
+import channelsRoutes from "./routes/channels.js";
 
 export interface SecretStoreLike {
   encrypt(plaintext: string): string;
@@ -85,6 +87,8 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(skillsRoutes, { prefix: "/api", ...routeOpts });
   await app.register(vaultRoutes, { prefix: "/api", ...routeOpts });
   await app.register(assignmentsRoutes, { prefix: "/api", repository: opts.repository, llm });
+  await app.register(agentsRoutes, { prefix: "/api", repository: opts.repository });
+  await app.register(channelsRoutes, { prefix: "/api", repository: opts.repository });
 
   return app;
 }
