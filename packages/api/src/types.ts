@@ -4,6 +4,7 @@ declare module "fastify" {
   interface Session {
     actorId?: Id;
     personId?: Id;
+    oauthState?: string;
   }
 
   interface FastifyRequest {

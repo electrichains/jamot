@@ -190,6 +190,7 @@ export function createRoutingPipeline(deps: {
 
     for (const agent of agents) {
       if (!memberIds.has(agent.actorId)) continue;
+      if (agent.budget != null && agent.budget <= 0) continue; // no budget left
       const kind = roleKindByActor.get(agent.actorId) ?? null;
       candidates.push({
         actorId: agent.actorId,

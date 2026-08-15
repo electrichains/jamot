@@ -189,6 +189,26 @@ describe("routing pipeline", () => {
     expect(result.assignment).toBeUndefined();
     expect(result.candidates).toHaveLength(0);
   });
+
+  it("excludes agents with no remaining budget", async () => {
+    const budgetExhausted = { ...agent(AGENT), budget: 0 } as Agent;
+    const pipeline = createRoutingPipeline({
+      repo: repo({
+        roles: [role(AGENT, "agent")],
+        agents: [budgetExhausted],
+        policies: [policy({ decision: "allow" })],
+      }),
+      llm: createMockProvider(),
+    });
+
+    const result = await pipeline.route({
+      spaceId: SPACE,
+      message: "please create a task",
+    });
+
+    expect(result.candidates).toHaveLength(0);
+    expect(result.assignment).toBeUndefined();
+  });
 });
 
 describe("scoring", () => {

@@ -17,7 +17,7 @@ export function authRoutes(repo: JamotRepository) {
       if (!body) return;
 
       const user = await repo.findUserByEmail(body.email.toLowerCase());
-      if (!user) return fail(reply, 401, "invalid credentials");
+      if (!user || !user.passwordHash) return fail(reply, 401, "invalid credentials");
 
       const valid = await verifyPassword(body.password, user.passwordHash);
       if (!valid) return fail(reply, 401, "invalid credentials");

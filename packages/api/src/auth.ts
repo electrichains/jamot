@@ -51,15 +51,23 @@ export interface RegisterInput {
   displayName?: string;
 }
 
+export interface ProvisionInput {
+  email: string;
+  displayName?: string;
+  passwordHash: string | null;
+  provider?: string | null;
+  providerId?: string | null;
+}
+
 export interface RegisterResult {
   actor: Actor;
   person: Person;
   space: Space;
 }
 
-export async function registerPerson(
+export async function provisionUser(
   repo: JamotRepository,
-  input: RegisterInput,
+  input: ProvisionInput,
 ): Promise<RegisterResult> {
   const displayName = input.displayName ?? input.email.split("@")[0] ?? input.email;
   const actor = await repo.createActor({ type: "human", displayName });
@@ -70,8 +78,89 @@ export async function registerPerson(
     email: input.email.toLowerCase(),
     membershipSpaceIds: [space.id],
   });
-  const passwordHash = await hashPassword(input.password);
-  await repo.createUser({ person, actor: actorWithSpace ?? actor, passwordHash });
+  await repo.createUser({
+    person,
+    actor: actorWithSpace ?? actor,
+    passwordHash: input.passwordHash,
+    provider: input.provider ?? null,
+    providerId: input.providerId ?? null,
+  });
   await repo.createRole({ actorId: actor.id, spaceId: space.id, kind: "owner" });
   return { actor: actorWithSpace ?? actor, person, space };
+}
+
+export async function registerPerson(
+  repo: JamotRepository,
+  input: RegisterInput,
+): Promise<RegisterResult> {
+  const passwordHash = await hashPassword(input.password);
+  return provisionUser(repo, {
+    email: input.email,
+    displayName: input.displayName,
+    passwordHash,
+  });
+}
+
+// --- Google OAuth ---
+
+export interface GoogleTokens {
+  accessToken: string;
+  idToken?: string;
+}
+
+export interface GoogleProfile {
+  sub: string;
+  email: string;
+  name?: string;
+}
+
+export function buildGoogleAuthUrl(
+  clientId: string,
+  redirectUri: string,
+  state: string,
+): string {
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    state,
+    access_type: "online",
+    prompt: "select_account",
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+export async function exchangeGoogleCode(
+  clientId: string,
+  clientSecret: string,
+  redirectUri: string,
+  code: string,
+): Promise<GoogleTokens> {
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: redirectUri,
+  });
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  if (!res.ok) throw new Error(`google token exchange failed: ${res.status}`);
+  const data = (await res.json()) as { access_token?: string; id_token?: string };
+  if (!data.access_token) throw new Error("google token exchange returned no access_token");
+  return { accessToken: data.access_token, idToken: data.id_token };
+}
+
+export async function fetchGoogleProfile(accessToken: string): Promise<GoogleProfile> {
+  const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`google userinfo failed: ${res.status}`);
+  const data = (await res.json()) as { sub?: string; email?: string; name?: string };
+  if (!data.sub || !data.email) throw new Error("google userinfo missing sub/email");
+  return { sub: data.sub, email: data.email, name: data.name };
 }

@@ -615,6 +615,26 @@ export const sessions = pgTable("sessions", {
     .defaultNow(),
 });
 
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    personId: uuid("person_id").notNull(),
+    actorId: uuid("actor_id").notNull(),
+    email: text("email").unique(),
+    passwordHash: text("password_hash"),
+    provider: text("provider"),
+    providerId: text("provider_id"),
+    ...timestamps(),
+  },
+  (table) => ({
+    providerIdx: index("users_provider_idx").on(
+      table.provider,
+      table.providerId,
+    ),
+  }),
+);
+
 export const schema = {
   actors,
   spaces,
@@ -647,6 +667,7 @@ export const schema = {
   contributionCredits,
   distributionRules,
   sessions,
+  users,
 };
 
 export type Schema = typeof schema;

@@ -32,6 +32,7 @@ import appsRoutes from "./routes/apps.js";
 import resolveAppsRoutes from "./routes/resolver.js";
 import reputationRoutes from "./routes/reputation.js";
 import treasuryRoutes from "./routes/treasury.js";
+import oauthRoutes from "./routes/oauth.js";
 import type { MemoryProvider } from "@jamot/core/memory";
 import type { KnowledgeStore } from "@jamot/core/knowledge";
 import { createInMemoryMemoryProvider } from "@jamot/core/memory";
@@ -130,6 +131,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(resolveAppsRoutes, { prefix: "/api", repo: opts.repository, apps });
   await app.register(reputationRoutes, { prefix: "/api", reputation });
   await app.register(treasuryRoutes, { prefix: "/api", treasury });
+  await app.register(oauthRoutes, { prefix: "/api", repository: opts.repository });
 
   return app;
 }
