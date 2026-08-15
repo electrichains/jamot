@@ -83,7 +83,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(cookie);
   await app.register(session, sessionOptions(opts.secret));
   await app.register(helmet, { global: true });
-  await app.register(cors, { origin: true });
+  await app.register(cors, { origin: true, credentials: true });
   await app.register(rateLimit, { max: 1000, timeWindow: "1 minute" });
 
   app.addHook("onRequest", async (request) => {

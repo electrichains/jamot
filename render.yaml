@@ -1,0 +1,103 @@
+# Jamot — Render Blueprint
+# Deploys the API, the Next.js web app, a scheduler worker, Postgres and Redis.
+# Validation: render blueprints validate
+
+projects:
+  - name: jamot
+    environments:
+      - name: production
+        databases:
+          - name: jamot-db
+            plan: starter
+            region: oregon
+
+        services:
+          - type: web
+            name: jamot-api
+            runtime: node
+            region: oregon
+            plan: starter
+            buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @jamot/api build
+            startCommand: pnpm --filter @jamot/api start
+            healthCheckPath: /health
+            buildFilter:
+              paths:
+                - packages/api/**
+                - packages/core/**
+                - packages/contracts/**
+                - packages/sdk/**
+                - package.json
+                - pnpm-lock.yaml
+                - pnpm-workspace.yaml
+            envVars:
+              - key: DATABASE_URL
+                fromDatabase:
+                  name: jamot-db
+                  property: connectionString
+              - key: REDIS_URL
+                fromService:
+                  type: keyvalue
+                  name: jamot-redis
+                  property: connectionString
+              - key: SESSION_SECRET
+                generateValue: true
+              - key: SECRET_ENCRYPTION_KEY
+                generateValue: true
+              - key: CORS_ORIGIN
+                value: https://jamot-web.onrender.com
+              - key: FRONTEND_URL
+                value: https://jamot-web.onrender.com
+              - key: NODE_ENV
+                value: production
+
+          - type: web
+            name: jamot-web
+            runtime: node
+            region: oregon
+            plan: starter
+            buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @jamot/web build
+            startCommand: pnpm --filter @jamot/web start
+            buildFilter:
+              paths:
+                - apps/web/**
+                - packages/contracts/**
+                - package.json
+                - pnpm-lock.yaml
+                - pnpm-workspace.yaml
+            envVars:
+              - key: NEXT_PUBLIC_API_URL
+                value: https://jamot-api.onrender.com
+
+          - type: worker
+            name: jamot-scheduler
+            runtime: node
+            region: oregon
+            plan: starter
+            buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @jamot/workers build
+            startCommand: pnpm --filter @jamot/workers exec tsx src/scheduler.ts
+            buildFilter:
+              paths:
+                - packages/workers/**
+                - packages/core/**
+                - packages/contracts/**
+                - package.json
+                - pnpm-lock.yaml
+                - pnpm-workspace.yaml
+            envVars:
+              - key: DATABASE_URL
+                fromDatabase:
+                  name: jamot-db
+                  property: connectionString
+              - key: REDIS_URL
+                fromService:
+                  type: keyvalue
+                  name: jamot-redis
+                  property: connectionString
+
+          - type: keyvalue
+            name: jamot-redis
+            plan: starter
+            maxmemoryPolicy: noeviction
+            ipAllowList:
+              - source: 0.0.0.0/0
+                description: everywhere

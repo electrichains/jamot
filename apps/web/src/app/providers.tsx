@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { CopilotKit } from "@copilotkit/react-core/v2";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/components/auth/auth-context";
 import { catalog, theme } from "@/components/a2ui/a2ui-catalog";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -14,9 +15,11 @@ export function Providers({ children }: { children: ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      <CopilotKit runtimeUrl="/api/copilotkit" a2ui={{ theme, catalog }}>
-        {children}
-      </CopilotKit>
+      <AuthProvider>
+        <CopilotKit runtimeUrl="/api/copilotkit" a2ui={{ theme, catalog }}>
+          {children}
+        </CopilotKit>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

@@ -11,6 +11,8 @@ import {
   FolderKanban,
   House,
   LayoutGrid,
+  LogIn,
+  LogOut,
   MessageSquare,
   Plus,
   Search,
@@ -23,6 +25,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/auth/auth-context";
 import { SPACES, useAppShell } from "./app-shell-context";
 
 const NAV_ITEMS: { label: string; icon: LucideIcon; href?: string; active?: boolean }[] = [
@@ -92,6 +95,7 @@ export function LeftSidebar() {
 
 function SpaceSwitcher() {
   const { space, setSpace } = useAppShell();
+  const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
   return (
@@ -101,14 +105,14 @@ function SpaceSwitcher() {
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-muted"
       >
-        <Avatar name="Andrea" size="sm" />
+        <Avatar name={user?.actor.displayName ?? "Andrea"} size="sm" />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center gap-1.5 text-sm font-medium">
             <span
               className="size-1.5 shrink-0 rounded-full"
               style={{ backgroundColor: space.accent }}
             />
-            Andrea
+            {user?.actor.displayName ?? "Andrea"}
           </span>
           <span className="truncate text-xs text-muted-foreground">{space.name}</span>
         </span>
@@ -161,6 +165,25 @@ function SpaceSwitcher() {
         <Settings className="size-4" />
         Settings
       </Link>
+
+      {user ? (
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <LogOut className="size-4" />
+          Sign out
+        </button>
+      ) : (
+        <Link
+          href="/login"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <LogIn className="size-4" />
+          Sign in
+        </Link>
+      )}
     </div>
   );
 }
