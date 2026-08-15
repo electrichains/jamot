@@ -26,6 +26,12 @@ import vaultRoutes from "./routes/vault.js";
 import assignmentsRoutes from "./routes/assignments.js";
 import agentsRoutes from "./routes/agents.js";
 import channelsRoutes from "./routes/channels.js";
+import memoryRoutes from "./routes/memory.js";
+import knowledgeRoutes from "./routes/knowledge.js";
+import type { MemoryProvider } from "@jamot/core/memory";
+import type { KnowledgeStore } from "@jamot/core/knowledge";
+import { createInMemoryMemoryProvider } from "@jamot/core/memory";
+import { createInMemoryKnowledgeStore } from "@jamot/core/knowledge";
 
 export interface SecretStoreLike {
   encrypt(plaintext: string): string;
@@ -38,6 +44,8 @@ export interface BuildAppOptions {
   logger?: boolean;
   secretStore?: SecretStoreLike;
   llm?: LLMProvider;
+  memoryProvider?: MemoryProvider;
+  knowledgeStore?: KnowledgeStore;
 }
 
 const deriveKey = (secret: string): string =>
@@ -49,6 +57,8 @@ export async function buildApp(opts: BuildAppOptions) {
   const secretStore = opts.secretStore ?? createSecretStore({ encryptionKey: deriveKey(opts.secret) });
   const credentialResolver = createCredentialResolver({ repo: opts.repository, store: secretStore });
   const llm = opts.llm ?? createLLMProvider("mock");
+  const memoryProvider = opts.memoryProvider ?? createInMemoryMemoryProvider();
+  const knowledgeStore = opts.knowledgeStore ?? createInMemoryKnowledgeStore();
 
   app.decorateRequest("actor", null);
   app.decorateRequest("person", null);
@@ -89,6 +99,8 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(assignmentsRoutes, { prefix: "/api", repository: opts.repository, llm });
   await app.register(agentsRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(channelsRoutes, { prefix: "/api", repository: opts.repository });
+  await app.register(memoryRoutes, { prefix: "/api", memoryProvider });
+  await app.register(knowledgeRoutes, { prefix: "/api", knowledgeStore });
 
   return app;
 }

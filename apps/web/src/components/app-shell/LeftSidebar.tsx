@@ -28,8 +28,8 @@ const NAV_ITEMS: { label: string; icon: LucideIcon; href?: string; active?: bool
   { label: "Home", icon: House, href: "/", active: true },
   { label: "Chats", icon: MessageSquare, href: "/" },
   { label: "Projects", icon: FolderKanban },
-  { label: "People", icon: Users },
-  { label: "Agents", icon: Bot },
+  { label: "People", icon: Users, href: "/people" },
+  { label: "Agents", icon: Bot, href: "/agents" },
   { label: "Organization", icon: Building2, href: "/organization" },
 ];
 

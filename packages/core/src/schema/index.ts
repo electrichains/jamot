@@ -483,16 +483,52 @@ export const messages = pgTable("messages", {
   ...timestamps(),
 });
 
-export const memories = pgTable("memories", {
+export const memories = pgTable(
+  "memories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    scope: text("scope").notNull(),
+    ownerId: uuid("owner_id").notNull(),
+    content: jsonb("content").$type<Record<string, unknown>>().notNull(),
+    sourceEventId: uuid("source_event_id"),
+    provenance: jsonb("provenance").$type<Provenance>().notNull(),
+    ...timestamps(),
+  },
+  (table) => [
+    index("memories_scope_owner_id_idx").on(table.scope, table.ownerId),
+  ],
+);
+
+export const knowledgeEntities = pgTable("knowledge_entities", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id"),
-  actorId: uuid("actor_id"),
-  content: jsonb("content")
+  type: text("type").notNull(),
+  name: text("name").notNull(),
+  properties: jsonb("properties")
     .$type<Record<string, unknown>>()
     .notNull()
     .default(sql`'{}'::jsonb`),
   ...timestamps(),
 });
+
+export const knowledgeEdges = pgTable(
+  "knowledge_edges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceId: uuid("source_id").notNull(),
+    targetId: uuid("target_id").notNull(),
+    relation: text("relation").notNull(),
+    validFrom: timestamp("valid_from", { mode: "string", withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    validTo: timestamp("valid_to", { mode: "string", withTimezone: true }),
+    provenance: jsonb("provenance").$type<Provenance>().notNull(),
+    ...timestamps(),
+  },
+  (table) => [
+    index("knowledge_edges_source_id_idx").on(table.sourceId),
+    index("knowledge_edges_target_id_idx").on(table.targetId),
+  ],
+);
 
 export const reputationEntries = pgTable("reputation_entries", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -590,6 +626,8 @@ export const schema = {
   conversations,
   messages,
   memories,
+  knowledgeEntities,
+  knowledgeEdges,
   reputationEntries,
   treasuryAccounts,
   treasuryLedger,
