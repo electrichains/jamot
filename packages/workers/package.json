@@ -12,7 +12,6 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"no lint configured\"",
-    "test": "vitest run",
     "dev:scheduler": "tsx watch src/scheduler.ts",
     "dev:channel": "tsx watch src/channel.ts",
     "dev:execution": "tsx watch src/execution.ts",
