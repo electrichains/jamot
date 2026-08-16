@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Paperclip, User, X } from "lucide-react";
+import { Paperclip, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { AssigneeSelect } from "./AssigneeSelect";
 import { addAttachment, deleteAttachment, listAttachments } from "./tasks-api";
 import type { Actor, KanbanTask, TaskDraft } from "./tasks-data";
 
@@ -56,12 +56,6 @@ export function TaskDetail({ task, actors, onSave, onClose }: TaskDetailProps) {
       cancelled = true;
     };
   }, [task]);
-
-  const toggleAssignee = (id: string) => {
-    setAssigneeIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
 
   const onFile = (file: File | undefined) => {
     if (!file) return;
@@ -174,34 +168,11 @@ export function TaskDetail({ task, actors, onSave, onClose }: TaskDetailProps) {
             <label className="mb-1 block text-xs font-medium text-muted-foreground">
               Assign to
             </label>
-            <div className="flex flex-col gap-1">
-              {actors.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No people or agents yet.
-                </p>
-              ) : null}
-              {actors.map((a) => {
-                const Icon = a.type === "agent" ? Bot : User;
-                const active = assigneeIds.includes(a.id);
-                return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => toggleAssignee(a.id)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors",
-                      active
-                        ? "border-space-accent bg-space-accent/10 text-foreground"
-                        : "border-border hover:bg-muted",
-                    )}
-                  >
-                    <Icon className="size-4 text-muted-foreground" />
-                    <span className="flex-1 truncate">{a.displayName}</span>
-                    <span className="text-xs text-muted-foreground">{a.type}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <AssigneeSelect
+              actors={actors}
+              value={assigneeIds}
+              onChange={setAssigneeIds}
+            />
           </div>
 
           <div>
