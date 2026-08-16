@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,12 +132,6 @@ export function LoginScreen() {
             ? "New here? Create an account"
             : "Already have an account? Sign in"}
         </button>
-
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          <Link href="/" className="hover:text-foreground">
-            Continue without signing in
-          </Link>
-        </p>
       </div>
     </div>
   );
