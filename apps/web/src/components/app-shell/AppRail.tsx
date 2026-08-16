@@ -33,7 +33,7 @@ const NAV_ITEMS: RailItem[] = [
 ];
 
 const APP_ITEMS: RailItem[] = [
-  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageCircle, href: "/whatsapp" },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "inventory", label: "Inventory", icon: Package },
   { id: "crm", label: "CRM", icon: Briefcase },

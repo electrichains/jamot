@@ -2,16 +2,17 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, Paperclip, User, Bot } from "lucide-react";
+import { Bot, User } from "lucide-react";
 
-import { ASSIGNEES, type KanbanTask } from "./tasks-data";
+import type { Actor, KanbanTask } from "./tasks-data";
 
 export interface TaskCardProps {
   task: KanbanTask;
+  actors: Record<string, Actor>;
   onOpen: (task: KanbanTask) => void;
 }
 
-export function TaskCard({ task, onOpen }: TaskCardProps) {
+export function TaskCard({ task, actors, onOpen }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id });
 
@@ -46,27 +47,19 @@ export function TaskCard({ task, onOpen }: TaskCardProps) {
       <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
         {dueLabel ? (
           <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
-            <CalendarDays className="size-3" />
             {dueLabel}
           </span>
         ) : null}
 
-        {task.attachments.length > 0 ? (
-          <span className="inline-flex items-center gap-1">
-            <Paperclip className="size-3" />
-            {task.attachments.length}
-          </span>
-        ) : null}
-
         <span className="ml-auto flex -space-x-1">
-          {task.assigneeIds.slice(0, 3).map((id) => {
-            const a = ASSIGNEES.find((x) => x.id === id);
+          {task.assigneeActorIds.slice(0, 3).map((id) => {
+            const a = actors[id];
             if (!a) return null;
-            const Icon = a.kind === "agent" ? Bot : User;
+            const Icon = a.type === "agent" ? Bot : User;
             return (
               <span
                 key={id}
-                title={a.name}
+                title={a.displayName}
                 className="flex size-5 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground"
               >
                 <Icon className="size-3" />

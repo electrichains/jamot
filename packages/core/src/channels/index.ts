@@ -11,3 +11,21 @@ export type {
   ChannelService,
   ChannelServiceDeps,
 } from "./service.js";
+export { createWhatsAppAdapter } from "./whatsapp.js";
+export type {
+  WaChat,
+  WaConnection,
+  WaContact,
+  WaMediaInput,
+  WaMessage,
+  WaState,
+  WhatsAppAdapter,
+  WhatsAppAdapterOpts,
+} from "./whatsapp.js";
+export { createMatrixAdapter } from "./matrix.js";
+export type { MatrixAdapterOpts } from "./matrix.js";
+export { createWhatsAppControlServer } from "./wa-server.js";
+export type {
+  WhatsAppControlServer,
+  WhatsAppControlServerOpts,
+} from "./wa-server.js";

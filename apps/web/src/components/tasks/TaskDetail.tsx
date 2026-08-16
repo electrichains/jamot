@@ -1,26 +1,61 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bot, Paperclip, User, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ASSIGNEES, type Attachment, type KanbanTask, type TaskDraft } from "./tasks-data";
+import { addAttachment, deleteAttachment, listAttachments } from "./tasks-api";
+import type { Actor, KanbanTask, TaskDraft } from "./tasks-data";
+
+interface LocalAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  data: string;
+  persisted: boolean;
+}
 
 export interface TaskDetailProps {
   task: KanbanTask | null;
-  onSave: (draft: TaskDraft) => void;
+  actors: Actor[];
+  onSave: (draft: TaskDraft) => Promise<KanbanTask>;
   onClose: () => void;
 }
 
-export function TaskDetail({ task, onSave, onClose }: TaskDetailProps) {
+export function TaskDetail({ task, actors, onSave, onClose }: TaskDetailProps) {
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [dueDate, setDueDate] = useState(task?.dueDate ?? "");
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(task?.assigneeIds ?? []);
-  const [attachments, setAttachments] = useState<Attachment[]>(task?.attachments ?? []);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(task?.assigneeActorIds ?? []);
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (task) {
+      void listAttachments(task.id).then((items) => {
+        if (cancelled) return;
+        setAttachments(
+          items.map((a) => ({
+            id: a.id,
+            name: a.name,
+            mimeType: a.mimeType,
+            size: a.size,
+            data: a.data,
+            persisted: true,
+          })),
+        );
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [task]);
 
   const toggleAssignee = (id: string) => {
     setAssigneeIds((prev) =>
@@ -35,30 +70,55 @@ export function TaskDetail({ task, onSave, onClose }: TaskDetailProps) {
       setAttachments((prev) => [
         ...prev,
         {
-          id: `a${Date.now()}`,
+          id: `tmp-${Date.now()}`,
           name: file.name,
           mimeType: file.type,
           size: file.size,
           data: String(reader.result ?? ""),
+          persisted: false,
         },
       ]);
     };
     reader.readAsDataURL(file);
   };
 
-  const removeAttachment = (id: string) => {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  const removeAttachment = (a: LocalAttachment) => {
+    if (a.persisted) {
+      setRemovedIds((prev) => [...prev, a.id]);
+    }
+    setAttachments((prev) => prev.filter((x) => x.id !== a.id));
   };
 
-  const save = () => {
-    if (!title.trim()) return;
-    onSave({
-      title: title.trim(),
-      description: description.trim(),
-      dueDate: dueDate || null,
-      assigneeIds,
-      attachments,
-    });
+  const save = async () => {
+    if (!title.trim() || saving) return;
+    setSaving(true);
+    try {
+      const created = await onSave({
+        title: title.trim(),
+        description: description.trim(),
+        dueDate: dueDate || null,
+        assigneeActorIds: assigneeIds,
+      });
+
+      for (const a of attachments) {
+        if (!a.persisted) {
+          await addAttachment(created.id, {
+            name: a.name,
+            mimeType: a.mimeType,
+            size: a.size,
+            data: a.data,
+          });
+        }
+      }
+      for (const id of removedIds) {
+        await deleteAttachment(created.id, id);
+      }
+      onClose();
+    } catch {
+      // keep the modal open on error
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -115,8 +175,13 @@ export function TaskDetail({ task, onSave, onClose }: TaskDetailProps) {
               Assign to
             </label>
             <div className="flex flex-col gap-1">
-              {ASSIGNEES.map((a) => {
-                const Icon = a.kind === "agent" ? Bot : User;
+              {actors.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No people or agents yet.
+                </p>
+              ) : null}
+              {actors.map((a) => {
+                const Icon = a.type === "agent" ? Bot : User;
                 const active = assigneeIds.includes(a.id);
                 return (
                   <button
@@ -131,8 +196,8 @@ export function TaskDetail({ task, onSave, onClose }: TaskDetailProps) {
                     )}
                   >
                     <Icon className="size-4 text-muted-foreground" />
-                    <span className="flex-1">{a.name}</span>
-                    <span className="text-xs text-muted-foreground">{a.kind}</span>
+                    <span className="flex-1 truncate">{a.displayName}</span>
+                    <span className="text-xs text-muted-foreground">{a.type}</span>
                   </button>
                 );
               })}
@@ -166,7 +231,7 @@ export function TaskDetail({ task, onSave, onClose }: TaskDetailProps) {
                   <button
                     type="button"
                     aria-label="Remove attachment"
-                    onClick={() => removeAttachment(a.id)}
+                    onClick={() => removeAttachment(a)}
                     className="rounded p-0.5 text-muted-foreground hover:text-destructive"
                   >
                     <X className="size-3.5" />
@@ -195,8 +260,8 @@ export function TaskDetail({ task, onSave, onClose }: TaskDetailProps) {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={!title.trim()}>
-            {task ? "Save" : "Create"}
+          <Button onClick={() => void save()} disabled={!title.trim() || saving}>
+            {saving ? "Saving…" : task ? "Save" : "Create"}
           </Button>
         </div>
       </div>

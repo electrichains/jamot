@@ -12,7 +12,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export interface AuthUser {
   actor: { id: string; type: string; displayName: string };
-  person: { id: string; email: string | null } | null;
+  person: { id: string; email: string | null; membershipSpaceIds: string[] } | null;
 }
 
 interface AuthState {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -8,7 +8,6 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type DragOverEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -22,19 +21,30 @@ import { Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/components/auth/auth-context";
 import { TaskCard } from "./TaskCard";
 import { TaskDetail } from "./TaskDetail";
 import {
-  MOCK_LISTS,
-  MOCK_TASKS,
-  type KanbanList,
-  type KanbanTask,
-  type TaskDraft,
-} from "./tasks-data";
+  createTask,
+  createTaskList,
+  deleteTaskList,
+  listActors,
+  listTaskLists,
+  listTasks,
+  renameTaskList,
+  reorderTaskList,
+  updateTask,
+} from "./tasks-api";
+import type { Actor, KanbanList, KanbanTask, TaskDraft } from "./tasks-data";
 
 export function TasksBoard() {
-  const [lists, setLists] = useState<KanbanList[]>(MOCK_LISTS);
-  const [tasks, setTasks] = useState<KanbanTask[]>(MOCK_TASKS);
+  const { user } = useAuth();
+  const spaceId = user?.person?.membershipSpaceIds[0] ?? null;
+
+  const [actors, setActors] = useState<Actor[]>([]);
+  const [lists, setLists] = useState<KanbanList[]>([]);
+  const [tasks, setTasks] = useState<KanbanTask[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<KanbanTask | null>(null);
   const [creatingInList, setCreatingInList] = useState<string | null>(null);
   const [renamingList, setRenamingList] = useState<string | null>(null);
@@ -44,29 +54,42 @@ export function TasksBoard() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  const tasksFor = (listId: string) =>
-    tasks.filter((t) => t.listId === listId);
+  const actorsById = useMemo(() => {
+    const map: Record<string, Actor> = {};
+    for (const a of actors) map[a.id] = a;
+    return map;
+  }, [actors]);
+
+  useEffect(() => {
+    if (!spaceId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [actorList, listData, taskData] = await Promise.all([
+          listActors(),
+          listTaskLists(spaceId),
+          listTasks(spaceId),
+        ]);
+        if (cancelled) return;
+        setActors(actorList);
+        setLists(listData);
+        setTasks(taskData);
+      } catch {
+        // leave empty on failure
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [spaceId]);
+
+  const tasksFor = (listId: string) => tasks.filter((t) => t.listId === listId);
 
   const listIdOf = (id: string): string | undefined => {
     if (lists.some((l) => l.id === id)) return id;
-    return tasks.find((t) => t.id === id)?.listId;
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-    const activeId = String(active.id);
-    const overId = String(over.id);
-    if (activeId === overId) return;
-
-    const activeTask = tasks.find((t) => t.id === activeId);
-    if (!activeTask) return;
-    const targetList = listIdOf(overId);
-    if (!targetList || targetList === activeTask.listId) return;
-
-    setTasks((prev) =>
-      prev.map((t) => (t.id === activeId ? { ...t, listId: targetList } : t)),
-    );
+    return tasks.find((t) => t.id === id)?.listId ?? undefined;
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -76,81 +99,107 @@ export function TasksBoard() {
     const overId = String(over.id);
     if (activeId === overId) return;
 
-    // Reorder lists
     if (lists.some((l) => l.id === activeId)) {
-      setLists((prev) => {
-        const from = prev.findIndex((l) => l.id === activeId);
-        const to = prev.findIndex((l) => l.id === overId);
-        if (from === -1 || to === -1) return prev;
-        return arrayMove(prev, from, to);
-      });
+      const from = lists.findIndex((l) => l.id === activeId);
+      const to = lists.findIndex((l) => l.id === overId);
+      if (from === -1 || to === -1) return;
+      setLists((prev) => arrayMove(prev, from, to));
+      void reorderTaskList(activeId, to).catch(() => {});
       return;
     }
 
-    // Reorder tasks within a list
     const activeTask = tasks.find((t) => t.id === activeId);
-    const overTask = tasks.find((t) => t.id === overId);
-    if (activeTask && overTask && activeTask.listId === overTask.listId) {
-      setTasks((prev) => {
-        const inList = prev.filter((t) => t.listId === activeTask.listId);
-        const others = prev.filter((t) => t.listId !== activeTask.listId);
-        const from = inList.findIndex((t) => t.id === activeId);
-        const to = inList.findIndex((t) => t.id === overId);
-        if (from === -1 || to === -1) return prev;
-        return [...others, ...arrayMove(inList, from, to)];
-      });
+    if (!activeTask) return;
+    const targetList = listIdOf(overId);
+    if (!targetList) return;
+
+    const listTasks = tasks.filter((t) => t.listId === targetList);
+    const others = tasks.filter((t) => t.listId !== targetList);
+
+    let reordered: KanbanTask[];
+    if (activeTask.listId === targetList) {
+      const from = listTasks.findIndex((t) => t.id === activeId);
+      const to = listTasks.findIndex((t) => t.id === overId);
+      if (from === -1 || to === -1) return;
+      reordered = arrayMove(listTasks, from, to);
+    } else {
+      const overIndex = listTasks.findIndex((t) => t.id === overId);
+      const moved = { ...activeTask, listId: targetList };
+      reordered =
+        overIndex === -1
+          ? [...listTasks, moved]
+          : [...listTasks.slice(0, overIndex), moved, ...listTasks.slice(overIndex)];
+    }
+
+    setTasks([...others, ...reordered]);
+    const newIndex = reordered.findIndex((t) => t.id === activeId);
+    void updateTask(activeId, {
+      listId: targetList,
+      position: newIndex,
+    }).catch(() => {});
+  };
+
+  const addList = async () => {
+    if (!spaceId) return;
+    const name = nameDraft.trim();
+    if (!name) return;
+    try {
+      const list = await createTaskList(spaceId, name, lists.length);
+      setLists((prev) => [...prev, list]);
+      setNameDraft("");
+    } catch {
+      // ignore
     }
   };
 
-  const addList = () => {
-    const name = nameDraft.trim();
-    if (!name) return;
-    setLists((prev) => [...prev, { id: `l${Date.now()}`, name }]);
-    setNameDraft("");
-  };
-
-  const renameList = (id: string, name: string) => {
+  const commitRenameList = (id: string, name: string) => {
     const next = name.trim();
-    if (next) setLists((prev) => prev.map((l) => (l.id === id ? { ...l, name: next } : l)));
+    if (next) {
+      setLists((prev) => prev.map((l) => (l.id === id ? { ...l, name: next } : l)));
+      void renameTaskList(id, next).catch(() => {});
+    }
     setRenamingList(null);
   };
 
-  const deleteList = (id: string) => {
+  const removeList = (id: string) => {
     setLists((prev) => prev.filter((l) => l.id !== id));
     setTasks((prev) => prev.filter((t) => t.listId !== id));
+    void deleteTaskList(id).catch(() => {});
   };
 
-  const createTask = (listId: string, draft: TaskDraft) => {
-    setTasks((prev) => [
-      ...prev,
-      {
-        id: `t${Date.now()}`,
-        listId,
-        title: draft.title,
-        description: draft.description,
-        dueDate: draft.dueDate,
-        assigneeIds: draft.assigneeIds,
-        attachments: draft.attachments,
-      },
-    ]);
+  const onCreateTask = async (listId: string, draft: TaskDraft): Promise<KanbanTask> => {
+    if (!spaceId) throw new Error("no space");
+    const task = await createTask({
+      spaceId,
+      listId,
+      title: draft.title,
+      description: draft.description,
+      dueDate: draft.dueDate,
+      assigneeActorIds: draft.assigneeActorIds,
+      position: tasksFor(listId).length,
+    });
+    setTasks((prev) => [...prev, task]);
+    return task;
   };
 
-  const updateTask = (id: string, draft: TaskDraft) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id
-          ? {
-              ...t,
-              title: draft.title,
-              description: draft.description,
-              dueDate: draft.dueDate,
-              assigneeIds: draft.assigneeIds,
-              attachments: draft.attachments,
-            }
-          : t,
-      ),
+  const onUpdateTask = async (id: string, draft: TaskDraft): Promise<KanbanTask> => {
+    const task = await updateTask(id, {
+      title: draft.title,
+      description: draft.description,
+      dueDate: draft.dueDate,
+      assigneeActorIds: draft.assigneeActorIds,
+    });
+    setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
+    return task;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        Loading…
+      </div>
     );
-  };
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -162,7 +211,6 @@ export function TasksBoard() {
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
-          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
           <SortableContext
@@ -175,6 +223,7 @@ export function TasksBoard() {
                   key={list.id}
                   list={list}
                   tasks={tasksFor(list.id)}
+                  actors={actorsById}
                   renaming={renamingList === list.id}
                   nameDraft={nameDraft}
                   onNameDraft={setNameDraft}
@@ -182,8 +231,8 @@ export function TasksBoard() {
                     setRenamingList(list.id);
                     setNameDraft(list.name);
                   }}
-                  onCommitRename={(name) => renameList(list.id, name)}
-                  onDelete={() => deleteList(list.id)}
+                  onCommitRename={(name) => commitRenameList(list.id, name)}
+                  onDelete={() => removeList(list.id)}
                   onAddCard={() => setCreatingInList(list.id)}
                   onOpenTask={setEditingTask}
                 />
@@ -195,14 +244,14 @@ export function TasksBoard() {
                     placeholder="Add list…"
                     value={nameDraft}
                     onChange={(e) => setNameDraft(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addList()}
+                    onKeyDown={(e) => e.key === "Enter" && void addList()}
                   />
                   <Button
                     variant="ghost"
                     size="icon"
                     className="size-8 shrink-0"
                     aria-label="Add list"
-                    onClick={addList}
+                    onClick={() => void addList()}
                   >
                     <Plus className="size-4" />
                   </Button>
@@ -216,10 +265,8 @@ export function TasksBoard() {
       {editingTask ? (
         <TaskDetail
           task={editingTask}
-          onSave={(draft) => {
-            updateTask(editingTask.id, draft);
-            setEditingTask(null);
-          }}
+          actors={actors}
+          onSave={(draft) => onUpdateTask(editingTask.id, draft)}
           onClose={() => setEditingTask(null)}
         />
       ) : null}
@@ -227,10 +274,8 @@ export function TasksBoard() {
       {creatingInList ? (
         <TaskDetail
           task={null}
-          onSave={(draft) => {
-            createTask(creatingInList, draft);
-            setCreatingInList(null);
-          }}
+          actors={actors}
+          onSave={(draft) => onCreateTask(creatingInList, draft)}
           onClose={() => setCreatingInList(null)}
         />
       ) : null}
@@ -241,6 +286,7 @@ export function TasksBoard() {
 interface ListColumnProps {
   list: KanbanList;
   tasks: KanbanTask[];
+  actors: Record<string, Actor>;
   renaming: boolean;
   nameDraft: string;
   onNameDraft: (v: string) => void;
@@ -254,6 +300,7 @@ interface ListColumnProps {
 function ListColumn({
   list,
   tasks,
+  actors,
   renaming,
   nameDraft,
   onNameDraft,
@@ -320,7 +367,7 @@ function ListColumn({
       >
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
+            <TaskCard key={task.id} task={task} actors={actors} onOpen={onOpenTask} />
           ))}
         </div>
       </SortableContext>

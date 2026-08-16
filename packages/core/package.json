@@ -35,7 +35,9 @@
   },
   "dependencies": {
     "@jamot/contracts": "workspace:*",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "drizzle-orm": "^0.38.0",
+    "matrix-js-sdk": "^42.1.0",
     "pg": "^8.13.0",
     "zod": "^3.24.1",
     "tsx": "^4.19.2"
