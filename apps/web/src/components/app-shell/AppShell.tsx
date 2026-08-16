@@ -22,6 +22,7 @@ import {
 import { LeftSidebar } from "./LeftSidebar";
 import { MainWorkspace } from "./MainWorkspace";
 import { ContextDock } from "./ContextDock";
+import { AppRail } from "./AppRail";
 import { useBreakpoint } from "./use-breakpoint";
 
 const LAYOUT_KEY = "jamot:shell:layout";
@@ -137,6 +138,16 @@ function DesktopShell() {
 
       <Panel id="main" minSize={280} className="h-full">
         <MainWorkspace onToggleDock={toggleDock} dockOpen={!dockCollapsed} />
+      </Panel>
+
+      <Panel
+        id="rail"
+        minSize={48}
+        maxSize={48}
+        defaultSize={48}
+        className="h-full"
+      >
+        <AppRail />
       </Panel>
 
       <Separator

@@ -4,18 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Bot,
-  Building2,
   Check,
   ChevronDown,
   FolderKanban,
-  LayoutGrid,
   LogIn,
   LogOut,
   Plus,
   Search,
   Settings,
-  Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -30,10 +26,6 @@ import { SPACES, useAppShell } from "./app-shell-context";
 
 const NAV_ITEMS: { label: string; icon: LucideIcon; href?: string; active?: boolean }[] = [
   { label: "Projects", icon: FolderKanban },
-  { label: "People", icon: Users, href: "/people" },
-  { label: "Agents", icon: Bot, href: "/agents" },
-  { label: "Organization", icon: Building2, href: "/organization" },
-  { label: "Canvas", icon: LayoutGrid, href: "/canvas" },
 ];
 
 export function LeftSidebar() {
