@@ -64,6 +64,7 @@ function DesktopShell() {
   const leftRef = usePanelRef();
   const rightRef = usePanelRef();
   const restoredRef = useRef(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [dockCollapsed, setDockCollapsed] = useState(false);
 
   useEffect(() => {
@@ -101,6 +102,7 @@ function DesktopShell() {
 
   const handleLeftResize = (size: PanelSize) => {
     setLeftSize(size.inPixels);
+    setLeftCollapsed(size.inPixels < 1);
     persistSize("left", size.inPixels);
   };
 
@@ -108,6 +110,13 @@ function DesktopShell() {
     setRightSize(size.inPixels);
     setDockCollapsed(size.inPixels < 1);
     persistSize("right", size.inPixels);
+  };
+
+  const toggleLeft = () => {
+    const panel = leftRef.current;
+    if (!panel) return;
+    if (panel.isCollapsed()) panel.expand();
+    else panel.collapse();
   };
 
   const toggleDock = () => {
@@ -122,8 +131,10 @@ function DesktopShell() {
       <Panel
         id="left"
         defaultSize={DEFAULT_LEFT_SIZE}
-        minSize={180}
+        minSize={0}
         maxSize={360}
+        collapsible
+        collapsedSize={0}
         panelRef={leftRef}
         onResize={handleLeftResize}
         className="h-full"
@@ -137,7 +148,12 @@ function DesktopShell() {
       />
 
       <Panel id="main" minSize={280} className="h-full">
-        <MainWorkspace onToggleDock={toggleDock} dockOpen={!dockCollapsed} />
+        <MainWorkspace
+          onToggleLeft={toggleLeft}
+          leftOpen={!leftCollapsed}
+          onToggleDock={toggleDock}
+          dockOpen={!dockCollapsed}
+        />
       </Panel>
 
       <Panel
