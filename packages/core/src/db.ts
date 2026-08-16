@@ -3,7 +3,11 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { schema } from "./schema/index.js";
 
 export function createDb(databaseUrl: string) {
-  const pool = new Pool({ connectionString: databaseUrl });
+  const isLocal = /(localhost|127\.0\.0\.1|::1)/.test(databaseUrl);
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    ssl: isLocal ? undefined : { rejectUnauthorized: false },
+  });
   const db = drizzle(pool, { schema });
   return { pool, db };
 }
