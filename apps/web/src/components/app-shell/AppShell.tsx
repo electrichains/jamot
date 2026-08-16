@@ -21,7 +21,7 @@ import {
 } from "./app-shell-context";
 import { LeftSidebar } from "./LeftSidebar";
 import { MainWorkspace } from "./MainWorkspace";
-import { ContextDock } from "./ContextDock";
+import { AppDock } from "./AppDock";
 import { AppRail } from "./AppRail";
 import { useBreakpoint } from "./use-breakpoint";
 
@@ -60,12 +60,18 @@ function AppShellInner() {
 }
 
 function DesktopShell() {
-  const { setLeftSize, setRightSize } = useAppShell();
+  const { setLeftSize, setRightSize, activeApp } = useAppShell();
   const leftRef = usePanelRef();
   const rightRef = usePanelRef();
   const restoredRef = useRef(false);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [dockCollapsed, setDockCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (activeApp && rightRef.current?.isCollapsed()) {
+      rightRef.current?.expand();
+    }
+  }, [activeApp, rightRef]);
 
   useEffect(() => {
     try {
@@ -182,7 +188,7 @@ function DesktopShell() {
         onResize={handleRightResize}
         className="h-full"
       >
-        <ContextDock onCollapse={() => rightRef.current?.collapse()} />
+        <AppDock onCollapse={() => rightRef.current?.collapse()} />
       </Panel>
     </Group>
   );
@@ -218,7 +224,7 @@ function TabletShell() {
                 exit={{ x: "100%" }}
                 transition={{ type: "tween", duration: 0.2 }}
               >
-                <ContextDock onCollapse={() => setDockOpen(false)} />
+                <AppDock onCollapse={() => setDockOpen(false)} />
               </motion.div>
             </>
           ) : null}

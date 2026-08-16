@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Paperclip, Search, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Paperclip, Search, Send } from "lucide-react";
 import QRCode from "qrcode";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   getMessages,
   getState,
@@ -100,7 +101,7 @@ function QrPanel({ qr, connection }: { qr?: string; connection: WaConnection }) 
   );
 }
 
-export function WhatsAppApp() {
+export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   const [state, setState] = useState<WaState | null>(null);
   const [chats, setChats] = useState<WaChat[]>([]);
   const [contacts, setContacts] = useState<WaContact[]>([]);
@@ -230,7 +231,13 @@ export function WhatsAppApp() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-72 shrink-0 flex-col border-r border-border">
+        {!compact || (connected && !selected) ? (
+          <aside
+            className={cn(
+              "flex flex-col",
+              compact ? "min-h-0 flex-1" : "w-72 shrink-0 border-r border-border",
+            )}
+          >
           <div className="shrink-0 border-b border-border p-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
@@ -335,9 +342,11 @@ export function WhatsAppApp() {
               </div>
             )}
           </div>
-        </aside>
+          </aside>
+        ) : null}
 
-        <main className="flex min-w-0 flex-1 flex-col">
+        {!compact || !connected || selected ? (
+          <main className="flex min-w-0 flex-1 flex-col">
           {!connected ? (
             <QrPanel
               key={state?.qr ?? "none"}
@@ -351,9 +360,26 @@ export function WhatsAppApp() {
           ) : (
             <>
               <div className="shrink-0 border-b border-border px-4 py-3">
-                <p className="truncate text-sm font-semibold">
-                  {nameFor(selected)}
-                </p>
+                {compact ? (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="-ml-2 size-7"
+                      aria-label="Back to chats"
+                      onClick={() => setSelected(null)}
+                    >
+                      <ArrowLeft className="size-4" />
+                    </Button>
+                    <p className="truncate text-sm font-semibold">
+                      {nameFor(selected)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="truncate text-sm font-semibold">
+                    {nameFor(selected)}
+                  </p>
+                )}
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-4">
                 {messages.map((msg) => (
@@ -418,7 +444,8 @@ export function WhatsAppApp() {
               </div>
             </>
           )}
-        </main>
+          </main>
+        ) : null}
       </div>
     </div>
   );

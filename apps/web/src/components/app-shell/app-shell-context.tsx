@@ -36,13 +36,25 @@ export const SPACES: Space[] = [
   },
 ];
 
+export type AppId = "whatsapp" | "calendar" | "inventory" | "crm" | "finance";
+
+export const APP_TITLES: Record<AppId, string> = {
+  whatsapp: "WhatsApp",
+  calendar: "Calendar",
+  inventory: "Inventory",
+  crm: "CRM",
+  finance: "Finance",
+};
+
 interface AppShellState {
   leftSize: number;
   rightSize: number;
   space: Space;
+  activeApp: AppId | null;
   setLeftSize: (size: number) => void;
   setRightSize: (size: number) => void;
   setSpace: (id: string) => void;
+  setActiveApp: (id: AppId | null) => void;
 }
 
 const AppShellContext = createContext<AppShellState | null>(null);
@@ -54,6 +66,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const [leftSize, setLeftSize] = useState(DEFAULT_LEFT_SIZE);
   const [rightSize, setRightSize] = useState(DEFAULT_RIGHT_SIZE);
   const [spaceId, setSpaceId] = useState("personal");
+  const [activeApp, setActiveApp] = useState<AppId | null>(null);
 
   const value = useMemo<AppShellState>(() => {
     const space = SPACES.find((candidate) => candidate.id === spaceId) ?? SPACES[0];
@@ -61,11 +74,13 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       leftSize,
       rightSize,
       space,
+      activeApp,
       setLeftSize,
       setRightSize,
       setSpace: setSpaceId,
+      setActiveApp,
     };
-  }, [leftSize, rightSize, spaceId]);
+  }, [leftSize, rightSize, spaceId, activeApp]);
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;
 }
