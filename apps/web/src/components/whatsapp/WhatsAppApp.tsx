@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Loader2, Paperclip, Search, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Paperclip, RotateCcw, Search, Send } from "lucide-react";
 import QRCode from "qrcode";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   listChats,
   listContacts,
   markRead,
+  resetPairing,
   searchMessages,
   sendMedia,
   sendText,
@@ -56,7 +57,15 @@ function mediaTypeFor(mime: string): "image" | "video" | "audio" | null {
   return null;
 }
 
-function QrPanel({ qr, connection }: { qr?: string; connection: WaConnection }) {
+function QrPanel({
+  qr,
+  connection,
+  onReset,
+}: {
+  qr?: string;
+  connection: WaConnection;
+  onReset: () => void;
+}) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -79,10 +88,16 @@ function QrPanel({ qr, connection }: { qr?: string; connection: WaConnection }) 
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
       <h3 className="font-display text-base font-semibold">Pair WhatsApp</h3>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Scan the code with WhatsApp on your phone, under Settings → Linked
-        devices, to connect this workspace.
+        {connection === "close"
+          ? "The previous session ended. Reset pairing to link a new device."
+          : "Scan the code with WhatsApp on your phone, under Settings → Linked devices, to connect this workspace."}
       </p>
-      {dataUrl ? (
+      {connection === "close" ? (
+        <Button onClick={onReset}>
+          <RotateCcw className="size-4" />
+          Reset pairing
+        </Button>
+      ) : dataUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={dataUrl}
@@ -111,6 +126,7 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   const [results, setResults] = useState<WaMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [workerError, setWorkerError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const connected = state?.connection === "open";
@@ -126,8 +142,14 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
         if (cancelled) return;
         setState(nextState);
         setChats(nextChats);
-      } catch {
-        // ignored while polling
+        setWorkerError(null);
+      } catch (err) {
+        if (cancelled) return;
+        const message =
+          err instanceof Error
+            ? err.message
+            : "WhatsApp worker unreachable";
+        setWorkerError(message);
       }
     };
     void tick();
@@ -184,6 +206,32 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     setSelected(jid);
     setQuery("");
     void markRead(jid).catch(() => {});
+  };
+
+  const handleReset = async () => {
+    setWorkerError(null);
+    try {
+      await resetPairing();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Reset failed";
+      setWorkerError(message);
+    }
+    void (async () => {
+      try {
+        const [nextState, nextChats] = await Promise.all([
+          getState(),
+          listChats(),
+        ]);
+        setState(nextState);
+        setChats(nextChats);
+        setWorkerError(null);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "WhatsApp worker unreachable";
+        setWorkerError(message);
+      }
+    })();
   };
 
   const handleSend = async () => {
@@ -347,11 +395,31 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
 
         {!compact || !connected || selected ? (
           <main className="flex min-w-0 flex-1 flex-col">
+          {workerError ? (
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+              <span className="min-w-0 truncate">
+                {workerError === "whatsapp worker unreachable" ||
+                workerError === "whatsapp worker not configured"
+                  ? "WhatsApp worker is unreachable — is the channel worker running?"
+                  : workerError}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-destructive"
+                onClick={() => void handleReset()}
+              >
+                <RotateCcw className="size-3.5" />
+                Retry
+              </Button>
+            </div>
+          ) : null}
           {!connected ? (
             <QrPanel
-              key={state?.qr ?? "none"}
+              key={state?.qr ?? state?.connection ?? "none"}
               qr={state?.qr}
               connection={state?.connection ?? "connecting"}
+              onReset={() => void handleReset()}
             />
           ) : !selected ? (
             <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">

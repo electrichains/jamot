@@ -46,7 +46,9 @@ export function startChannelWorker(): Promise<void> {
     registry.register(adapter);
     promises.push(adapter.connect());
 
-    const controlPort = Number(process.env.WA_CONTROL_PORT ?? 3001);
+    const controlPort = Number(
+      process.env.PORT ?? process.env.WA_CONTROL_PORT ?? 3001,
+    );
     const server = createWhatsAppControlServer(adapter, { port: controlPort });
     promises.push(server.start());
   }

@@ -61,6 +61,10 @@ export function createWhatsAppControlServer(
       if (method === "GET" && path === "/state") {
         return json(res, 200, adapter.getState());
       }
+      if (method === "POST" && path === "/reset") {
+        await adapter.resetSession();
+        return json(res, 200, { ok: true });
+      }
       if (method === "GET" && path === "/chats") {
         return json(res, 200, { items: adapter.listChats() });
       }

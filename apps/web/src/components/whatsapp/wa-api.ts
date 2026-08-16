@@ -22,6 +22,10 @@ export function getState(): Promise<WaState> {
   return api<WaState>("/api/wa/state");
 }
 
+export function resetPairing(): Promise<unknown> {
+  return api("/api/wa/reset", { method: "POST" });
+}
+
 export async function listChats(): Promise<WaChat[]> {
   const data = await api<{ items: WaChat[] }>("/api/wa/chats");
   return data.items;

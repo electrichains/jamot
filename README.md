@@ -67,6 +67,18 @@ pnpm --filter @jamot/workers dev:scheduler
 pnpm --filter @jamot/workers dev:channel
 ```
 
+WhatsApp pairing: the channel worker runs a small control server that the API proxies
+for the `/whatsapp` UI. Point the API at it via `WA_WORKER_URL` (defaults unset → 503).
+
+```bash
+# API .env
+WA_WORKER_URL=http://localhost:3001
+```
+
+If a session is logged out or corrupted, use the **Reset pairing** button in the
+WhatsApp app (calls `POST /api/wa/reset`, which wipes the session dir and starts a
+fresh QR).
+
 ## Scripts
 
 ```bash

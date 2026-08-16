@@ -1,3 +1,4 @@
+import { rmSync } from "node:fs";
 import makeWASocket, {
   Browsers,
   DisconnectReason,
@@ -56,6 +57,7 @@ export interface WhatsAppAdapterOpts {
 export interface WhatsAppAdapter extends ChannelAdapter {
   kind: "whatsapp";
   getState(): WaState;
+  resetSession(): Promise<void>;
   listChats(): WaChat[];
   listContacts(query?: string): WaContact[];
   getMessages(
@@ -117,6 +119,30 @@ export function createWhatsAppAdapter(
   const contacts = new Map<string, string>(); // jid -> name
   const messages = new Map<string, WaMessage[]>(); // jid -> messages
 
+  let reconnectDelayMs = 3000;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const scheduleReconnect = () => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (state.connection === "close") {
+      reconnectTimer = setTimeout(() => void connect(), reconnectDelayMs);
+    }
+  };
+
+  // Wipe the persisted auth state so the next connect starts a fresh pairing
+  // loop. Called after a logout / bad session, where Baileys would otherwise
+  // loop forever without ever emitting a new QR.
+  const wipeSession = () => {
+    try {
+      rmSync(sessionDir, { recursive: true, force: true });
+    } catch {
+      // session dir may be locked or already gone
+    }
+    state.qr = undefined;
+    state.connection = "connecting";
+    reconnectDelayMs = 3000;
+  };
+
   const nameFor = (jid: string): string => {
     const contact = contacts.get(jid);
     if (contact) return contact;
@@ -159,6 +185,7 @@ export function createWhatsAppAdapter(
     if (connecting) return;
     connecting = true;
     try {
+      reconnectDelayMs = 3000;
       const { state: authState, saveCreds } =
         await useMultiFileAuthState(sessionDir);
 
@@ -177,21 +204,37 @@ export function createWhatsAppAdapter(
         if (update.qr) {
           state.connection = "connecting";
           state.qr = update.qr;
+          console.log(
+            "[whatsapp] pairing QR generated",
+            update.qr.slice(0, 16),
+          );
         }
         if (update.connection === "open") {
           state.connection = "open";
           state.qr = undefined;
+          reconnectDelayMs = 3000;
         }
         if (update.connection === "close") {
           state.connection = "close";
+          state.qr = undefined;
           const statusCode = (
             update.lastDisconnect?.error as
               | { output?: { statusCode?: number } }
               | undefined
           )?.output?.statusCode;
-          if (statusCode !== DisconnectReason.loggedOut) {
-            setTimeout(() => void connect(), 3000);
+          if (
+            statusCode === DisconnectReason.loggedOut ||
+            statusCode === DisconnectReason.badSession
+          ) {
+            console.log(
+              `[whatsapp] session invalid (${statusCode}) — wiping, will re-pair`,
+            );
+            wipeSession();
+            void connect();
+            return;
           }
+          reconnectDelayMs = Math.min(reconnectDelayMs * 2, 30_000);
+          scheduleReconnect();
         }
       });
 
@@ -346,10 +389,21 @@ export function createWhatsAppAdapter(
     },
 
     async disconnect() {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (sock) {
         await sock.end(undefined);
         sock = undefined;
       }
+    },
+
+    async resetSession() {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (sock) {
+        await sock.end(undefined);
+        sock = undefined;
+      }
+      wipeSession();
+      void connect();
     },
 
     onMessage(handler) {

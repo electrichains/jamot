@@ -83,6 +83,10 @@ export default async function waRoutes(
     return proxy("/state", reply);
   });
 
+  app.post("/wa/reset", { preHandler: requireAuth }, async (_req, reply) => {
+    return proxy("/reset", reply, { method: "POST" });
+  });
+
   app.get("/wa/chats", { preHandler: requireAuth }, async (_req, reply) => {
     return proxy("/chats", reply);
   });
