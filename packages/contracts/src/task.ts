@@ -34,10 +34,19 @@ export const Project = EntityBase.extend({
 });
 export type Project = z.infer<typeof Project>;
 
+/** A Kanban column/board list. */
+export const TaskList = EntityBase.extend({
+  spaceId: Id,
+  name: z.string().min(1),
+  position: z.number().int().min(0).default(0),
+});
+export type TaskList = z.infer<typeof TaskList>;
+
 /** A concrete unit of work assigned to an Actor. */
 export const Task = EntityBase.extend({
   spaceId: Id,
   projectId: Id.nullable(),
+  listId: Id.nullable(),
   title: z.string().min(1),
   description: z.string().default(""),
   status: TaskStatus.default("created"),
@@ -46,5 +55,17 @@ export const Task = EntityBase.extend({
   targetType: TaskTargetType.default("human"),
   requiredCapabilityIds: z.array(Id).default([]),
   outcome: z.record(z.string(), z.unknown()).nullable(),
+  dueDate: z.string().datetime({ offset: true }).nullable().default(null),
+  position: z.number().int().min(0).default(0),
 });
 export type Task = z.infer<typeof Task>;
+
+/** A file attached to a task. */
+export const TaskAttachment = EntityBase.extend({
+  taskId: Id,
+  name: z.string().min(1),
+  mimeType: z.string().default("application/octet-stream"),
+  size: z.number().int().min(0).default(0),
+  data: z.string(),
+});
+export type TaskAttachment = z.infer<typeof TaskAttachment>;

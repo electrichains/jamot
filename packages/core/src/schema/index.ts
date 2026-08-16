@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
+  integer,
   jsonb,
   numeric,
   pgEnum,
@@ -297,6 +298,7 @@ export const tasks = pgTable(
       .notNull()
       .references(() => spaces.id),
     projectId: uuid("project_id").references(() => projects.id),
+    listId: uuid("list_id").references(() => taskLists.id),
     title: text("title").notNull(),
     description: text("description").notNull().default(""),
     status: taskStatusEnum("status").notNull().default("created"),
@@ -310,10 +312,37 @@ export const tasks = pgTable(
       .notNull()
       .default(sql`'{}'::uuid[]`),
     outcome: jsonb("outcome").$type<Record<string, unknown>>(),
+    dueDate: timestamp("due_date", { mode: "string", withTimezone: true }),
+    position: integer("position").notNull().default(0),
     ...timestamps(),
   },
-  (table) => [index("tasks_space_id_idx").on(table.spaceId)],
+  (table) => [
+    index("tasks_space_id_idx").on(table.spaceId),
+    index("tasks_list_id_idx").on(table.listId),
+  ],
 );
+
+export const taskLists = pgTable("task_lists", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  spaceId: uuid("space_id")
+    .notNull()
+    .references(() => spaces.id),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  ...timestamps(),
+});
+
+export const taskAttachments = pgTable("task_attachments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id),
+  name: text("name").notNull(),
+  mimeType: text("mime_type").notNull().default("application/octet-stream"),
+  size: integer("size").notNull().default(0),
+  data: text("data").notNull(),
+  ...timestamps(),
+});
 
 export const skills = pgTable("skills", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -647,6 +676,8 @@ export const schema = {
   goals,
   projects,
   tasks,
+  taskLists,
+  taskAttachments,
   skills,
   connectors,
   capabilities,

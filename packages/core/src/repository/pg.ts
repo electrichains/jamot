@@ -1,4 +1,4 @@
-import { and, arrayContains, eq, inArray, or } from "drizzle-orm";
+import { and, arrayContains, asc, eq, inArray, or } from "drizzle-orm";
 import type {
   Actor,
   Agent,
@@ -11,6 +11,8 @@ import type {
   Skill,
   Space,
   Task,
+  TaskAttachment,
+  TaskList,
 } from "@jamot/contracts";
 import type { Id } from "@jamot/contracts";
 import type { Db } from "../db.js";
@@ -26,6 +28,8 @@ import {
   secrets,
   skills,
   spaces,
+  taskAttachments,
+  taskLists,
   tasks,
 } from "../schema/index.js";
 import type {
@@ -41,6 +45,8 @@ import type {
   NewSkill,
   NewSpace,
   NewTask,
+  NewTaskAttachment,
+  NewTaskList,
   SecretRecord,
 } from "./repository.js";
 
@@ -50,6 +56,8 @@ type SpaceRow = typeof spaces.$inferSelect;
 type OrganizationRow = typeof organizations.$inferSelect;
 type RoleRow = typeof roles.$inferSelect;
 type TaskRow = typeof tasks.$inferSelect;
+type TaskListRow = typeof taskLists.$inferSelect;
+type TaskAttachmentRow = typeof taskAttachments.$inferSelect;
 type SkillRow = typeof skills.$inferSelect;
 type ConnectorRow = typeof connectors.$inferSelect;
 type CapabilityRow = typeof capabilities.$inferSelect;
@@ -146,6 +154,7 @@ function toTask(row: TaskRow): Task {
     updatedAt: row.updatedAt,
     spaceId: row.spaceId as Id,
     projectId: (row.projectId as Id | null) ?? null,
+    listId: (row.listId as Id | null) ?? null,
     title: row.title,
     description: row.description,
     status: row.status,
@@ -153,6 +162,32 @@ function toTask(row: TaskRow): Task {
     targetType: row.targetType,
     requiredCapabilityIds: row.requiredCapabilityIds as Id[],
     outcome: row.outcome,
+    dueDate: row.dueDate,
+    position: row.position,
+  };
+}
+
+function toTaskList(row: TaskListRow): TaskList {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    spaceId: row.spaceId as Id,
+    name: row.name,
+    position: row.position,
+  };
+}
+
+function toTaskAttachment(row: TaskAttachmentRow): TaskAttachment {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    taskId: row.taskId as Id,
+    name: row.name,
+    mimeType: row.mimeType,
+    size: row.size,
+    data: row.data,
   };
 }
 
@@ -478,6 +513,7 @@ export function createPgRepository(db: Db): JamotRepository {
         .values({
           spaceId: input.spaceId,
           projectId: input.projectId ?? null,
+          listId: input.listId ?? null,
           title: input.title,
           description: input.description ?? "",
           status: input.status ?? "created",
@@ -485,6 +521,8 @@ export function createPgRepository(db: Db): JamotRepository {
           targetType: input.targetType ?? "human",
           requiredCapabilityIds: input.requiredCapabilityIds ?? [],
           outcome: input.outcome ?? null,
+          dueDate: input.dueDate ?? null,
+          position: input.position ?? 0,
         })
         .returning();
       if (!row) throw new Error("failed to create task");
@@ -507,6 +545,7 @@ export function createPgRepository(db: Db): JamotRepository {
         .where(
           and(
             filter?.spaceId ? eq(tasks.spaceId, filter.spaceId) : undefined,
+            filter?.listId ? eq(tasks.listId, filter.listId) : undefined,
             filter?.assigneeActorId
               ? arrayContains(tasks.assigneeActorIds, [filter.assigneeActorId])
               : undefined,
@@ -531,6 +570,86 @@ export function createPgRepository(db: Db): JamotRepository {
         .where(eq(tasks.id, id))
         .returning();
       return row ? toTask(row) : null;
+    },
+
+    async updateTask(id, patch) {
+      const [row] = await q
+        .update(tasks)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(tasks.id, id))
+        .returning();
+      return row ? toTask(row) : null;
+    },
+
+    async createTaskList(input: NewTaskList) {
+      const [row] = await q
+        .insert(taskLists)
+        .values({
+          spaceId: input.spaceId,
+          name: input.name,
+          position: input.position ?? 0,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create task list");
+      return toTaskList(row);
+    },
+
+    async getTaskList(id) {
+      const [row] = await q
+        .select()
+        .from(taskLists)
+        .where(eq(taskLists.id, id))
+        .limit(1);
+      return row ? toTaskList(row) : null;
+    },
+
+    async listTaskLists(spaceId) {
+      const rows = await q
+        .select()
+        .from(taskLists)
+        .where(eq(taskLists.spaceId, spaceId))
+        .orderBy(asc(taskLists.position));
+      return rows.map(toTaskList);
+    },
+
+    async updateTaskList(id, patch) {
+      const [row] = await q
+        .update(taskLists)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(taskLists.id, id))
+        .returning();
+      return row ? toTaskList(row) : null;
+    },
+
+    async deleteTaskList(id) {
+      await q.delete(taskLists).where(eq(taskLists.id, id));
+    },
+
+    async addTaskAttachment(input: NewTaskAttachment) {
+      const [row] = await q
+        .insert(taskAttachments)
+        .values({
+          taskId: input.taskId,
+          name: input.name,
+          mimeType: input.mimeType ?? "application/octet-stream",
+          size: input.size ?? 0,
+          data: input.data,
+        })
+        .returning();
+      if (!row) throw new Error("failed to add task attachment");
+      return toTaskAttachment(row);
+    },
+
+    async listTaskAttachments(taskId) {
+      const rows = await q
+        .select()
+        .from(taskAttachments)
+        .where(eq(taskAttachments.taskId, taskId));
+      return rows.map(toTaskAttachment);
+    },
+
+    async deleteTaskAttachment(id) {
+      await q.delete(taskAttachments).where(eq(taskAttachments.id, id));
     },
 
     async createSkill(input: NewSkill) {

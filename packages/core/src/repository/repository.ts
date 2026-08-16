@@ -10,6 +10,8 @@ import type {
   Skill,
   Space,
   Task,
+  TaskAttachment,
+  TaskList,
 } from "@jamot/contracts";
 
 /**
@@ -79,6 +81,7 @@ export interface NewRole {
 export interface NewTask {
   spaceId: string;
   projectId?: string | null;
+  listId?: string | null;
   title: string;
   description?: string;
   status?: Task["status"];
@@ -86,6 +89,22 @@ export interface NewTask {
   targetType?: Task["targetType"];
   requiredCapabilityIds?: string[];
   outcome?: Record<string, unknown> | null;
+  dueDate?: string | null;
+  position?: number;
+}
+
+export interface NewTaskList {
+  spaceId: string;
+  name: string;
+  position?: number;
+}
+
+export interface NewTaskAttachment {
+  taskId: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+  data: string;
 }
 
 export interface NewSkill {
@@ -188,9 +207,36 @@ export interface JamotRepository {
   // tasks
   createTask(input: NewTask): Promise<Task>;
   getTask(id: string): Promise<Task | null>;
-  listTasks(filter?: { spaceId?: string; assigneeActorId?: string }): Promise<Task[]>;
+  listTasks(filter?: { spaceId?: string; assigneeActorId?: string; listId?: string }): Promise<Task[]>;
   updateTaskStatus(id: string, status: Task["status"]): Promise<Task | null>;
   assignTask(id: string, assigneeActorIds: string[]): Promise<Task | null>;
+  updateTask(
+    id: string,
+    patch: Partial<
+      Pick<
+        Task,
+        | "title"
+        | "description"
+        | "dueDate"
+        | "listId"
+        | "position"
+        | "assigneeActorIds"
+        | "targetType"
+      >
+    >,
+  ): Promise<Task | null>;
+
+  // task lists (Kanban columns)
+  createTaskList(input: NewTaskList): Promise<TaskList>;
+  getTaskList(id: string): Promise<TaskList | null>;
+  listTaskLists(spaceId: string): Promise<TaskList[]>;
+  updateTaskList(id: string, patch: Partial<Pick<TaskList, "name" | "position">>): Promise<TaskList | null>;
+  deleteTaskList(id: string): Promise<void>;
+
+  // task attachments
+  addTaskAttachment(input: NewTaskAttachment): Promise<TaskAttachment>;
+  listTaskAttachments(taskId: string): Promise<TaskAttachment[]>;
+  deleteTaskAttachment(id: string): Promise<void>;
 
   // skills
   createSkill(input: NewSkill): Promise<Skill>;

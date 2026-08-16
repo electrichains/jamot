@@ -11,6 +11,8 @@ import {
   Skill,
   Space,
   Task,
+  TaskAttachment,
+  TaskList,
 } from "@jamot/contracts";
 import type { Id } from "@jamot/contracts";
 import type {
@@ -26,6 +28,8 @@ import type {
   NewSkill,
   NewSpace,
   NewTask,
+  NewTaskAttachment,
+  NewTaskList,
   SecretRecord,
 } from "./repository.js";
 
@@ -40,6 +44,8 @@ export function createMemoryRepository(): JamotRepository {
   const organizations = new Map<string, Organization>();
   const roles = new Map<string, Role>();
   const tasks = new Map<string, Task>();
+  const taskLists = new Map<string, TaskList>();
+  const taskAttachments = new Map<string, TaskAttachment>();
   const skills = new Map<string, Skill>();
   const connectors = new Map<string, Connector>();
   const capabilities = new Map<string, Capability>();
@@ -223,6 +229,7 @@ export function createMemoryRepository(): JamotRepository {
         updatedAt: now(),
         spaceId: input.spaceId,
         projectId: input.projectId ?? null,
+        listId: input.listId ?? null,
         title: input.title,
         description: input.description ?? "",
         status: input.status ?? "created",
@@ -230,6 +237,8 @@ export function createMemoryRepository(): JamotRepository {
         targetType: input.targetType ?? "human",
         requiredCapabilityIds: input.requiredCapabilityIds ?? [],
         outcome: input.outcome ?? null,
+        dueDate: input.dueDate ?? null,
+        position: input.position ?? 0,
       });
       tasks.set(task.id, task);
       return task;
@@ -242,6 +251,7 @@ export function createMemoryRepository(): JamotRepository {
     async listTasks(filter) {
       let all = [...tasks.values()];
       if (filter?.spaceId) all = all.filter((t) => t.spaceId === filter.spaceId);
+      if (filter?.listId) all = all.filter((t) => t.listId === filter.listId);
       if (filter?.assigneeActorId) {
         all = all.filter((t) =>
           t.assigneeActorIds.includes(filter.assigneeActorId as Id),
@@ -264,6 +274,72 @@ export function createMemoryRepository(): JamotRepository {
       const updated = Task.parse({ ...existing, assigneeActorIds, updatedAt: now() });
       tasks.set(id, updated);
       return updated;
+    },
+
+    async updateTask(id, patch) {
+      const existing = tasks.get(id);
+      if (!existing) return null;
+      const updated = Task.parse({ ...existing, ...patch, updatedAt: now() });
+      tasks.set(id, updated);
+      return updated;
+    },
+
+    async createTaskList(input: NewTaskList) {
+      const list = TaskList.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        spaceId: input.spaceId,
+        name: input.name,
+        position: input.position ?? 0,
+      });
+      taskLists.set(list.id, list);
+      return list;
+    },
+
+    async getTaskList(id) {
+      return taskLists.get(id) ?? null;
+    },
+
+    async listTaskLists(spaceId) {
+      return [...taskLists.values()]
+        .filter((list) => list.spaceId === spaceId)
+        .sort((a, b) => a.position - b.position);
+    },
+
+    async updateTaskList(id, patch) {
+      const existing = taskLists.get(id);
+      if (!existing) return null;
+      const updated = TaskList.parse({ ...existing, ...patch, updatedAt: now() });
+      taskLists.set(id, updated);
+      return updated;
+    },
+
+    async deleteTaskList(id) {
+      taskLists.delete(id);
+    },
+
+    async addTaskAttachment(input: NewTaskAttachment) {
+      const attachment = TaskAttachment.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        taskId: input.taskId,
+        name: input.name,
+        mimeType: input.mimeType ?? "application/octet-stream",
+        size: input.size ?? 0,
+        data: input.data,
+      });
+      taskAttachments.set(attachment.id, attachment);
+      return attachment;
+    },
+
+    async listTaskAttachments(taskId) {
+      return [...taskAttachments.values()].filter((a) => a.taskId === taskId);
+    },
+
+    async deleteTaskAttachment(id) {
+      taskAttachments.delete(id);
     },
 
     async createSkill(input: NewSkill) {

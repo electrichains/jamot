@@ -26,6 +26,7 @@ import vaultRoutes from "./routes/vault.js";
 import assignmentsRoutes from "./routes/assignments.js";
 import agentsRoutes from "./routes/agents.js";
 import channelsRoutes from "./routes/channels.js";
+import taskListsRoutes from "./routes/task-lists.js";
 import memoryRoutes from "./routes/memory.js";
 import knowledgeRoutes from "./routes/knowledge.js";
 import appsRoutes from "./routes/apps.js";
@@ -125,6 +126,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(assignmentsRoutes, { prefix: "/api", repository: opts.repository, llm });
   await app.register(agentsRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(channelsRoutes, { prefix: "/api", repository: opts.repository });
+  await app.register(taskListsRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(memoryRoutes, { prefix: "/api", memoryProvider });
   await app.register(knowledgeRoutes, { prefix: "/api", knowledgeStore });
   await app.register(appsRoutes, { prefix: "/api", apps });

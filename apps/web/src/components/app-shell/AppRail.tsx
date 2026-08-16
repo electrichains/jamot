@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Landmark,
   LayoutGrid,
+  ListTodo,
   MessageCircle,
   Package,
   Users,
@@ -24,6 +25,7 @@ interface RailItem {
 }
 
 const NAV_ITEMS: RailItem[] = [
+  { id: "tasks", label: "Tasks", icon: ListTodo, href: "/tasks" },
   { id: "people", label: "People", icon: Users, href: "/people" },
   { id: "agents", label: "Agents", icon: Bot, href: "/agents" },
   { id: "organization", label: "Organization", icon: Building2, href: "/organization" },
