@@ -130,13 +130,41 @@ function overallDecision(candidates: CandidateSummary[]): PolicyDecision {
   return best;
 }
 
-async function resolveIntent(llm: LLMProvider, message: string): Promise<string> {
+function extractIntent(text: string): string | null {
   try {
-    const result = await llm.complete([{ role: "user", content: message }]);
-    const parsed = JSON.parse(result.content) as { intent?: unknown };
+    const parsed = JSON.parse(text) as { intent?: unknown };
     if (typeof parsed.intent === "string" && parsed.intent.length > 0) {
       return parsed.intent;
     }
+  } catch {
+    // fall through to tolerant extraction
+  }
+  const match = text.match(/\{[\s\S]*"intent"[\s\S]*?\}/);
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[0]) as { intent?: unknown };
+      if (typeof parsed.intent === "string" && parsed.intent.length > 0) {
+        return parsed.intent;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+async function resolveIntent(llm: LLMProvider, message: string): Promise<string> {
+  try {
+    const result = await llm.complete([
+      {
+        role: "system",
+        content:
+          'Classify the intent of the user request. Respond with ONLY a JSON object and no other text: {"intent":"task"|"question"|"meeting"|"finance"|"unknown"}.',
+      },
+      { role: "user", content: message },
+    ]);
+    const intent = extractIntent(result.content);
+    if (intent) return intent;
   } catch {
     // fall back to the keyword heuristic
   }
