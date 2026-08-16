@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-import { OrgChart } from "@/components/org-chart/OrgChart";
+import { OrganizationWorkspace } from "@/components/organization/OrganizationWorkspace";
 
 export default function OrganizationPage() {
   return (
@@ -16,8 +16,8 @@ export default function OrganizationPage() {
         </Link>
         <span className="font-display text-sm font-semibold">Organization — OrganicChart</span>
       </header>
-      <div className="min-h-0 flex-1">
-        <OrgChart />
+      <div className="flex min-h-0 w-full flex-1 flex-col">
+        <OrganizationWorkspace />
       </div>
     </div>
   );

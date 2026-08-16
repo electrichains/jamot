@@ -17,6 +17,7 @@ import {
   AppShellProvider,
   DEFAULT_LEFT_SIZE,
   DEFAULT_RIGHT_SIZE,
+  DEFAULT_SECTION_WIDTH,
   useAppShell,
 } from "./app-shell-context";
 import { LeftSidebar } from "./LeftSidebar";
@@ -60,7 +61,7 @@ function AppShellInner() {
 }
 
 function DesktopShell() {
-  const { setLeftSize, setRightSize, activeApp } = useAppShell();
+  const { setLeftSize, setRightSize, activeSection } = useAppShell();
   const leftRef = usePanelRef();
   const rightRef = usePanelRef();
   const restoredRef = useRef(false);
@@ -68,10 +69,16 @@ function DesktopShell() {
   const [dockCollapsed, setDockCollapsed] = useState(false);
 
   useEffect(() => {
-    if (activeApp && rightRef.current?.isCollapsed()) {
-      rightRef.current?.expand();
+    if (activeSection && rightRef.current) {
+      if (rightRef.current.isCollapsed()) {
+        rightRef.current.expand();
+      }
+      const current = rightRef.current.getSize();
+      if (current.inPixels < DEFAULT_SECTION_WIDTH) {
+        rightRef.current.resize(DEFAULT_SECTION_WIDTH);
+      }
     }
-  }, [activeApp, rightRef]);
+  }, [activeSection, rightRef]);
 
   useEffect(() => {
     try {

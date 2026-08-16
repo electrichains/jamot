@@ -36,9 +36,24 @@ export const SPACES: Space[] = [
   },
 ];
 
-export type AppId = "whatsapp" | "calendar" | "inventory" | "crm" | "finance";
+export type SectionId =
+  | "tasks"
+  | "people"
+  | "agents"
+  | "organization"
+  | "canvas"
+  | "whatsapp"
+  | "calendar"
+  | "inventory"
+  | "crm"
+  | "finance";
 
-export const APP_TITLES: Record<AppId, string> = {
+export const SECTION_TITLES: Record<SectionId, string> = {
+  tasks: "Tasks",
+  people: "People",
+  agents: "Agents",
+  organization: "Organization",
+  canvas: "Canvas",
   whatsapp: "WhatsApp",
   calendar: "Calendar",
   inventory: "Inventory",
@@ -50,23 +65,24 @@ interface AppShellState {
   leftSize: number;
   rightSize: number;
   space: Space;
-  activeApp: AppId | null;
+  activeSection: SectionId | null;
   setLeftSize: (size: number) => void;
   setRightSize: (size: number) => void;
   setSpace: (id: string) => void;
-  setActiveApp: (id: AppId | null) => void;
+  setActiveSection: (id: SectionId | null) => void;
 }
 
 const AppShellContext = createContext<AppShellState | null>(null);
 
 export const DEFAULT_LEFT_SIZE = 240;
 export const DEFAULT_RIGHT_SIZE = 320;
+export const DEFAULT_SECTION_WIDTH = 640;
 
 export function AppShellProvider({ children }: { children: ReactNode }) {
   const [leftSize, setLeftSize] = useState(DEFAULT_LEFT_SIZE);
   const [rightSize, setRightSize] = useState(DEFAULT_RIGHT_SIZE);
   const [spaceId, setSpaceId] = useState("personal");
-  const [activeApp, setActiveApp] = useState<AppId | null>(null);
+  const [activeSection, setActiveSection] = useState<SectionId | null>(null);
 
   const value = useMemo<AppShellState>(() => {
     const space = SPACES.find((candidate) => candidate.id === spaceId) ?? SPACES[0];
@@ -74,13 +90,13 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       leftSize,
       rightSize,
       space,
-      activeApp,
+      activeSection,
       setLeftSize,
       setRightSize,
       setSpace: setSpaceId,
-      setActiveApp,
+      setActiveSection,
     };
-  }, [leftSize, rightSize, spaceId, activeApp]);
+  }, [leftSize, rightSize, spaceId, activeSection]);
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;
 }

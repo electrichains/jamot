@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import {
   Bot,
   Briefcase,
@@ -18,24 +17,20 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { useAppShell, type AppId } from "./app-shell-context";
+import { useAppShell, type SectionId } from "./app-shell-context";
 
 interface RailItem {
-  id: string;
+  id: SectionId;
   label: string;
   icon: LucideIcon;
-  href?: string;
 }
 
-const NAV_ITEMS: RailItem[] = [
-  { id: "tasks", label: "Tasks", icon: ListTodo, href: "/tasks" },
-  { id: "people", label: "People", icon: Users, href: "/people" },
-  { id: "agents", label: "Agents", icon: Bot, href: "/agents" },
-  { id: "organization", label: "Organization", icon: Building2, href: "/organization" },
-  { id: "canvas", label: "Canvas", icon: LayoutGrid, href: "/canvas" },
-];
-
-const APP_ITEMS: RailItem[] = [
+const SECTION_ITEMS: RailItem[] = [
+  { id: "tasks", label: "Tasks", icon: ListTodo },
+  { id: "people", label: "People", icon: Users },
+  { id: "agents", label: "Agents", icon: Bot },
+  { id: "organization", label: "Organization", icon: Building2 },
+  { id: "canvas", label: "Canvas", icon: LayoutGrid },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "inventory", label: "Inventory", icon: Package },
@@ -43,30 +38,20 @@ const APP_ITEMS: RailItem[] = [
   { id: "finance", label: "Finance", icon: Landmark },
 ];
 
+const PRIMARY_IDS: SectionId[] = [
+  "tasks",
+  "people",
+  "agents",
+  "organization",
+  "canvas",
+];
+
 export function AppRail() {
-  const router = useRouter();
-  const { activeApp, setActiveApp } = useAppShell();
+  const { activeSection, setActiveSection } = useAppShell();
 
-  const renderNavItem = (item: RailItem) => {
+  const renderItem = (item: RailItem) => {
     const Icon = item.icon;
-    return (
-      <Button
-        key={item.id}
-        variant="ghost"
-        size="icon"
-        className="size-9"
-        aria-label={item.label}
-        title={item.label}
-        onClick={() => item.href && router.push(item.href)}
-      >
-        <Icon className="size-4 text-muted-foreground" />
-      </Button>
-    );
-  };
-
-  const renderAppItem = (item: RailItem) => {
-    const Icon = item.icon;
-    const active = activeApp === item.id;
+    const active = activeSection === item.id;
     return (
       <Button
         key={item.id}
@@ -76,7 +61,7 @@ export function AppRail() {
         aria-label={item.label}
         aria-pressed={active}
         title={item.label}
-        onClick={() => setActiveApp(active ? null : (item.id as AppId))}
+        onClick={() => setActiveSection(active ? null : item.id)}
       >
         <Icon
           className={cn("size-4", active ? "text-foreground" : "text-muted-foreground")}
@@ -87,9 +72,9 @@ export function AppRail() {
 
   return (
     <div className="flex h-full w-full flex-col items-center gap-1 border-l border-border bg-sidebar py-2 text-sidebar-foreground">
-      {NAV_ITEMS.map(renderNavItem)}
+      {SECTION_ITEMS.filter((item) => PRIMARY_IDS.includes(item.id)).map(renderItem)}
       <div className="my-1 h-px w-6 bg-border" />
-      {APP_ITEMS.map(renderAppItem)}
+      {SECTION_ITEMS.filter((item) => !PRIMARY_IDS.includes(item.id)).map(renderItem)}
     </div>
   );
 }
