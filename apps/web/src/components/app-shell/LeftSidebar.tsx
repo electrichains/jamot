@@ -9,11 +9,9 @@ import {
   Check,
   ChevronDown,
   FolderKanban,
-  House,
   LayoutGrid,
   LogIn,
   LogOut,
-  MessageSquare,
   Plus,
   Search,
   Settings,
@@ -26,11 +24,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-context";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ChatHistory } from "@/components/chat/ChatHistory";
 import { SPACES, useAppShell } from "./app-shell-context";
 
 const NAV_ITEMS: { label: string; icon: LucideIcon; href?: string; active?: boolean }[] = [
-  { label: "Home", icon: House, href: "/", active: true },
-  { label: "Chats", icon: MessageSquare, href: "/" },
   { label: "Projects", icon: FolderKanban },
   { label: "People", icon: Users, href: "/people" },
   { label: "Agents", icon: Bot, href: "/agents" },
@@ -59,7 +57,11 @@ export function LeftSidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-1">
+      <div className="min-h-0 flex-1">
+        <ChatHistory />
+      </div>
+
+      <nav className="shrink-0 border-t border-border px-2 py-1">
         <ul className="flex flex-col gap-0.5">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
@@ -158,13 +160,16 @@ function SpaceSwitcher() {
         ) : null}
       </AnimatePresence>
 
-      <Link
-        href="/settings"
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <Settings className="size-4" />
-        Settings
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href="/settings"
+          className="flex flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Settings className="size-4" />
+          Settings
+        </Link>
+        <ThemeToggle />
+      </div>
 
       {user ? (
         <button

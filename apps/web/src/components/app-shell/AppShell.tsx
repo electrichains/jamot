@@ -155,10 +155,7 @@ function DesktopShell() {
         onResize={handleRightResize}
         className="h-full"
       >
-        <ContextDock
-          onCollapse={() => rightRef.current?.collapse()}
-          onResize={(px) => rightRef.current?.resize(px)}
-        />
+        <ContextDock onCollapse={() => rightRef.current?.collapse()} />
       </Panel>
     </Group>
   );
