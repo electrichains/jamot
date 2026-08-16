@@ -4,8 +4,9 @@ import {
   createChannelService,
 } from "@jamot/core/channels";
 import type { ChannelAdapter, InboundMessage } from "@jamot/core/channels";
-import { createEventBus } from "@jamot/core";
+import { createDb, createEventBus } from "@jamot/core";
 import { createMemoryRepository } from "@jamot/core/repository/memory";
+import { createPgRepository } from "@jamot/core/repository/pg";
 import makeWASocket, {
   Browsers,
   DisconnectReason,
@@ -192,13 +193,19 @@ export function createMatrixAdapter(opts: MatrixAdapterOpts): ChannelAdapter {
 
 export function startChannelWorker(): Promise<void> {
   const registry = createChannelRegistry();
-  const eventBus = createEventBus();
+
+  const databaseUrl = process.env.DATABASE_URL;
+  const db = databaseUrl ? createDb(databaseUrl) : undefined;
+  const repo = db ? createPgRepository(db) : createMemoryRepository();
+  const eventBus = createEventBus(db);
+
   const service = createChannelService({
-    repo: createMemoryRepository(),
+    repo,
     eventBus,
     registry,
   });
   const onMessage = (msg: InboundMessage) => {
+    console.log(`[channel:${msg.kind}] ${msg.sender}: ${msg.text}`);
     void service.onInbound(msg);
   };
 

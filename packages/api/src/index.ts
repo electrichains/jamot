@@ -7,10 +7,12 @@ import { createPostgresMemoryProvider } from "@jamot/core/memory";
 import { createPostgresKnowledgeStore } from "@jamot/core/knowledge";
 import { createPostgresReputationService } from "@jamot/core/reputation";
 import { createPostgresTreasuryService } from "@jamot/core/treasury";
+import { createLLMProvider } from "@jamot/core/llm";
 import type { MemoryProvider } from "@jamot/core/memory";
 import type { KnowledgeStore } from "@jamot/core/knowledge";
 import type { ReputationService } from "@jamot/core/reputation";
 import type { TreasuryService } from "@jamot/core/treasury";
+import type { LLMProvider } from "@jamot/core/llm";
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -21,6 +23,7 @@ let memoryProvider: MemoryProvider | undefined;
 let knowledgeStore: KnowledgeStore | undefined;
 let reputation: ReputationService | undefined;
 let treasury: TreasuryService | undefined;
+let llm: LLMProvider | undefined;
 
 if (process.env.DATABASE_URL) {
   const db: Db = createDb(process.env.DATABASE_URL);
@@ -33,6 +36,10 @@ if (process.env.DATABASE_URL) {
   repository = createMemoryRepository();
 }
 
+if (process.env.OPENAI_API_KEY) {
+  llm = createLLMProvider("openai");
+}
+
 const app = await buildApp({
   repository,
   secret,
@@ -41,6 +48,7 @@ const app = await buildApp({
   knowledgeStore,
   reputation,
   treasury,
+  llm,
 });
 
 try {
