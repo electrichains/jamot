@@ -25,7 +25,7 @@ export function createOpenAIProvider(
     process.env.OPENAI_BASE_URL ??
     "https://api.openai.com/v1"
   ).replace(/\/+$/, "");
-  const model = opts.model ?? "gpt-4o-mini";
+  const model = opts.model ?? process.env.OPENAI_MODEL ?? "gpt-4o-mini";
   const maxTokens = opts.maxTokens ?? 512;
 
   return {

@@ -7,7 +7,9 @@ import {
 const copilotRuntime = new CopilotRuntime({
   agents: {
     default: new BuiltInAgent({
-      model: "openai/gpt-4o",
+      model: process.env.OPENAI_MODEL
+        ? `openai/${process.env.OPENAI_MODEL}`
+        : "openai/gpt-4o",
       apiKey: process.env.OPENAI_API_KEY ?? "",
       prompt:
         "You are the Jamot Main Manager. You help a person or organization plan, delegate and track work. Be concise and concrete.",
