@@ -4,6 +4,7 @@ export interface OpenAIProviderOptions {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  maxTokens?: number;
 }
 
 interface OpenAICompletionResponse {
@@ -25,6 +26,7 @@ export function createOpenAIProvider(
     "https://api.openai.com/v1"
   ).replace(/\/+$/, "");
   const model = opts.model ?? "gpt-4o-mini";
+  const maxTokens = opts.maxTokens ?? 512;
 
   return {
     name: "openai",
@@ -35,7 +37,7 @@ export function createOpenAIProvider(
           "content-type": "application/json",
           authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({ model, messages }),
+        body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
       });
       if (!response.ok) {
         const text = await response.text();
