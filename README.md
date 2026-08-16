@@ -86,3 +86,22 @@ See `.env.example`. Key vars: `DATABASE_URL`, `SESSION_SECRET`, `SECRET_ENCRYPTI
 ## Status
 
 Backend phases P1–P9 and frontend F1–F8 are implemented against the MVP boundary (Personal/Organization spaces, People, Agents, Main Manager routing, WhatsApp/Matrix/MCP, Skills, Connectors, Tasks, Memory, CopilotKit, App SDK, one external-agent import, reputation, treasury, scheduler/heartbeats). Channel + LLM connections require live credentials.
+
+## Deployment (Render)
+
+Live:
+
+- API — https://jamot-api.onrender.com
+- Web — https://jamot-web.onrender.com
+- Postgres — `jamot-ts-db` (oregon, basic_256mb)
+- Scheduler worker — `jamot-scheduler`
+
+Migrations run automatically on deploy via `preDeployCommand` (`pnpm --filter @jamot/core exec tsx scripts/migrate.ts`), tracked in a `schema_migrations` table.
+
+### Google OAuth
+
+1. Create an OAuth 2.0 **web application** client in Google Cloud Console.
+2. Add authorized redirect URI: `https://jamot-api.onrender.com/api/auth/google/callback`.
+3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on the `jamot-api` service (Dashboard → jamot-api → Environment).
+
+`GOOGLE_REDIRECT_URI` and `FRONTEND_URL` are already set on the service.
