@@ -119,13 +119,17 @@ export function createWhatsAppAdapter(
   const contacts = new Map<string, string>(); // jid -> name
   const messages = new Map<string, WaMessage[]>(); // jid -> messages
 
-  let reconnectDelayMs = 3000;
+  let reconnectDelayMs = 5000;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
   const scheduleReconnect = () => {
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (state.connection === "close") {
-      reconnectTimer = setTimeout(() => void connect(), reconnectDelayMs);
+      const jittered = Math.round(
+        reconnectDelayMs * (0.75 + Math.random() * 0.5),
+      );
+      console.log(`[whatsapp] reconnect in ${jittered}ms`);
+      reconnectTimer = setTimeout(() => void connect(), jittered);
     }
   };
 
@@ -140,7 +144,7 @@ export function createWhatsAppAdapter(
     }
     state.qr = undefined;
     state.connection = "connecting";
-    reconnectDelayMs = 3000;
+    reconnectDelayMs = 5000;
   };
 
   const nameFor = (jid: string): string => {
@@ -185,7 +189,6 @@ export function createWhatsAppAdapter(
     if (connecting) return;
     connecting = true;
     try {
-      reconnectDelayMs = 3000;
       const { state: authState, saveCreds } =
         await useMultiFileAuthState(sessionDir);
 
@@ -212,7 +215,7 @@ export function createWhatsAppAdapter(
         if (update.connection === "open") {
           state.connection = "open";
           state.qr = undefined;
-          reconnectDelayMs = 3000;
+          reconnectDelayMs = 5000;
         }
         if (update.connection === "close") {
           state.connection = "close";
@@ -222,6 +225,15 @@ export function createWhatsAppAdapter(
               | { output?: { statusCode?: number } }
               | undefined
           )?.output?.statusCode;
+          const errorMessage =
+            update.lastDisconnect?.error instanceof Error
+              ? update.lastDisconnect.error.message
+              : undefined;
+          console.log(
+            `[whatsapp] connection closed${
+              statusCode !== undefined ? `, status=${statusCode}` : ""
+            }${errorMessage ? ` — ${errorMessage}` : ""}`,
+          );
           if (
             statusCode === DisconnectReason.loggedOut ||
             statusCode === DisconnectReason.badSession
@@ -233,7 +245,7 @@ export function createWhatsAppAdapter(
             void connect();
             return;
           }
-          reconnectDelayMs = Math.min(reconnectDelayMs * 2, 30_000);
+          reconnectDelayMs = Math.min(reconnectDelayMs * 2, 60_000);
           scheduleReconnect();
         }
       });
