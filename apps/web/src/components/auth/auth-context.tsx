@@ -29,20 +29,23 @@ const AuthContext = createContext<AuthState>({
   signOut: async () => {},
 });
 
+async function fetchUser(): Promise<AuthUser | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
+    if (res.ok) return (await res.json()) as AuthUser;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
-      if (res.ok) setUser((await res.json()) as AuthUser);
-      else setUser(null);
-    } catch {
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
+    setUser(await fetchUser());
+    setLoading(false);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -58,8 +61,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    (async () => {
+      const current = await fetchUser();
+      if (!cancelled) {
+        setUser(current);
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, refresh, signOut }}>
