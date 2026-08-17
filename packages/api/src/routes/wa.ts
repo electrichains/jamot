@@ -244,7 +244,7 @@ export default async function waRoutes(
 
   app.post(
     "/wa/accounts/:id/session",
-    { preHandler: requireAuth, bodyLimit: 15728640 },
+    { preHandler: requireAuth, bodyLimit: 64 * 1024 * 1024 },
     async (request, reply) => {
       const params = request.params as { id?: string };
       const id = parse(Id, params.id, reply);

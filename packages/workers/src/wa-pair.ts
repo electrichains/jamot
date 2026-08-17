@@ -70,15 +70,15 @@ async function main(): Promise<void> {
 
   const started = Date.now();
   const deadline = started + args.timeoutSec * 1000;
-  let qrRendered = false;
+  let lastQr = "";
   let sawQr = false;
   let sawOpen = false;
 
   while (Date.now() < deadline) {
     const state = adapter.getState();
-    if (state.qr && !qrRendered) {
+    if (state.qr && state.qr !== lastQr) {
       sawQr = true;
-      qrRendered = true;
+      lastQr = state.qr;
       try {
         writeFileSync(args.png, await QRCode.toBuffer(state.qr, { width: 320 }));
         console.log(`\n[wa-pair] QR saved to ${args.png} — scan with WhatsApp → Settings → Linked devices`);
