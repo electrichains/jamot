@@ -1,12 +1,18 @@
 -- Jamot migration 0007 — WhatsApp channel accounts per org (space)
 
-CREATE TYPE IF NOT EXISTS wa_account_status AS ENUM (
-  'offline',
-  'pairing',
-  'connecting',
-  'connected',
-  'error'
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'wa_account_status') THEN
+    CREATE TYPE wa_account_status AS ENUM (
+      'offline',
+      'pairing',
+      'connecting',
+      'connected',
+      'error'
+    );
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS wa_accounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
