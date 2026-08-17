@@ -14,7 +14,6 @@ interface UserRow {
   password_hash: string | null;
   provider: string | null;
   provider_id: string | null;
-  is_super_admin: boolean;
 }
 
 interface WaAccountRow {
@@ -66,7 +65,6 @@ export function createPgRepositoryFromDb(db: Db): JamotRepository {
       passwordHash: row.password_hash,
       provider: row.provider,
       providerId: row.provider_id,
-      isSuperAdmin: row.is_super_admin,
     };
   }
 
@@ -74,8 +72,8 @@ export function createPgRepositoryFromDb(db: Db): JamotRepository {
     ...core,
     async createUser(input) {
       await pool.query(
-        `INSERT INTO users (person_id, actor_id, email, password_hash, provider, provider_id, is_super_admin)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO users (person_id, actor_id, email, password_hash, provider, provider_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           input.person.id,
           input.actor.id,
@@ -83,13 +81,12 @@ export function createPgRepositoryFromDb(db: Db): JamotRepository {
           input.passwordHash,
           input.provider ?? null,
           input.providerId ?? null,
-          input.isSuperAdmin ?? false,
         ],
       );
     },
     async findUserByEmail(email) {
       const { rows } = await pool.query<UserRow>(
-        `SELECT person_id, actor_id, password_hash, provider, provider_id, is_super_admin
+        `SELECT person_id, actor_id, password_hash, provider, provider_id
          FROM users WHERE email = $1 LIMIT 1`,
         [email.toLowerCase()],
       );
@@ -97,25 +94,11 @@ export function createPgRepositoryFromDb(db: Db): JamotRepository {
     },
     async findUserByProvider(provider, providerId) {
       const { rows } = await pool.query<UserRow>(
-        `SELECT person_id, actor_id, password_hash, provider, provider_id, is_super_admin
+        `SELECT person_id, actor_id, password_hash, provider, provider_id
          FROM users WHERE provider = $1 AND provider_id = $2 LIMIT 1`,
         [provider, providerId],
       );
       return rows[0] ? hydrate(rows[0]) : null;
-    },
-    async findUserByActor(actorId) {
-      const { rows } = await pool.query<UserRow>(
-        `SELECT person_id, actor_id, password_hash, provider, provider_id, is_super_admin
-         FROM users WHERE actor_id = $1 LIMIT 1`,
-        [actorId],
-      );
-      return rows[0] ? hydrate(rows[0]) : null;
-    },
-    async setSuperAdmin(personId, enabled) {
-      await pool.query(
-        `UPDATE users SET is_super_admin = $2, updated_at = now() WHERE person_id = $1`,
-        [personId, enabled],
-      );
     },
     async createWaAccount(spaceId, label) {
       const { rows } = await pool.query<WaAccountRow>(

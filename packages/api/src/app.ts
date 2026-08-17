@@ -115,7 +115,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(healthRoutes);
   await app.register(actorsRoutes(opts.repository), { prefix: "/api" });
   await app.register(peopleRoutes(opts.repository), { prefix: "/api" });
-  await app.register(organizationsRoutes(opts.repository, { memoryProvider, apps }), { prefix: "/api" });
+  await app.register(organizationsRoutes(opts.repository), { prefix: "/api" });
   await app.register(spacesRoutes(opts.repository), { prefix: "/api" });
   await app.register(rolesRoutes(opts.repository), { prefix: "/api" });
   await app.register(tasksRoutes(opts.repository), { prefix: "/api" });

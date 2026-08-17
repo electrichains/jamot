@@ -13,7 +13,6 @@ export interface StoredUser {
   passwordHash: string | null;
   provider?: string | null;
   providerId?: string | null;
-  isSuperAdmin: boolean;
 }
 
 export const WA_ACCOUNT_STATUSES = [
@@ -43,8 +42,6 @@ export interface JamotRepository extends CoreJamotRepository {
   createUser(input: StoredUser): Promise<void>;
   findUserByEmail(email: string): Promise<StoredUser | null>;
   findUserByProvider(provider: string, providerId: string): Promise<StoredUser | null>;
-  findUserByActor(actorId: string): Promise<StoredUser | null>;
-  setSuperAdmin(personId: string, enabled: boolean): Promise<void>;
   createWaAccount(spaceId: string, label: string): Promise<WaAccountRecord>;
   listWaAccounts(spaceId: string): Promise<WaAccountRecord[]>;
   getWaAccount(id: string): Promise<WaAccountRecord | null>;
@@ -59,42 +56,22 @@ export function createMemoryRepository(): JamotRepository {
   const core = createCoreMemoryRepository();
   const users = new Map<string, StoredUser>();
   const usersByProvider = new Map<string, StoredUser>();
-  const usersByActor = new Map<string, StoredUser>();
   const waAccounts = new Map<string, WaAccountRecord>();
-
-  const remember = (input: StoredUser): void => {
-    const email = input.person.email;
-    if (email) users.set(email.toLowerCase(), input);
-    if (input.provider && input.providerId) {
-      usersByProvider.set(`${input.provider}:${input.providerId}`, input);
-    }
-    usersByActor.set(input.actor.id, input);
-  };
 
   return {
     ...core,
     async createUser(input) {
-      remember({ ...input, isSuperAdmin: input.isSuperAdmin ?? false });
+      const email = input.person.email;
+      if (email) users.set(email.toLowerCase(), input);
+      if (input.provider && input.providerId) {
+        usersByProvider.set(`${input.provider}:${input.providerId}`, input);
+      }
     },
     async findUserByEmail(email) {
       return users.get(email.toLowerCase()) ?? null;
     },
     async findUserByProvider(provider, providerId) {
       return usersByProvider.get(`${provider}:${providerId}`) ?? null;
-    },
-    async findUserByActor(actorId) {
-      return usersByActor.get(actorId) ?? null;
-    },
-    async setSuperAdmin(personId, enabled) {
-      for (const user of usersByActor.values()) {
-        if (user.person.id !== personId) continue;
-        const updated = { ...user, isSuperAdmin: enabled };
-        usersByActor.set(updated.actor.id, updated);
-        if (updated.person.email) users.set(updated.person.email.toLowerCase(), updated);
-        if (updated.provider && updated.providerId) {
-          usersByProvider.set(`${updated.provider}:${updated.providerId}`, updated);
-        }
-      }
     },
     async createWaAccount(spaceId, label) {
       const now = new Date().toISOString();
