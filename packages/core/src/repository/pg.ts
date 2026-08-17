@@ -129,7 +129,7 @@ function toOrganization(row: OrganizationRow): Organization {
     spaceId: row.spaceId as Id,
     dream: row.dream,
     blueprint: row.blueprint,
-    enabledAppIds: row.enabledAppIds as Id[],
+    enabledAppIds: row.enabledAppIds,
     treasuryId: (row.treasuryId as Id | null) ?? null,
     reputation: row.reputation,
   };
@@ -477,6 +477,15 @@ export function createPgRepository(db: Db): JamotRepository {
       return rows.map(toOrganization);
     },
 
+    async updateOrganization(id, patch) {
+      const [row] = await q
+        .update(organizations)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(organizations.id, id))
+        .returning();
+      return row ? toOrganization(row) : null;
+    },
+
     async createRole(input: NewRole) {
       const [row] = await q
         .insert(roles)
@@ -505,6 +514,19 @@ export function createPgRepository(db: Db): JamotRepository {
         .from(roles)
         .where(eq(roles.spaceId, spaceId));
       return rows.map(toRole);
+    },
+
+    async updateRole(id, patch) {
+      const [row] = await q
+        .update(roles)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(roles.id, id))
+        .returning();
+      return row ? toRole(row) : null;
+    },
+
+    async deleteRole(id) {
+      await q.delete(roles).where(eq(roles.id, id));
     },
 
     async createTask(input: NewTask) {

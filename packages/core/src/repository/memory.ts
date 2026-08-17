@@ -200,6 +200,14 @@ export function createMemoryRepository(): JamotRepository {
       return [...organizations.values()];
     },
 
+    async updateOrganization(id, patch) {
+      const existing = organizations.get(id);
+      if (!existing) return null;
+      const updated = Organization.parse({ ...existing, ...patch, updatedAt: now() });
+      organizations.set(id, updated);
+      return updated;
+    },
+
     async createRole(input: NewRole) {
       const role = Role.parse({
         id: uuid(),
@@ -220,6 +228,18 @@ export function createMemoryRepository(): JamotRepository {
 
     async listRolesForSpace(spaceId) {
       return [...roles.values()].filter((r) => r.spaceId === spaceId);
+    },
+
+    async updateRole(id, patch) {
+      const existing = roles.get(id);
+      if (!existing) return null;
+      const updated = Role.parse({ ...existing, ...patch, updatedAt: now() });
+      roles.set(id, updated);
+      return updated;
+    },
+
+    async deleteRole(id) {
+      roles.delete(id);
     },
 
     async createTask(input: NewTask) {

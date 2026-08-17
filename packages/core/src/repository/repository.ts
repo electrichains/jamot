@@ -184,7 +184,12 @@ export interface JamotRepository {
   createPerson(input: NewPerson): Promise<Person>;
   getPerson(id: string): Promise<Person | null>;
   listPeople(): Promise<Person[]>;
-  updatePerson(id: string, patch: Partial<Pick<Person, "profile" | "email">>): Promise<Person | null>;
+  updatePerson(
+    id: string,
+    patch: Partial<
+      Pick<Person, "profile" | "email" | "membershipSpaceIds" | "reputation">
+    >,
+  ): Promise<Person | null>;
 
   // agents
   createAgent(input: NewAgent): Promise<Agent>;
@@ -198,11 +203,20 @@ export interface JamotRepository {
   createOrganization(input: NewOrganization): Promise<Organization>;
   getOrganization(id: string): Promise<Organization | null>;
   listOrganizations(): Promise<Organization[]>;
+  updateOrganization(
+    id: string,
+    patch: Partial<Pick<Organization, "dream" | "blueprint" | "enabledAppIds">>,
+  ): Promise<Organization | null>;
 
   // roles
   createRole(input: NewRole): Promise<Role>;
   listRolesForActor(actorId: string): Promise<Role[]>;
   listRolesForSpace(spaceId: string): Promise<Role[]>;
+  updateRole(
+    id: string,
+    patch: Partial<Pick<Role, "kind" | "title">>,
+  ): Promise<Role | null>;
+  deleteRole(id: string): Promise<void>;
 
   // tasks
   createTask(input: NewTask): Promise<Task>;

@@ -33,6 +33,7 @@ import {
   orgNodes,
   type ChangeRequest,
   type OrgKind,
+  type OrgNode,
 } from "./org-data";
 import { ChangeProposal } from "./ChangeProposal";
 import { NodeDrawer } from "./NodeDrawer";
@@ -197,8 +198,8 @@ function buildEdges(nodes: OrgFlowNode[]): Edge[] {
     }));
 }
 
-function buildFlow(): { nodes: OrgFlowNode[]; edges: Edge[] } {
-  const nodes: OrgFlowNode[] = orgNodes.map((node) => ({
+function buildFlow(source: OrgNode[]): { nodes: OrgFlowNode[]; edges: Edge[] } {
+  const nodes: OrgFlowNode[] = source.map((node) => ({
     id: node.id,
     type: "org",
     draggable: node.kind !== "dream",
@@ -248,25 +249,27 @@ function Legend() {
   );
 }
 
-export function OrgChart() {
+export function OrgChart({ nodes = orgNodes }: { nodes?: OrgNode[] }) {
   return (
     <ReactFlowProvider>
-      <OrgChartInner />
+      <OrgChartInner nodes={nodes} />
     </ReactFlowProvider>
   );
 }
 
-function OrgChartInner() {
-  const initial = useMemo(() => buildFlow(), []);
+function OrgChartInner({ nodes: sourceNodes }: { nodes: OrgNode[] }) {
+  const initial = useMemo(() => buildFlow(sourceNodes), [sourceNodes]);
   const [nodes, setNodes, onNodesChange] = useNodesState<OrgFlowNode>(initial.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initial.edges);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [proposal, setProposal] = useState<ChangeRequest | null>(null);
   const { getIntersectingNodes } = useReactFlow<OrgFlowNode>();
 
-  const selectedOrg = selectedId
-    ? (orgNodes.find((node) => node.id === selectedId) ?? null)
-    : null;
+  const sourceById = useMemo(
+    () => new Map(sourceNodes.map((node) => [node.id, node])),
+    [sourceNodes],
+  );
+  const selectedOrg = selectedId ? (sourceById.get(selectedId) ?? null) : null;
 
   const parentOf = useMemo(() => buildParentMap(nodes), [nodes]);
 

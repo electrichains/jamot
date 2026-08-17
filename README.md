@@ -6,6 +6,8 @@ It is a **universal organizational kernel** — not an agent runtime, CRM, ERP, 
 
 > **Jamot owns identity, relationships, permissions, organizational state, capability contracts and governance. External systems provide specialized cognition, communication, execution and knowledge infrastructure.**
 
+> **Source of truth:** [`JAMOT_SPEC.md`](./JAMOT_SPEC.md) is the authoritative product/spec document for this repository. Design decisions and implementations must stay consistent with it.
+
 ## Monorepo layout
 
 ```

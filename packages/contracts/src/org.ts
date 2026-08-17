@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EntityBase, Id } from "./common.js";
+import { EntityBase, Id, Timestamp } from "./common.js";
 
 export const SpaceKind = z.enum(["personal", "organization"]);
 export type SpaceKind = z.infer<typeof SpaceKind>;
@@ -17,7 +17,8 @@ export const Organization = EntityBase.extend({
   spaceId: Id,
   dream: z.string().default(""),
   blueprint: z.record(z.string(), z.unknown()).default({}),
-  enabledAppIds: z.array(Id).default([]),
+  /** Ids of apps in the App Registry that are enabled/allocated for this org. */
+  enabledAppIds: z.array(z.string()).default([]),
   treasuryId: Id.nullable(),
   reputation: z.record(z.string(), z.number()).default({}),
 });
@@ -49,3 +50,25 @@ export const OrganicChart = EntityBase.extend({
   rootPositionId: Id.nullable(),
 });
 export type OrganicChart = z.infer<typeof OrganicChart>;
+
+/** Role a human member can hold inside an organization. */
+export const OrgMemberRoleKind = z.enum(["owner", "admin", "member"]);
+export type OrgMemberRoleKind = z.infer<typeof OrgMemberRoleKind>;
+
+/** A human member of an organization, for the team/member management UI. */
+export const OrganizationMember = z.object({
+  personId: Id,
+  actorId: Id,
+  email: z.string().email().nullable(),
+  displayName: z.string(),
+  kind: OrgMemberRoleKind,
+  title: z.string().nullable(),
+  membershipSince: Timestamp,
+});
+export type OrganizationMember = z.infer<typeof OrganizationMember>;
+
+/** Body for allocating (enabling/disabling) apps on an organization. */
+export const UpdateOrganizationApps = z.object({
+  enabledAppIds: z.array(z.string()),
+});
+export type UpdateOrganizationApps = z.infer<typeof UpdateOrganizationApps>;

@@ -13,6 +13,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 export interface AuthUser {
   actor: { id: string; type: string; displayName: string };
   person: { id: string; email: string | null; membershipSpaceIds: string[] } | null;
+  isSuperAdmin: boolean;
 }
 
 interface AuthState {
@@ -32,7 +33,14 @@ const AuthContext = createContext<AuthState>({
 async function fetchUser(): Promise<AuthUser | null> {
   try {
     const res = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
-    if (res.ok) return (await res.json()) as AuthUser;
+    if (res.ok) {
+      const data = (await res.json()) as Partial<AuthUser>;
+      return {
+        actor: data.actor ?? { id: "", type: "unknown", displayName: "" },
+        person: data.person ?? null,
+        isSuperAdmin: Boolean(data.isSuperAdmin),
+      };
+    }
     return null;
   } catch {
     return null;

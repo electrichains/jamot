@@ -41,7 +41,9 @@ export function authRoutes(repo: JamotRepository) {
       const personId = request.session.personId;
       const person = personId ? await repo.getPerson(personId) : null;
 
-      return { actor, person };
+      const user = await repo.findUserByActor(actorId);
+
+      return { actor, person, isSuperAdmin: user?.isSuperAdmin ?? false };
     });
   };
 }

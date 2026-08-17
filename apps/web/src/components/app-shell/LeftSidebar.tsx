@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -22,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth/auth-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChatHistory } from "@/components/chat/ChatHistory";
-import { SPACES, useAppShell } from "./app-shell-context";
+import { useAppShell } from "./app-shell-context";
 
 const NAV_ITEMS: { label: string; icon: LucideIcon; href?: string; active?: boolean }[] = [
   { label: "Projects", icon: FolderKanban },
@@ -88,7 +89,7 @@ export function LeftSidebar() {
 }
 
 function SpaceSwitcher() {
-  const { space, setSpace } = useAppShell();
+  const { space, setSpace, spaces } = useAppShell();
   const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
@@ -127,7 +128,7 @@ function SpaceSwitcher() {
             transition={{ duration: 0.15 }}
             className="absolute bottom-full left-2 right-2 z-20 mb-1 overflow-hidden rounded-lg border border-border bg-card p-1 shadow-lg"
           >
-            {SPACES.map((candidate) => (
+            {spaces.map((candidate) => (
               <li key={candidate.id}>
                 <button
                   type="button"
@@ -160,6 +161,15 @@ function SpaceSwitcher() {
           <Settings className="size-4" />
           Settings
         </Link>
+        {user?.isSuperAdmin ? (
+          <Link
+            href="/admin"
+            className="flex flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ShieldCheck className="size-4" />
+            Admin
+          </Link>
+        ) : null}
         <ThemeToggle />
       </div>
 

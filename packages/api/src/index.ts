@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
 import { createMemoryRepository } from "./repository.js";
 import { createPgRepositoryFromDb } from "./pgRepository.js";
+import { superAdminEmails } from "./auth.js";
 import { createDb } from "@jamot/core";
 import type { Db } from "@jamot/core";
 import { createPostgresMemoryProvider } from "@jamot/core/memory";
@@ -38,6 +39,15 @@ if (process.env.DATABASE_URL) {
 
 if (process.env.OPENAI_API_KEY) {
   llm = createLLMProvider("openai");
+}
+
+try {
+  for (const email of superAdminEmails()) {
+    const user = await repository.findUserByEmail(email);
+    if (user) await repository.setSuperAdmin(user.person.id, true);
+  }
+} catch (err) {
+  console.warn("super admin reconciliation failed", err);
 }
 
 const app = await buildApp({

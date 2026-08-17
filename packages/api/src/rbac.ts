@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Id } from "@jamot/contracts";
-import type { JamotRepository, RoleKind } from "./repository.js";
+import type { JamotRepository, RoleKind, StoredUser } from "./repository.js";
 
 export const ROLE_WEIGHT: Record<RoleKind, number> = {
   owner: 5,
@@ -43,6 +43,17 @@ export async function actorRoleInSpace(
   );
 }
 
+export async function loadUser(
+  repo: JamotRepository,
+  actorId: string,
+): Promise<StoredUser | null> {
+  return repo.findUserByActor(actorId);
+}
+
+export function isSuperAdminUser(user: StoredUser | null): boolean {
+  return user?.isSuperAdmin === true;
+}
+
 function resolveSpaceId(request: FastifyRequest, source: string): string | undefined {
   const params = request.params as Record<string, unknown> | undefined;
   const query = request.query as Record<string, unknown> | undefined;
@@ -76,5 +87,39 @@ export function createRbac(repo: JamotRepository) {
       if (!role) return deny(reply, "No access to this space", 403);
     };
 
-  return { requireRole, requireSpaceAccess };
+  const requireOrgAccess = (orgSource = "organizationId") =>
+    async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply | void> => {
+      const actorId = request.session.actorId;
+      if (!actorId) return deny(reply, "Unauthenticated", 401);
+      const orgId = resolveSpaceId(request, orgSource);
+      if (!orgId) return deny(reply, "organizationId is required", 400);
+      const org = await repo.getOrganization(orgId as Id);
+      if (!org) return deny(reply, "organization not found", 404);
+      const user = await loadUser(repo, actorId);
+      if (isSuperAdminUser(user)) return;
+      const space = await repo.getSpace(org.spaceId);
+      if (!space) return deny(reply, "organization space not found", 404);
+      const role = await actorRoleInSpace(repo, actorId, org.spaceId);
+      if (!role) return deny(reply, "No access to this organization", 403);
+    };
+
+  const requireOrgAdmin = (orgSource = "organizationId") =>
+    async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply | void> => {
+      const actorId = request.session.actorId;
+      if (!actorId) return deny(reply, "Unauthenticated", 401);
+      const orgId = resolveSpaceId(request, orgSource);
+      if (!orgId) return deny(reply, "organizationId is required", 400);
+      const org = await repo.getOrganization(orgId as Id);
+      if (!org) return deny(reply, "organization not found", 404);
+      const user = await loadUser(repo, actorId);
+      if (isSuperAdminUser(user)) return;
+      const space = await repo.getSpace(org.spaceId);
+      if (!space) return deny(reply, "organization space not found", 404);
+      const role = await actorRoleInSpace(repo, actorId, org.spaceId);
+      if (!role || ROLE_WEIGHT[role] < ROLE_WEIGHT.admin) {
+        return deny(reply, "Requires organization admin role or higher", 403);
+      }
+    };
+
+  return { requireRole, requireSpaceAccess, requireOrgAccess, requireOrgAdmin };
 }

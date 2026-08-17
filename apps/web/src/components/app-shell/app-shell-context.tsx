@@ -1,39 +1,51 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+
+import {
+  getOrganizations,
+  type OrganizationListItem,
+  type OrgRole,
+} from "@/lib/api-client";
 
 export interface Space {
   id: string;
   name: string;
   accent: string;
   accentForeground: string;
+  kind?: "personal" | "organization";
+  organizationId?: string;
+  spaceId?: string;
+  role?: OrgRole;
 }
 
-export const SPACES: Space[] = [
-  {
-    id: "personal",
-    name: "Personal Space",
-    accent: "#7c3aed",
-    accentForeground: "#ffffff",
-  },
-  {
-    id: "restaurant",
-    name: "Restaurant Co.",
-    accent: "#f59e0b",
-    accentForeground: "#1c1917",
-  },
-  {
-    id: "construction",
-    name: "Construction Co.",
-    accent: "#3b82f6",
-    accentForeground: "#ffffff",
-  },
-  {
-    id: "event",
-    name: "Event Venture",
-    accent: "#10b981",
-    accentForeground: "#022c22",
-  },
+export const PERSONAL_SPACE: Space = {
+  id: "personal",
+  name: "Personal Space",
+  accent: "#7c3aed",
+  accentForeground: "#ffffff",
+  kind: "personal",
+};
+
+export const SPACES: Space[] = [PERSONAL_SPACE];
+
+const ORG_ACCENTS: { accent: string; accentForeground: string }[] = [
+  { accent: "#0ea5e9", accentForeground: "#ffffff" },
+  { accent: "#10b981", accentForeground: "#022c22" },
+  { accent: "#f59e0b", accentForeground: "#1c1917" },
+  { accent: "#ec4899", accentForeground: "#ffffff" },
+  { accent: "#8b5cf6", accentForeground: "#ffffff" },
+  { accent: "#f43f5e", accentForeground: "#ffffff" },
+  { accent: "#14b8a6", accentForeground: "#042f2e" },
+  { accent: "#6366f1", accentForeground: "#ffffff" },
 ];
 
 export type SectionId =
@@ -61,11 +73,17 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   finance: "Finance",
 };
 
+export type OrganizationsLoader = () => Promise<OrganizationListItem[]>;
+
 interface AppShellState {
   leftSize: number;
   rightSize: number;
   space: Space;
+  spaces: Space[];
   activeSection: SectionId | null;
+  organizations: OrganizationListItem[];
+  organizationsLoading: boolean;
+  reloadOrganizations: () => Promise<void>;
   setLeftSize: (size: number) => void;
   setRightSize: (size: number) => void;
   setSpace: (id: string) => void;
@@ -78,25 +96,111 @@ export const DEFAULT_LEFT_SIZE = 240;
 export const DEFAULT_RIGHT_SIZE = 320;
 export const DEFAULT_SECTION_WIDTH = 640;
 
-export function AppShellProvider({ children }: { children: ReactNode }) {
+function spaceFromOrganization(item: OrganizationListItem, index: number): Space {
+  const palette = ORG_ACCENTS[index % ORG_ACCENTS.length];
+  return {
+    id: item.organization.id,
+    name: item.space.name || "Organization",
+    accent: palette.accent,
+    accentForeground: palette.accentForeground,
+    kind: "organization",
+    organizationId: item.organization.id,
+    spaceId: item.space.id,
+    role: item.role,
+  };
+}
+
+export function AppShellProvider({
+  children,
+  loadOrganizations = getOrganizations,
+}: {
+  children: ReactNode;
+  loadOrganizations?: OrganizationsLoader;
+}) {
   const [leftSize, setLeftSize] = useState(DEFAULT_LEFT_SIZE);
   const [rightSize, setRightSize] = useState(DEFAULT_RIGHT_SIZE);
   const [spaceId, setSpaceId] = useState("personal");
   const [activeSection, setActiveSection] = useState<SectionId | null>(null);
+  const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
+  const [organizationsLoading, setOrganizationsLoading] = useState(true);
+
+  const spaces = useMemo<Space[]>(
+    () => [
+      PERSONAL_SPACE,
+      ...organizations.map((item, index) => spaceFromOrganization(item, index)),
+    ],
+    [organizations],
+  );
+
+  const reloadOrganizations = useCallback(async () => {
+    try {
+      const items = await loadOrganizations();
+      setOrganizations(items);
+    } catch {
+      setOrganizations([]);
+    } finally {
+      setOrganizationsLoading(false);
+    }
+  }, [loadOrganizations]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadOrganizations()
+      .then((items) => {
+        if (!cancelled) setOrganizations(items);
+      })
+      .catch(() => {
+        if (!cancelled) setOrganizations([]);
+      })
+      .finally(() => {
+        if (!cancelled) setOrganizationsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadOrganizations]);
+
+  const setSpace = useCallback(
+    (id: string) => {
+      setSpaceId((current) => {
+        if (!id) return current;
+        if (spaces.some((candidate) => candidate.id === id)) return id;
+        return current === "personal" || spaces.some((c) => c.id === current)
+          ? current
+          : "personal";
+      });
+    },
+    [spaces],
+  );
 
   const value = useMemo<AppShellState>(() => {
-    const space = SPACES.find((candidate) => candidate.id === spaceId) ?? SPACES[0];
+    const space =
+      spaces.find((candidate) => candidate.id === spaceId) ?? PERSONAL_SPACE;
     return {
       leftSize,
       rightSize,
       space,
+      spaces,
       activeSection,
+      organizations,
+      organizationsLoading,
+      reloadOrganizations,
       setLeftSize,
       setRightSize,
-      setSpace: setSpaceId,
+      setSpace,
       setActiveSection,
     };
-  }, [leftSize, rightSize, spaceId, activeSection]);
+  }, [
+    leftSize,
+    rightSize,
+    spaceId,
+    spaces,
+    activeSection,
+    organizations,
+    organizationsLoading,
+    reloadOrganizations,
+    setSpace,
+  ]);
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;
 }

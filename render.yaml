@@ -51,6 +51,10 @@ projects:
                 value: http://jamot-channels:10000
               - key: NODE_ENV
                 value: production
+              # Grant-only super admins; comma-separated emails. Leave empty unless you
+              # want to grant full platform super-admin access to specific accounts.
+              - key: SUPER_ADMIN_EMAILS
+                value: ""
 
           - type: web
             name: jamot-web

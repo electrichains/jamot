@@ -65,6 +65,16 @@ export interface RegisterResult {
   space: Space;
 }
 
+export function superAdminEmails(): string[] {
+  const raw = process.env.SUPER_ADMIN_EMAILS ?? "";
+  const seen = new Set<string>();
+  for (const part of raw.split(/[,;\s]+/)) {
+    const email = part.trim().toLowerCase();
+    if (email) seen.add(email);
+  }
+  return [...seen];
+}
+
 export async function provisionUser(
   repo: JamotRepository,
   input: ProvisionInput,
@@ -84,6 +94,7 @@ export async function provisionUser(
     passwordHash: input.passwordHash,
     provider: input.provider ?? null,
     providerId: input.providerId ?? null,
+    isSuperAdmin: superAdminEmails().includes(input.email.toLowerCase()),
   });
   await repo.createRole({ actorId: actor.id, spaceId: space.id, kind: "owner" });
   return { actor: actorWithSpace ?? actor, person, space };
