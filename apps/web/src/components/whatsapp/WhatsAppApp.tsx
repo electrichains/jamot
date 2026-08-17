@@ -7,7 +7,7 @@ import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { getOrganizations } from "@/lib/api-client";
+import { listOrgSpaces } from "@/lib/org-spaces";
 import {
   createAccount,
   deleteAccount,
@@ -142,10 +142,10 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     let cancelled = false;
     void (async () => {
       try {
-        const orgs = await getOrganizations();
+        const orgs = await listOrgSpaces();
         const firstOrg = orgs[0];
         if (!firstOrg) return;
-        const items = await listAccounts(firstOrg.space.id);
+        const items = await listAccounts(firstOrg.spaceId);
         if (cancelled) return;
         setAccounts(items);
         setAccountId(items[0]?.id ?? null);
@@ -268,11 +268,11 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     setAccountBusy(true);
     setWorkerError(null);
     try {
-      const orgs = await getOrganizations();
+      const orgs = await listOrgSpaces();
       const firstOrg = orgs[0];
       if (!firstOrg) throw new Error("No organization found");
-      const account = await createAccount(firstOrg.space.id, "WhatsApp");
-      const items = await listAccounts(firstOrg.space.id);
+      const account = await createAccount(firstOrg.spaceId, "WhatsApp");
+      const items = await listAccounts(firstOrg.spaceId);
       setAccounts(items);
       setAccountId(account.id);
     } catch (err) {

@@ -6,8 +6,8 @@ import { Loader2, MessageCircle, Plus, RotateCcw, Trash2, X } from "lucide-react
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getOrganizations } from "@/lib/api-client";
-import type { OrganizationListItem } from "@/lib/api-client";
+import { listOrgSpaces } from "@/lib/org-spaces";
+import type { OrgSpaceRef } from "@/lib/org-spaces";
 import {
   createAccount,
   deleteAccount,
@@ -56,7 +56,7 @@ function QrCode({ qr }: { qr: string }) {
 }
 
 export function ChannelsSection() {
-  const [orgs, setOrgs] = useState<OrganizationListItem[]>([]);
+  const [orgs, setOrgs] = useState<OrgSpaceRef[]>([]);
   const [orgId, setOrgId] = useState<string>("");
   const [accounts, setAccounts] = useState<WaAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,11 +68,11 @@ export function ChannelsSection() {
 
   useEffect(() => {
     let cancelled = false;
-    void getOrganizations()
+    void listOrgSpaces()
       .then((items) => {
         if (cancelled) return;
         setOrgs(items);
-        if (items.length > 0) setOrgId(items[0]!.space.id);
+        if (items.length > 0) setOrgId(items[0]!.spaceId);
       })
       .catch(() => {
         if (cancelled) return;
@@ -105,7 +105,7 @@ export function ChannelsSection() {
     };
   }, [orgId]);
 
-  const selectedOrg = orgs.find((o) => o.space.id === orgId);
+  const selectedOrg = orgs.find((o) => o.spaceId === orgId);
 
   const handleAdd = async () => {
     if (!orgId || !newLabel.trim()) return;
@@ -184,8 +184,8 @@ export function ChannelsSection() {
             className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
           >
             {orgs.map((o) => (
-              <option key={o.space.id} value={o.space.id}>
-                {o.space.name || o.organization.id}
+              <option key={o.spaceId} value={o.spaceId}>
+                {o.name || o.spaceId}
               </option>
             ))}
           </select>
@@ -222,7 +222,7 @@ export function ChannelsSection() {
         </div>
       ) : accounts.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No WhatsApp channels linked yet{selectedOrg ? ` for ${selectedOrg.space.name}` : ""}.
+          No WhatsApp channels linked yet{selectedOrg ? ` for ${selectedOrg.name}` : ""}.
         </p>
       ) : (
         <div className="flex flex-col gap-3">
