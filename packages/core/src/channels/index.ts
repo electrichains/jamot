@@ -29,3 +29,8 @@ export type {
   WhatsAppControlServer,
   WhatsAppControlServerOpts,
 } from "./wa-server.js";
+export { createWhatsAppManager } from "./manager.js";
+export type {
+  WhatsAppManager,
+  WhatsAppManagerOpts,
+} from "./manager.js";

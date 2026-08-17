@@ -3,8 +3,8 @@ import {
   createChannelRegistry,
   createChannelService,
   createMatrixAdapter,
-  createWhatsAppAdapter,
   createWhatsAppControlServer,
+  createWhatsAppManager,
 } from "@jamot/core/channels";
 import type { InboundMessage } from "@jamot/core/channels";
 import { createDb, createEventBus } from "@jamot/core";
@@ -39,12 +39,10 @@ export function startChannelWorker(): Promise<void> {
   const promises: Promise<void>[] = [];
 
   if (whatsappSessionDir) {
-    const adapter = createWhatsAppAdapter({
-      sessionDir: whatsappSessionDir,
+    const manager = createWhatsAppManager({
+      sessionBaseDir: whatsappSessionDir,
+      onMessage,
     });
-    adapter.onMessage(onMessage);
-    registry.register(adapter);
-    promises.push(adapter.connect());
 
     const controlPort = Number(
       process.env.PORT ?? process.env.WA_CONTROL_PORT ?? 3001,
@@ -52,7 +50,7 @@ export function startChannelWorker(): Promise<void> {
     console.log(
       `[channel] whatsapp control server: internal=${process.env.RENDER_INTERNAL_HOSTNAME ?? "n/a"} port=${controlPort}`,
     );
-    const server = createWhatsAppControlServer(adapter, { port: controlPort });
+    const server = createWhatsAppControlServer(manager, { port: controlPort });
     promises.push(server.start());
   }
 

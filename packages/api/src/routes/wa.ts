@@ -1,7 +1,14 @@
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
-import { requireAuth } from "../rbac.js";
+import { Id } from "@jamot/contracts";
+import { requireAuth, createRbac } from "../rbac.js";
 import { fail, parse } from "../util.js";
+import type { JamotRepository, WaAccountRecord } from "../repository.js";
+
+const CreateAccountBody = z.object({
+  spaceId: z.string().min(1),
+  label: z.string().min(1).max(120),
+});
 
 const SendBody = z.object({
   jid: z.string().min(1),
@@ -21,7 +28,12 @@ const MediaBody = z.object({
   mimetype: z.string().optional(),
 });
 
+const ImportBody = z.object({
+  files: z.record(z.string(), z.string()),
+});
+
 export interface WaRouteOptions {
+  repository: JamotRepository;
   workerUrl?: string;
 }
 
@@ -41,15 +53,19 @@ async function forward(
   return { body, status: res.status };
 }
 
+type FailReply = Parameters<typeof fail>[0];
+
 export default async function waRoutes(
   app: FastifyInstance,
-  opts: WaRouteOptions = {},
+  opts: WaRouteOptions,
 ): Promise<void> {
   const workerBase = opts.workerUrl ?? process.env.WA_WORKER_URL ?? "";
+  const { repository } = opts;
+  const rbac = createRbac(repository);
 
   const proxy = async (
     path: string,
-    reply: Parameters<typeof fail>[0],
+    reply: FailReply,
     init?: RequestInit,
   ): Promise<unknown | undefined> => {
     if (!workerBase) {
@@ -79,83 +95,288 @@ export default async function waRoutes(
     body: JSON.stringify(body),
   });
 
-  app.get("/wa/state", { preHandler: requireAuth }, async (_req, reply) => {
-    return proxy("/state", reply);
-  });
+  const secretInit = (body?: unknown): RequestInit => {
+    const secret = process.env.WA_CONTROL_SECRET ?? "";
+    return {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(secret ? { "x-control-secret": secret } : {}),
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    };
+  };
 
-  app.post("/wa/reset", { preHandler: requireAuth }, async (_req, reply) => {
-    return proxy("/reset", reply, { method: "POST" });
-  });
+  const accountPath = (path: string): string =>
+    `/accounts/${path}`;
 
-  app.get("/wa/chats", { preHandler: requireAuth }, async (_req, reply) => {
-    return proxy("/chats", reply);
-  });
+  const loadAccount = async (
+    id: string,
+    reply: FailReply,
+  ): Promise<WaAccountRecord | undefined> => {
+    const account = await repository.getWaAccount(id);
+    if (!account) {
+      fail(reply, 404, "wa account not found");
+      return undefined;
+    }
+    return account;
+  };
 
-  app.get("/wa/contacts", { preHandler: requireAuth }, async (request, reply) => {
-    const query = request.query as { q?: string };
-    const q = query.q ? `q=${encodeURIComponent(query.q)}` : "";
-    return proxy(`/contacts${q ? `?${q}` : ""}`, reply);
-  });
+  const resolveSpaceFromQuery = rbac.requireSpaceAccess("spaceId");
 
-  app.get("/wa/messages", { preHandler: requireAuth }, async (request, reply) => {
-    const query = request.query as { jid?: string; before?: string; limit?: string };
-    if (!query.jid) return fail(reply, 400, "jid is required");
-    const params = new URLSearchParams({ jid: query.jid });
-    if (query.before) params.set("before", query.before);
-    if (query.limit) params.set("limit", query.limit);
-    return proxy(`/messages?${params.toString()}`, reply);
-  });
-
-  app.get("/wa/search", { preHandler: requireAuth }, async (request, reply) => {
-    const query = request.query as { q?: string };
-    const q = query.q ?? "";
-    return proxy(`/search?q=${encodeURIComponent(q)}`, reply);
-  });
-
-  app.post("/wa/send", { preHandler: requireAuth }, async (request, reply) => {
-    const body = parse(SendBody, request.body, reply);
-    if (!body) return;
-    return proxy("/send", reply, jsonInit(body));
-  });
+  const fetchStateBestEffort = async (id: string) => {
+    if (!workerBase) return undefined;
+    try {
+      const { body, status } = await forward(
+        workerBase,
+        accountPath(`${encodeURIComponent(id)}/state`),
+      );
+      if (status !== 200 || typeof body !== "object" || body === null) {
+        return undefined;
+      }
+      return body as { connection?: string; qr?: string; phone?: string };
+    } catch {
+      return undefined;
+    }
+  };
 
   app.post(
-    "/wa/media",
-    { preHandler: requireAuth, bodyLimit: 15728640 },
+    "/wa/accounts",
+    { preHandler: [requireAuth, resolveSpaceFromQuery] },
     async (request, reply) => {
-      const body = parse(MediaBody, request.body, reply);
+      const body = parse(CreateAccountBody, request.body, reply);
       if (!body) return;
-      return proxy("/media", reply, jsonInit(body));
+      const account = await repository.createWaAccount(
+        body.spaceId,
+        body.label,
+      );
+      reply.code(201);
+      return account;
     },
   );
 
-  app.post("/wa/read", { preHandler: requireAuth }, async (request, reply) => {
-    const body = parse(ReadBody, request.body, reply);
-    if (!body) return;
-    return proxy("/read", reply, jsonInit(body));
-  });
+  app.get(
+    "/wa/accounts",
+    { preHandler: [requireAuth, resolveSpaceFromQuery] },
+    async (request, reply) => {
+      const query = request.query as { spaceId?: string };
+      if (!query.spaceId) return fail(reply, 400, "spaceId is required");
+      const accounts = await repository.listWaAccounts(query.spaceId);
+      const withState = await Promise.all(
+        accounts.map(async (account) => {
+          const state = await fetchStateBestEffort(account.id);
+          if (!state) return { ...account, connection: null, qr: null };
+          return { ...account, ...state };
+        }),
+      );
+      return { items: withState };
+    },
+  );
+
+  app.get(
+    "/wa/accounts/:id/state",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      return proxy(accountPath(`${encodeURIComponent(id)}/state`), reply);
+    },
+  );
+
+  app.post(
+    "/wa/accounts/:id/reset",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      await repository.updateWaAccount(id, { status: "pairing" });
+      return proxy(accountPath(`${encodeURIComponent(id)}/reset`), reply, {
+        method: "POST",
+      });
+    },
+  );
+
+  app.post(
+    "/wa/accounts/:id/logout",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      await repository.updateWaAccount(id, {
+        status: "offline",
+        phone: null,
+      });
+      return proxy(accountPath(`${encodeURIComponent(id)}/logout`), reply, {
+        method: "POST",
+      });
+    },
+  );
+
+  app.delete(
+    "/wa/accounts/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      if (workerBase) {
+        await forward(
+          workerBase,
+          accountPath(`${encodeURIComponent(id)}/logout`),
+          { method: "POST" },
+        ).catch(() => {});
+      }
+      await repository.deleteWaAccount(id);
+      return { ok: true };
+    },
+  );
+
+  app.post(
+    "/wa/accounts/:id/session",
+    { preHandler: requireAuth, bodyLimit: 15728640 },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      const body = parse(ImportBody, request.body, reply);
+      if (!body) return;
+      return proxy(
+        accountPath(`${encodeURIComponent(id)}/session`),
+        reply,
+        secretInit(body),
+      );
+    },
+  );
+
+  app.post(
+    "/wa/accounts/:id/send",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      const body = parse(SendBody, request.body, reply);
+      if (!body) return;
+      return proxy(accountPath(`${encodeURIComponent(id)}/send`), reply, jsonInit(body));
+    },
+  );
+
+  app.post(
+    "/wa/accounts/:id/media",
+    { preHandler: requireAuth, bodyLimit: 15728640 },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      const body = parse(MediaBody, request.body, reply);
+      if (!body) return;
+      return proxy(accountPath(`${encodeURIComponent(id)}/media`), reply, jsonInit(body));
+    },
+  );
+
+  app.post(
+    "/wa/accounts/:id/read",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      const body = parse(ReadBody, request.body, reply);
+      if (!body) return;
+      return proxy(accountPath(`${encodeURIComponent(id)}/read`), reply, jsonInit(body));
+    },
+  );
+
+  app.get(
+    "/wa/accounts/:id/chats",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      return proxy(accountPath(`${encodeURIComponent(id)}/chats`), reply);
+    },
+  );
+
+  app.get(
+    "/wa/accounts/:id/contacts",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      const query = request.query as { q?: string };
+      const q = query.q ? `?q=${encodeURIComponent(query.q)}` : "";
+      return proxy(
+        accountPath(`${encodeURIComponent(id)}/contacts${q}`),
+        reply,
+      );
+    },
+  );
+
+  app.get(
+    "/wa/accounts/:id/messages",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      const query = request.query as { jid?: string; before?: string; limit?: string };
+      if (!query.jid) return fail(reply, 400, "jid is required");
+      const paramsArg = new URLSearchParams({ jid: query.jid });
+      if (query.before) paramsArg.set("before", query.before);
+      if (query.limit) paramsArg.set("limit", query.limit);
+      return proxy(
+        accountPath(`${encodeURIComponent(id)}/messages?${paramsArg.toString()}`),
+        reply,
+      );
+    },
+  );
+
+  app.get(
+    "/wa/accounts/:id/search",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await loadAccount(id, reply);
+      if (!account) return;
+      const query = request.query as { q?: string };
+      const q = query.q ?? "";
+      return proxy(
+        accountPath(`${encodeURIComponent(id)}/search?q=${encodeURIComponent(q)}`),
+        reply,
+      );
+    },
+  );
 
   app.get("/wa/net-meta", { preHandler: requireAuth }, async (_req, reply) => {
     return proxy("/net/meta", reply);
   });
-
-  app.post(
-    "/wa/session-import",
-    { preHandler: requireAuth, bodyLimit: 15728640 },
-    async (request, reply) => {
-      const body = request.body as { files?: Record<string, string> };
-      if (!body || !body.files || Object.keys(body.files).length === 0) {
-        return fail(reply, 400, "files is required");
-      }
-      const secret = process.env.WA_CONTROL_SECRET ?? "";
-      const init: RequestInit = {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(secret ? { "x-control-secret": secret } : {}),
-        },
-        body: JSON.stringify(body),
-      };
-      return proxy("/session/import", reply, init);
-    },
-  );
 }

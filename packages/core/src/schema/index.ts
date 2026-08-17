@@ -83,6 +83,13 @@ export const connectorStatusEnum = pgEnum("connector_status", [
   "disconnected",
   "error",
 ]);
+export const waAccountStatusEnum = pgEnum("wa_account_status", [
+  "offline",
+  "pairing",
+  "connecting",
+  "connected",
+  "error",
+]);
 export const autonomyEnum = pgEnum("autonomy", [
   "suggest",
   "approve",
@@ -211,10 +218,10 @@ export const organizations = pgTable("organizations", {
     .$type<Record<string, unknown>>()
     .notNull()
     .default(sql`'{}'::jsonb`),
-  enabledAppIds: uuid("enabled_app_ids")
+  enabledAppIds: text("enabled_app_ids")
     .array()
     .notNull()
-    .default(sql`'{}'::uuid[]`),
+    .default(sql`'{}'::text[]`),
   treasuryId: uuid("treasury_id"),
   reputation: jsonb("reputation")
     .$type<Record<string, number>>()
@@ -492,6 +499,17 @@ export const channels = pgTable("channels", {
   ...timestamps(),
 });
 
+export const waAccounts = pgTable("wa_accounts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  spaceId: uuid("space_id")
+    .notNull()
+    .references(() => spaces.id),
+  label: text("label").notNull(),
+  phone: text("phone"),
+  status: waAccountStatusEnum("status").notNull().default("offline"),
+  ...timestamps(),
+});
+
 export const conversations = pgTable("conversations", {
   id: uuid("id").defaultRandom().primaryKey(),
   spaceId: uuid("space_id")
@@ -654,6 +672,7 @@ export const users = pgTable(
     passwordHash: text("password_hash"),
     provider: text("provider"),
     providerId: text("provider_id"),
+    isSuperAdmin: boolean("is_super_admin").notNull().default(false),
     ...timestamps(),
   },
   (table) => ({
@@ -686,6 +705,7 @@ export const schema = {
   auditLog,
   secrets,
   channels,
+  waAccounts,
   conversations,
   messages,
   memories,

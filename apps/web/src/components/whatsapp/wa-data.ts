@@ -1,5 +1,24 @@
 export type WaConnection = "connecting" | "open" | "close";
 
+export type WaAccountStatus =
+  | "offline"
+  | "pairing"
+  | "connecting"
+  | "connected"
+  | "error";
+
+export interface WaAccount {
+  id: string;
+  spaceId: string;
+  label: string;
+  phone: string | null;
+  status: WaAccountStatus;
+  createdAt: string;
+  updatedAt: string;
+  connection?: WaConnection | null;
+  qr?: string | null;
+}
+
 export interface WaState {
   connection: WaConnection;
   qr?: string;

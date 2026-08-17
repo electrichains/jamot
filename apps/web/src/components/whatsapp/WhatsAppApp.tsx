@@ -7,9 +7,13 @@ import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { getOrganizations } from "@/lib/api-client";
 import {
+  createAccount,
+  deleteAccount,
   getMessages,
   getState,
+  listAccounts,
   listChats,
   listContacts,
   markRead,
@@ -18,7 +22,7 @@ import {
   sendMedia,
   sendText,
 } from "./wa-api";
-import type { WaChat, WaContact, WaConnection, WaMessage, WaState } from "./wa-data";
+import type { WaAccount, WaChat, WaContact, WaConnection, WaMessage, WaState } from "./wa-data";
 
 function mediaLabel(msg: WaMessage): string {
   if (msg.text) return msg.text;
@@ -117,6 +121,9 @@ function QrPanel({
 }
 
 export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
+  const [accounts, setAccounts] = useState<WaAccount[]>([]);
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [accountBusy, setAccountBusy] = useState(false);
   const [state, setState] = useState<WaState | null>(null);
   const [chats, setChats] = useState<WaChat[]>([]);
   const [contacts, setContacts] = useState<WaContact[]>([]);
@@ -133,11 +140,33 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
+    void (async () => {
+      try {
+        const orgs = await getOrganizations();
+        const firstOrg = orgs[0];
+        if (!firstOrg) return;
+        const items = await listAccounts(firstOrg.space.id);
+        if (cancelled) return;
+        setAccounts(items);
+        setAccountId(items[0]?.id ?? null);
+      } catch {
+        if (cancelled) return;
+        setAccounts([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
     const tick = async () => {
       try {
         const [nextState, nextChats] = await Promise.all([
-          getState(),
-          listChats(),
+          getState(accountId),
+          listChats(accountId),
         ]);
         if (cancelled) return;
         setState(nextState);
@@ -158,14 +187,14 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [accountId]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selected || !accountId) return;
     let cancelled = false;
     const load = async () => {
       try {
-        const msgs = await getMessages(selected);
+        const msgs = await getMessages(accountId, selected);
         if (!cancelled) setMessages(msgs);
       } catch {
         // ignored while polling
@@ -177,18 +206,18 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [selected]);
+  }, [selected, accountId]);
 
   useEffect(() => {
     const q = query.trim();
-    if (!q) return;
+    if (!q || !accountId) return;
     let cancelled = false;
-    void listContacts(q)
+    void listContacts(accountId, q)
       .then((list) => {
         if (!cancelled) setContacts(list);
       })
       .catch(() => {});
-    void searchMessages(q)
+    void searchMessages(accountId, q)
       .then((found) => {
         if (!cancelled) setResults(found);
       })
@@ -196,7 +225,7 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, accountId]);
 
   const nameFor = (jid: string): string =>
     chats.find((c) => c.jid === jid)?.name ??
@@ -205,13 +234,14 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   const openChat = (jid: string) => {
     setSelected(jid);
     setQuery("");
-    void markRead(jid).catch(() => {});
+    if (accountId) void markRead(accountId, jid).catch(() => {});
   };
 
   const handleReset = async () => {
+    if (!accountId) return;
     setWorkerError(null);
     try {
-      await resetPairing();
+      await resetPairing(accountId);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Reset failed";
@@ -220,8 +250,8 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     void (async () => {
       try {
         const [nextState, nextChats] = await Promise.all([
-          getState(),
-          listChats(),
+          getState(accountId),
+          listChats(accountId),
         ]);
         setState(nextState);
         setChats(nextChats);
@@ -234,14 +264,47 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     })();
   };
 
+  const handleAddAccount = async () => {
+    setAccountBusy(true);
+    setWorkerError(null);
+    try {
+      const orgs = await getOrganizations();
+      const firstOrg = orgs[0];
+      if (!firstOrg) throw new Error("No organization found");
+      const account = await createAccount(firstOrg.space.id, "WhatsApp");
+      const items = await listAccounts(firstOrg.space.id);
+      setAccounts(items);
+      setAccountId(account.id);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not add account";
+      setWorkerError(message);
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleDeleteAccount = async (id: string) => {
+    setWorkerError(null);
+    try {
+      await deleteAccount(id);
+      setAccounts((prev) => prev.filter((a) => a.id !== id));
+      if (accountId === id) setAccountId(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not remove account";
+      setWorkerError(message);
+    }
+  };
+
   const handleSend = async () => {
     const text = draft.trim();
-    if (!text || !selected) return;
+    if (!text || !selected || !accountId) return;
     setSending(true);
     try {
-      await sendText(selected, text);
+      await sendText(accountId, selected, text);
       setDraft("");
-      const msgs = await getMessages(selected);
+      const msgs = await getMessages(accountId, selected);
       setMessages(msgs);
     } catch {
       // keep draft on failure
@@ -252,13 +315,13 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !selected) return;
+    if (!file || !selected || !accountId) return;
     const type = mediaTypeFor(file.type);
     if (!type) return;
     try {
       const data = await fileToBase64(file);
-      await sendMedia({ jid: selected, type, data });
-      const msgs = await getMessages(selected);
+      await sendMedia(accountId, { jid: selected, type, data });
+      const msgs = await getMessages(accountId, selected);
       setMessages(msgs);
     } catch {
       // fall through
@@ -271,11 +334,54 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
-        <span className="font-display text-sm font-semibold">WhatsApp</span>
-        <span className="text-xs text-muted-foreground">
-          {connected ? "Connected" : state?.connection ?? "…"}
-        </span>
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          {accounts.length > 0 ? (
+            <select
+              value={accountId ?? ""}
+              onChange={(e) => {
+                setAccountId(e.target.value || null);
+                setSelected(null);
+              }}
+              className="max-w-[180px] truncate rounded-md border border-border bg-background px-2 py-1 text-sm"
+            >
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {accounts.length > 0 && accountId ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 text-xs text-muted-foreground"
+              onClick={() => {
+                if (accountId) void handleDeleteAccount(accountId);
+              }}
+              title="Remove this account"
+            >
+              Remove
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {connected ? "Connected" : state?.connection ?? "…"}
+          </span>
+          {accounts.length === 0 ? (
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              disabled={accountBusy}
+              onClick={() => void handleAddAccount()}
+            >
+              {accountBusy ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              Add channel
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1">
@@ -414,7 +520,15 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
               </Button>
             </div>
           ) : null}
-          {!connected ? (
+          {!accountId ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+              <p>No WhatsApp channel selected for this organization.</p>
+              <Button size="sm" disabled={accountBusy} onClick={() => void handleAddAccount()}>
+                {accountBusy ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                Add a channel
+              </Button>
+            </div>
+          ) : !connected ? (
             <QrPanel
               key={state?.qr ?? state?.connection ?? "none"}
               qr={state?.qr}

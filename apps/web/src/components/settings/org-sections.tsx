@@ -1,6 +1,7 @@
 "use client";
 
 import { SectionHeading, Card } from "./section-primitives";
+import { ChannelsSection } from "./channels-section";
 
 function OrgStub({
   title,
@@ -21,13 +22,9 @@ function OrgStub({
   );
 }
 
-export function GeneralOrgSection() {
-  return <OrgStub title="General" description="Organization-wide settings." />;
-}
-
-export function PeopleOrgSection() {
-  return <OrgStub title="People" description="Manage people in your organization." />;
-}
+export { GeneralOrgSection } from "./general-org-section";
+export { PeopleOrgSection } from "./people-org-section";
+export { AppsOrgSection } from "./apps-org-section";
 
 export function RolesOrgSection() {
   return <OrgStub title="Roles" description="Define roles and permissions." />;
@@ -46,12 +43,8 @@ export function OrgAgentsSection() {
   return <OrgStub title="Agents" description="Shared organization agents." />;
 }
 
-export function AppsOrgSection() {
-  return <OrgStub title="Apps" description="Apps connected to the organization." />;
-}
-
 export function ChannelsOrgSection() {
-  return <OrgStub title="Channels" description="Shared communication channels." />;
+  return <ChannelsSection />;
 }
 
 export function SharedSkillsSection() {

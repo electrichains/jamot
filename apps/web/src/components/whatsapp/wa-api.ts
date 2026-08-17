@@ -1,5 +1,5 @@
 import { API_URL } from "@/components/auth/auth-context";
-import type { WaChat, WaContact, WaMessage, WaState } from "./wa-data";
+import type { WaAccount, WaChat, WaContact, WaMessage, WaState } from "./wa-data";
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -18,61 +18,118 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-export function getState(): Promise<WaState> {
-  return api<WaState>("/api/wa/state");
-}
+const enc = encodeURIComponent;
 
-export function resetPairing(): Promise<unknown> {
-  return api("/api/wa/reset", { method: "POST" });
-}
-
-export async function listChats(): Promise<WaChat[]> {
-  const data = await api<{ items: WaChat[] }>("/api/wa/chats");
+export async function listAccounts(spaceId: string): Promise<WaAccount[]> {
+  const data = await api<{ items: WaAccount[] }>(
+    `/api/wa/accounts?spaceId=${enc(spaceId)}`,
+  );
   return data.items;
 }
 
-export async function listContacts(query?: string): Promise<WaContact[]> {
+export async function createAccount(
+  spaceId: string,
+  label: string,
+): Promise<WaAccount> {
+  return api<WaAccount>("/api/wa/accounts", {
+    method: "POST",
+    body: JSON.stringify({ spaceId, label }),
+  });
+}
+
+export async function deleteAccount(id: string): Promise<unknown> {
+  return api(`/api/wa/accounts/${enc(id)}`, { method: "DELETE" });
+}
+
+export function getState(accountId: string): Promise<WaState> {
+  return api<WaState>(`/api/wa/accounts/${enc(accountId)}/state`);
+}
+
+export function resetPairing(accountId: string): Promise<unknown> {
+  return api(`/api/wa/accounts/${enc(accountId)}/reset`, { method: "POST" });
+}
+
+export function logoutAccount(accountId: string): Promise<unknown> {
+  return api(`/api/wa/accounts/${enc(accountId)}/logout`, { method: "POST" });
+}
+
+export async function listChats(accountId: string): Promise<WaChat[]> {
+  const data = await api<{ items: WaChat[] }>(
+    `/api/wa/accounts/${enc(accountId)}/chats`,
+  );
+  return data.items;
+}
+
+export async function listContacts(
+  accountId: string,
+  query?: string,
+): Promise<WaContact[]> {
   const q = query?.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
-  const data = await api<{ items: WaContact[] }>(`/api/wa/contacts${q}`);
-  return data.items;
-}
-
-export async function getMessages(jid: string): Promise<WaMessage[]> {
-  const data = await api<{ items: WaMessage[] }>(
-    `/api/wa/messages?jid=${encodeURIComponent(jid)}`,
+  const data = await api<{ items: WaContact[] }>(
+    `/api/wa/accounts/${enc(accountId)}/contacts${q}`,
   );
   return data.items;
 }
 
-export async function searchMessages(query: string): Promise<WaMessage[]> {
+export async function getMessages(
+  accountId: string,
+  jid: string,
+): Promise<WaMessage[]> {
   const data = await api<{ items: WaMessage[] }>(
-    `/api/wa/search?q=${encodeURIComponent(query)}`,
+    `/api/wa/accounts/${enc(accountId)}/messages?jid=${encodeURIComponent(jid)}`,
   );
   return data.items;
 }
 
-export function sendText(jid: string, text: string): Promise<unknown> {
-  return api("/api/wa/send", {
+export async function searchMessages(
+  accountId: string,
+  query: string,
+): Promise<WaMessage[]> {
+  const data = await api<{ items: WaMessage[] }>(
+    `/api/wa/accounts/${enc(accountId)}/search?q=${encodeURIComponent(query)}`,
+  );
+  return data.items;
+}
+
+export function sendText(
+  accountId: string,
+  jid: string,
+  text: string,
+): Promise<unknown> {
+  return api(`/api/wa/accounts/${enc(accountId)}/send`, {
     method: "POST",
     body: JSON.stringify({ jid, text }),
   });
 }
 
-export function sendMedia(input: {
-  jid: string;
-  type: "image" | "video" | "audio";
-  data: string;
-  caption?: string;
-}): Promise<unknown> {
-  return api("/api/wa/media", {
+export function sendMedia(
+  accountId: string,
+  input: {
+    jid: string;
+    type: "image" | "video" | "audio";
+    data: string;
+    caption?: string;
+  },
+): Promise<unknown> {
+  return api(`/api/wa/accounts/${enc(accountId)}/media`, {
     method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export function markRead(jid: string): Promise<unknown> {
-  return api("/api/wa/read", {
+export function markRead(accountId: string, jid: string): Promise<unknown> {
+  return api(`/api/wa/accounts/${enc(accountId)}/read`, {
     method: "POST",
     body: JSON.stringify({ jid }),
+  });
+}
+
+export function importSession(
+  accountId: string,
+  files: Record<string, string>,
+): Promise<unknown> {
+  return api(`/api/wa/accounts/${enc(accountId)}/session`, {
+    method: "POST",
+    body: JSON.stringify({ files }),
   });
 }

@@ -1,6 +1,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { WaMediaInput, WhatsAppAdapter } from "./whatsapp.js";
+import type { WhatsAppManager } from "./manager.js";
 
 export interface WhatsAppControlServerOpts {
   host?: string;
@@ -30,7 +31,7 @@ function readJson(req: import("node:http").IncomingMessage): Promise<unknown> {
 }
 
 export function createWhatsAppControlServer(
-  adapter: WhatsAppAdapter,
+  manager: WhatsAppManager,
   opts: WhatsAppControlServerOpts = {},
 ): WhatsAppControlServer {
   const host = opts.host ?? "0.0.0.0";
@@ -50,7 +51,10 @@ export function createWhatsAppControlServer(
     req: import("node:http").IncomingMessage,
     res: import("node:http").ServerResponse,
   ): Promise<void> => {
-    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    const url = new URL(
+      req.url ?? "/",
+      `http://${req.headers.host ?? "localhost"}`,
+    );
     const path = url.pathname;
     const method = (req.method ?? "GET").toUpperCase();
 
@@ -58,18 +62,44 @@ export function createWhatsAppControlServer(
       if (method === "GET" && path === "/health") {
         return json(res, 200, { ok: true });
       }
-      if (method === "GET" && path === "/state") {
+      if (method === "GET" && path === "/net/meta") {
+        return json(res, 200, {
+          internalHostname: process.env.RENDER_INTERNAL_HOSTNAME ?? null,
+        });
+      }
+
+      // Account-scoped routes: /accounts/:id/<...>
+      const match = /^\/accounts\/([^/]+)(?:\/([^/]+))?$/.exec(path);
+      if (!match) return json(res, 404, { error: "not found" });
+
+      const accountId = decodeURIComponent(match[1]!);
+      const sub = match[2] ?? "state";
+      const adapter =
+        manager.get(accountId) ?? manager.ensure(accountId);
+
+      const requireAuth = (): boolean => {
+        const secret = process.env.WA_CONTROL_SECRET;
+        if (secret && req.headers["x-control-secret"] !== secret) {
+          json(res, 403, { error: "forbidden" });
+          return false;
+        }
+        return true;
+      };
+
+      if (method === "GET" && sub === "state") {
         return json(res, 200, adapter.getState());
       }
-      if (method === "POST" && path === "/reset") {
+      if (method === "POST" && sub === "reset") {
         await adapter.resetSession();
         return json(res, 200, { ok: true });
       }
-      if (method === "POST" && path === "/session/import") {
-        const secret = process.env.WA_CONTROL_SECRET;
-        if (secret && req.headers["x-control-secret"] !== secret) {
-          return json(res, 403, { error: "forbidden" });
-        }
+      if (method === "POST" && sub === "logout") {
+        await adapter.disconnect();
+        await manager.remove(accountId);
+        return json(res, 200, { ok: true });
+      }
+      if (method === "POST" && sub === "session") {
+        if (!requireAuth()) return;
         const body = (await readJson(req)) as {
           files?: Record<string, string>;
         };
@@ -79,19 +109,14 @@ export function createWhatsAppControlServer(
         await adapter.importSession(body.files);
         return json(res, 200, { ok: true });
       }
-      if (method === "GET" && path === "/net/meta") {
-        return json(res, 200, {
-          internalHostname: process.env.RENDER_INTERNAL_HOSTNAME ?? null,
-        });
-      }
-      if (method === "GET" && path === "/chats") {
+      if (method === "GET" && sub === "chats") {
         return json(res, 200, { items: adapter.listChats() });
       }
-      if (method === "GET" && path === "/contacts") {
+      if (method === "GET" && sub === "contacts") {
         const q = url.searchParams.get("q") ?? undefined;
         return json(res, 200, { items: adapter.listContacts(q) });
       }
-      if (method === "GET" && path === "/messages") {
+      if (method === "GET" && sub === "messages") {
         const jid = url.searchParams.get("jid") ?? "";
         if (!jid) return json(res, 400, { error: "jid is required" });
         const before = url.searchParams.get("before");
@@ -101,25 +126,25 @@ export function createWhatsAppControlServer(
         if (limit) optsArg.limit = Number(limit);
         return json(res, 200, { items: adapter.getMessages(jid, optsArg) });
       }
-      if (method === "GET" && path === "/search") {
+      if (method === "GET" && sub === "search") {
         const q = url.searchParams.get("q") ?? "";
         return json(res, 200, { items: adapter.searchMessages(q) });
       }
-      if (method === "POST" && path === "/send") {
+      if (method === "POST" && sub === "send") {
         const body = (await readJson(req)) as { jid?: string; text?: string };
         if (!body.jid || !body.text)
           return json(res, 400, { error: "jid and text are required" });
         await adapter.sendText(body.jid, body.text);
         return json(res, 200, { ok: true });
       }
-      if (method === "POST" && path === "/media") {
+      if (method === "POST" && sub === "media") {
         const media = (await readJson(req)) as WaMediaInput;
         if (!media.jid || !media.type || !media.data)
           return json(res, 400, { error: "jid, type and data are required" });
         await adapter.sendMedia(media);
         return json(res, 200, { ok: true });
       }
-      if (method === "POST" && path === "/read") {
+      if (method === "POST" && sub === "read") {
         const body = (await readJson(req)) as { jid?: string };
         if (!body.jid) return json(res, 400, { error: "jid is required" });
         await adapter.markRead(body.jid);
@@ -150,7 +175,6 @@ export function createWhatsAppControlServer(
         server.on("error", onError);
         server.listen(port, host, () => {
           server?.off("error", onError);
-          void adapter.connect();
           const address = server?.address() as AddressInfo | string | null;
           if (address && typeof address === "object") this.port = address.port;
           resolve();
