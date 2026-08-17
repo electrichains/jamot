@@ -13,6 +13,7 @@ export interface Attribute {
 
 export interface PersonProfile {
   id: string;
+  actorId?: string;
   name: string;
   role: string;
   avatar?: string;

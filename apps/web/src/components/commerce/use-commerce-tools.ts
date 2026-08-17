@@ -10,6 +10,7 @@ import {
   fulfillPurchaseOrder,
   listPaymentIntents,
   listPurchaseOrders,
+  registerSupplier,
   searchNetworkHits,
 } from "@/lib/api-client";
 
@@ -54,6 +55,40 @@ export function useCommerceTools() {
           reputation: hit.reputation,
           offerId: hit.offerId,
         }));
+      },
+    },
+    [],
+  );
+
+  useFrontendTool(
+    {
+      name: "registerSupplier",
+      description:
+        "Register an existing person or agent as a supplier in the JAMOT supplier network. Use it when the user wants to add a supplier, onboard a vendor, or mark a counterparty as a supplier. Resolve the actor first with the searchPeople or searchAgents tools and pass its actorId — never guess or invent an actorId. Confirm the supplier's name with the user before registering.",
+      parameters: z.object({
+        actorId: z.string().describe("The actorId of the person or agent to register as a supplier"),
+        organizationId: z
+          .string()
+          .optional()
+          .describe("The supplier's organization (commercial counterparty) id, if known"),
+        terms: z
+          .string()
+          .optional()
+          .describe("Free-text commercial terms agreed with the supplier"),
+      }),
+      handler: async ({ actorId, organizationId, terms }) => {
+        const supplier = await registerSupplier({
+          actorId,
+          organizationId: organizationId ?? null,
+          terms: terms ?? null,
+        });
+        return {
+          id: supplier.id,
+          actorId: supplier.actorId,
+          organizationId: supplier.organizationId,
+          onboardingStatus: supplier.onboardingStatus,
+          defaultCurrency: supplier.defaultCurrency,
+        };
       },
     },
     [],

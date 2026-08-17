@@ -9,7 +9,7 @@ import {
   LayoutGrid,
   ListTodo,
   MessageCircle,
-  Package,
+  Truck,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -33,7 +33,7 @@ const SECTION_ITEMS: RailItem[] = [
   { id: "canvas", label: "Canvas", icon: LayoutGrid },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
-  { id: "inventory", label: "Inventory", icon: Package },
+  { id: "suppliers", label: "Suppliers", icon: Truck },
   { id: "crm", label: "CRM", icon: Briefcase },
   { id: "finance", label: "Finance", icon: Landmark },
 ];

@@ -16,6 +16,7 @@ export function memberToPersonProfile(
   const role = member.title ?? MEMBER_KIND_LABEL[member.kind];
   return {
     id: `member-${member.personId}`,
+    actorId: member.actorId,
     name: member.displayName,
     role,
     identity: {
@@ -48,6 +49,7 @@ export function memberToPersonProfile(
 export function agentToAgentProfile(agent: ApiAgent): AgentProfile {
   return {
     id: agent.id,
+    actorId: agent.actorId,
     name: agent.role ?? "Agent",
     role: agent.role ?? "Digital worker",
     availability: agent.availability,

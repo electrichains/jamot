@@ -6,6 +6,7 @@ export type DirectoryKind = "people" | "agents";
 export interface DirectoryMatch {
   kind: DirectoryKind;
   id: string;
+  actorId?: string;
   name: string;
   role: string;
   score: number;
@@ -21,6 +22,7 @@ interface WeightedField {
 
 interface SearchEntity {
   id: string;
+  actorId?: string;
   name: string;
   role: string;
   fields: WeightedField[];
@@ -137,6 +139,7 @@ function scoreEntity(
   return {
     kind,
     id: entity.id,
+    actorId: entity.actorId,
     name: entity.name,
     role: entity.role,
     score: total,
@@ -233,6 +236,7 @@ export function searchDirectory(
     for (const person of people) {
       push({
         id: person.id,
+        actorId: person.actorId,
         name: person.name,
         role: person.role,
         fields: personFields(person),
@@ -242,6 +246,7 @@ export function searchDirectory(
     for (const agent of agents) {
       push({
         id: agent.id,
+        actorId: agent.actorId,
         name: agent.name,
         role: agent.role,
         fields: agentFields(agent),

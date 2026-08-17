@@ -2,6 +2,7 @@ export type Autonomy = "suggest" | "approve" | "autonomous";
 
 export interface AgentProfile {
   id: string;
+  actorId?: string;
   name: string;
   role: string;
   availability: "available" | "busy" | "offline";
