@@ -49,6 +49,9 @@ export function startChannelWorker(): Promise<void> {
     const controlPort = Number(
       process.env.PORT ?? process.env.WA_CONTROL_PORT ?? 3001,
     );
+    console.log(
+      `[channel] whatsapp control server: internal=${process.env.RENDER_INTERNAL_HOSTNAME ?? "n/a"} port=${controlPort}`,
+    );
     const server = createWhatsAppControlServer(adapter, { port: controlPort });
     promises.push(server.start());
   }
