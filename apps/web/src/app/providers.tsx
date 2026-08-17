@@ -6,6 +6,7 @@ import { CopilotKit } from "@copilotkit/react-core/v2";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth/auth-context";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { AppShellProvider } from "@/components/app-shell/app-shell-context";
 import { catalog, theme } from "@/components/a2ui/a2ui-catalog";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -18,9 +19,11 @@ export function Providers({ children }: { children: ReactNode }) {
     >
       <AuthProvider>
         <AuthGate>
-          <CopilotKit runtimeUrl="/api/copilotkit" a2ui={{ theme, catalog }}>
-            {children}
-          </CopilotKit>
+          <AppShellProvider>
+            <CopilotKit runtimeUrl="/api/copilotkit" a2ui={{ theme, catalog }}>
+              {children}
+            </CopilotKit>
+          </AppShellProvider>
         </AuthGate>
       </AuthProvider>
     </ThemeProvider>

@@ -202,3 +202,281 @@ export async function getAgents(): Promise<ApiAgent[]> {
   const data = await api<{ items: ApiAgent[] }>("/api/agents");
   return data.items;
 }
+
+export interface ApiSupplier {
+  id: string;
+  actorId: string;
+  organizationId: string | null;
+  onboardingStatus: string;
+  defaultCurrency: string;
+  terms: string | null;
+  reputation: Record<string, number>;
+  createdAt: string;
+}
+
+export interface ApiProduct {
+  id: string;
+  name: string;
+  gtin: string | null;
+  sku: string | null;
+  lifeCycle: string;
+  unitOfMeasure: string;
+  description: string;
+}
+
+export interface ApiCatalog {
+  id: string;
+  ownerOrganizationId: string;
+  name: string;
+  version: string;
+  visibility: string;
+  status: string;
+  source: string;
+  sourceOfTruth: string;
+  syncRef: string | null;
+}
+
+export interface ApiCatalogOffer {
+  id: string;
+  catalogId: string;
+  sellerOrganizationId: string;
+  productId: string;
+  priceQuantity: number;
+  priceTiers: Array<{ minQty: number; amount: number; currency: string }>;
+  minQty: number;
+  maxQty: number | null;
+  orderIncrement: number;
+  availability: string | null;
+  leadTime: string | null;
+  status: string;
+}
+
+export interface ApiQuoteRequest {
+  id: string;
+  buyerOrganizationId: string;
+  title: string;
+  description: string;
+  items: Array<{ productId: string; quantity: number }>;
+  status: string;
+  responseDeadline: string | null;
+}
+
+export interface ApiQuote {
+  id: string;
+  quoteRequestId: string;
+  sellerOrganizationId: string;
+  total: number;
+  currency: string;
+  status: string;
+  terms: string | null;
+  validUntil: string | null;
+  items: Array<{ productId: string; quantity: number; unitPrice: number }>;
+}
+
+export interface ApiPurchaseOrder {
+  id: string;
+  quoteId: string;
+  buyerOrganizationId: string;
+  sellerOrganizationId: string;
+  total: number;
+  currency: string;
+  status: string;
+  paymentIntentId: string | null;
+  approvedByActorId: string | null;
+  items: Array<{ productId: string; quantity: number; unitPrice: number }>;
+}
+
+export interface ApiPaymentIntent {
+  id: string;
+  purchaseOrderId: string;
+  buyerOrganizationId: string;
+  sellerOrganizationId: string;
+  currency: string;
+  estimatedAmount: number;
+  provider: string;
+  status: string;
+  requiresApproval: boolean;
+  approvedByActorId: string | null;
+  providerReference: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface ApiPaymentRecord {
+  id: string;
+  paymentIntentId: string;
+  paidAmount: number;
+  currency: string;
+  providerReference: string | null;
+  settledAt: string;
+}
+
+export async function registerSupplier(input: {
+  actorId: string;
+  organizationId?: string | null;
+}): Promise<ApiSupplier> {
+  return api<ApiSupplier>("/api/suppliers", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listSuppliers(): Promise<ApiSupplier[]> {
+  const data = await api<{ items: ApiSupplier[] }>("/api/suppliers");
+  return data.items;
+}
+
+export async function createProduct(input: {
+  name: string;
+  gtin?: string;
+  sku?: string;
+  unitOfMeasure?: string;
+  description?: string;
+}): Promise<ApiProduct> {
+  return api<ApiProduct>("/api/products", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listProducts(): Promise<ApiProduct[]> {
+  const data = await api<{ items: ApiProduct[] }>("/api/products");
+  return data.items;
+}
+
+export async function createCatalog(input: {
+  ownerOrganizationId: string;
+  name: string;
+  visibility?: string;
+}): Promise<ApiCatalog> {
+  return api<ApiCatalog>("/api/catalogs", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listCatalogs(
+  ownerOrganizationId?: string,
+): Promise<ApiCatalog[]> {
+  const path = ownerOrganizationId
+    ? `/api/catalogs?ownerOrganizationId=${encodeURIComponent(ownerOrganizationId)}`
+    : "/api/catalogs";
+  const data = await api<{ items: ApiCatalog[] }>(path);
+  return data.items;
+}
+
+export async function publishCatalog(id: string): Promise<ApiCatalog> {
+  return api<ApiCatalog>(`/api/catalogs/${id}/publish`, { method: "POST" });
+}
+
+export async function createCatalogOffer(input: {
+  catalogId: string;
+  sellerOrganizationId: string;
+  productId: string;
+  priceTiers: Array<{ minQty: number; amount: number; currency: string }>;
+  minQty?: number;
+}): Promise<ApiCatalogOffer> {
+  return api<ApiCatalogOffer>("/api/catalog-offers", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listCatalogOffers(): Promise<ApiCatalogOffer[]> {
+  const data = await api<{ items: ApiCatalogOffer[] }>("/api/catalog-offers");
+  return data.items;
+}
+
+export type NetworkSearchHit = ApiCatalogOffer & {
+  offerId: string;
+  productName: string;
+  currency: string;
+  unitPrice: number;
+  reputation: number;
+  matchScore: number;
+};
+
+export async function searchNetworkHits(input: {
+  q?: string;
+  minQty?: number;
+}): Promise<NetworkSearchHit[]> {
+  const params = new URLSearchParams();
+  if (input.q) params.set("q", input.q);
+  if (input.minQty) params.set("minQty", String(input.minQty));
+  const qs = params.toString();
+  const data = await api<{ items: NetworkSearchHit[] }>(
+    `/api/network/search${qs ? `?${qs}` : ""}`,
+  );
+  return data.items;
+}
+
+export async function createQuoteRequest(input: {
+  buyerOrganizationId: string;
+  title: string;
+  items: Array<{ productId: string; quantity: number }>;
+}): Promise<ApiQuoteRequest> {
+  return api<ApiQuoteRequest>("/api/quote-requests", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listQuoteRequests(
+  buyerOrganizationId: string,
+): Promise<ApiQuoteRequest[]> {
+  const data = await api<{ items: ApiQuoteRequest[] }>(
+    `/api/quote-requests?buyerOrganizationId=${encodeURIComponent(buyerOrganizationId)}`,
+  );
+  return data.items;
+}
+
+export async function acceptQuote(
+  quoteRequestId: string,
+  quoteId: string,
+): Promise<{ request: ApiQuoteRequest; quote: ApiQuote }> {
+  return api<{ request: ApiQuoteRequest; quote: ApiQuote }>(
+    `/api/quote-requests/${quoteRequestId}/accept`,
+    { method: "POST", body: JSON.stringify({ quoteId }) },
+  );
+}
+
+export async function createPurchaseOrder(quoteId: string): Promise<ApiPurchaseOrder> {
+  return api<ApiPurchaseOrder>("/api/purchase-orders", {
+    method: "POST",
+    body: JSON.stringify({ quoteId }),
+  });
+}
+
+export async function listPurchaseOrders(): Promise<ApiPurchaseOrder[]> {
+  const data = await api<{ items: ApiPurchaseOrder[] }>("/api/purchase-orders");
+  return data.items;
+}
+
+export async function approvePurchaseOrder(id: string): Promise<ApiPurchaseOrder> {
+  return api<ApiPurchaseOrder>(`/api/purchase-orders/${id}/approve`, { method: "POST" });
+}
+
+export async function fulfillPurchaseOrder(id: string): Promise<ApiPurchaseOrder> {
+  return api<ApiPurchaseOrder>(`/api/purchase-orders/${id}/fulfill`, { method: "POST" });
+}
+
+export async function listPaymentIntents(): Promise<ApiPaymentIntent[]> {
+  const data = await api<{ items: ApiPaymentIntent[] }>("/api/payment-intents");
+  return data.items;
+}
+
+export async function approvePaymentIntent(id: string): Promise<ApiPaymentIntent> {
+  return api<ApiPaymentIntent>(`/api/payment-intents/${id}/approve`, { method: "POST" });
+}
+
+export async function confirmPaymentIntent(id: string): Promise<ApiPaymentIntent> {
+  return api<ApiPaymentIntent>(`/api/payment-intents/${id}/confirm`, { method: "POST" });
+}
+
+export async function listPaymentRecords(
+  paymentIntentId: string,
+): Promise<ApiPaymentRecord[]> {
+  const data = await api<{ items: ApiPaymentRecord[] }>(
+    `/api/payment-intents/${paymentIntentId}/records`,
+  );
+  return data.items;
+}

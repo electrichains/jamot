@@ -1,14 +1,24 @@
 import type {
   Actor,
   Agent,
+  BuyerAgreement,
   Capability,
+  Catalog,
+  CatalogOffer,
   Connector,
   Organization,
+  PaymentIntent,
+  PaymentRecord,
   Person,
   Policy,
+  Product,
+  PurchaseOrder,
+  Quote,
+  QuoteRequest,
   Role,
   Skill,
   Space,
+  Supplier,
   Task,
   TaskAttachment,
   TaskList,
@@ -153,6 +163,121 @@ export interface NewPolicy {
   decision: Policy["decision"];
 }
 
+export interface NewSupplier {
+  actorId: string;
+  organizationId?: string | null;
+  onboardingStatus?: Supplier["onboardingStatus"];
+  defaultCurrency?: string;
+  terms?: string | null;
+}
+
+export interface NewProduct {
+  gtin?: string | null;
+  sku?: string | null;
+  manufacturerId?: string | null;
+  name: string;
+  description?: string;
+  dimensions?: Record<string, unknown> | null;
+  packaging?: Record<string, unknown> | null;
+  unitOfMeasure?: string;
+  taxCategory?: string | null;
+  compliance?: string[];
+  lifecycle?: Product["lifecycle"];
+}
+
+export interface NewCatalog {
+  ownerOrganizationId: string;
+  name: string;
+  version?: string;
+  visibility?: Catalog["visibility"];
+  source?: Catalog["source"];
+  sourceOfTruth?: Catalog["sourceOfTruth"];
+  syncRef?: string | null;
+  lastSyncAt?: string | null;
+  status?: Catalog["status"];
+}
+
+export interface NewCatalogOffer {
+  catalogId: string;
+  productId: string;
+  sellerOrganizationId: string;
+  orderableUnit?: string;
+  priceQuantity?: number;
+  priceTiers: CatalogOffer["priceTiers"];
+  minQty?: number;
+  maxQty?: number | null;
+  orderIncrement?: number;
+  availability?: string | null;
+  leadTime?: string | null;
+  validityFrom?: string | null;
+  validityTo?: string | null;
+  taxIncluded?: boolean;
+  status?: CatalogOffer["status"];
+}
+
+export interface NewBuyerAgreement {
+  catalogOfferId: string;
+  buyerOrganizationId: string;
+  priceTiers: BuyerAgreement["priceTiers"];
+  validityFrom?: string | null;
+  validityTo?: string | null;
+}
+
+export interface NewQuoteRequest {
+  buyerOrganizationId: string;
+  title: string;
+  description?: string;
+  items: QuoteRequest["items"];
+  status?: QuoteRequest["status"];
+  responseDeadline?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface NewQuote {
+  quoteRequestId: string;
+  sellerOrganizationId: string;
+  items: Quote["items"];
+  total: number;
+  currency?: string;
+  terms?: string | null;
+  status?: Quote["status"];
+  transcript?: string[];
+  validUntil?: string | null;
+}
+
+export interface NewPurchaseOrder {
+  quoteId: string;
+  buyerOrganizationId: string;
+  sellerOrganizationId: string;
+  items: PurchaseOrder["items"];
+  total: number;
+  currency?: string;
+  status?: PurchaseOrder["status"];
+  approvedByActorId?: string | null;
+}
+
+export interface NewPaymentIntent {
+  purchaseOrderId: string;
+  buyerOrganizationId: string;
+  sellerOrganizationId: string;
+  currency?: string;
+  estimatedAmount: number;
+  status?: PaymentIntent["status"];
+  provider?: PaymentIntent["provider"];
+  requiresApproval?: boolean;
+  approvedByActorId?: string | null;
+  providerReference?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface NewPaymentRecord {
+  paymentIntentId: string;
+  paidAmount: number;
+  currency?: string;
+  providerReference?: string | null;
+  settledAt?: string | null;
+}
+
 export interface SecretRecord {
   ref: string;
   scope: SecretRecordScope;
@@ -276,4 +401,114 @@ export interface JamotRepository {
   putSecret(secret: SecretRecord): Promise<void>;
   getSecret(ref: string): Promise<SecretRecord | null>;
   deleteSecret(ref: string): Promise<void>;
+
+  // suppliers
+  createSupplier(input: NewSupplier): Promise<Supplier>;
+  getSupplier(id: string): Promise<Supplier | null>;
+  getSupplierByActor(actorId: string): Promise<Supplier | null>;
+  listSuppliers(filter?: { organizationId?: string }): Promise<Supplier[]>;
+  updateSupplier(
+    id: string,
+    patch: Partial<
+      Pick<Supplier, "onboardingStatus" | "defaultCurrency" | "terms" | "reputation"> & {
+        organizationId?: string | null;
+      }
+    >,
+  ): Promise<Supplier | null>;
+
+  // products (master data)
+  createProduct(input: NewProduct): Promise<Product>;
+  getProduct(id: string): Promise<Product | null>;
+  listProducts(): Promise<Product[]>;
+
+  // catalogs
+  createCatalog(input: NewCatalog): Promise<Catalog>;
+  getCatalog(id: string): Promise<Catalog | null>;
+  listCatalogs(filter?: { ownerOrganizationId?: string }): Promise<Catalog[]>;
+  updateCatalog(
+    id: string,
+    patch: Partial<
+      Pick<Catalog, "name" | "version" | "visibility" | "source" | "sourceOfTruth" | "syncRef" | "lastSyncAt" | "status">
+    >,
+  ): Promise<Catalog | null>;
+
+  // catalog offers
+  createCatalogOffer(input: NewCatalogOffer): Promise<CatalogOffer>;
+  getCatalogOffer(id: string): Promise<CatalogOffer | null>;
+  listCatalogOffers(filter?: {
+    catalogId?: string;
+    sellerOrganizationId?: string;
+  }): Promise<CatalogOffer[]>;
+  updateCatalogOffer(
+    id: string,
+    patch: Partial<
+      Pick<CatalogOffer, "priceTiers" | "minQty" | "maxQty" | "orderIncrement" | "availability" | "leadTime" | "validityFrom" | "validityTo" | "taxIncluded" | "status">
+    >,
+  ): Promise<CatalogOffer | null>;
+
+  // buyer agreements
+  createBuyerAgreement(input: NewBuyerAgreement): Promise<BuyerAgreement>;
+  listBuyerAgreements(filter?: {
+    catalogOfferId?: string;
+    buyerOrganizationId?: string;
+  }): Promise<BuyerAgreement[]>;
+
+  // procurement: RFQ -> Quote -> Purchase Order
+  createQuoteRequest(input: NewQuoteRequest): Promise<QuoteRequest>;
+  getQuoteRequest(id: string): Promise<QuoteRequest | null>;
+  listQuoteRequests(filter?: {
+    buyerOrganizationId?: string;
+  }): Promise<QuoteRequest[]>;
+  updateQuoteRequestStatus(
+    id: string,
+    status: QuoteRequest["status"],
+  ): Promise<QuoteRequest | null>;
+
+  createQuote(input: NewQuote): Promise<Quote>;
+  getQuote(id: string): Promise<Quote | null>;
+  listQuotes(filter?: { quoteRequestId?: string }): Promise<Quote[]>;
+  updateQuoteStatus(id: string, status: Quote["status"]): Promise<Quote | null>;
+  appendQuoteTranscript(id: string, message: string): Promise<Quote | null>;
+
+  createPurchaseOrder(input: NewPurchaseOrder): Promise<PurchaseOrder>;
+  getPurchaseOrder(id: string): Promise<PurchaseOrder | null>;
+  listPurchaseOrders(filter?: {
+    buyerOrganizationId?: string;
+    sellerOrganizationId?: string;
+  }): Promise<PurchaseOrder[]>;
+  updatePurchaseOrder(
+    id: string,
+    patch: Partial<
+      Pick<PurchaseOrder, "status" | "paymentIntentId"> & {
+        approvedByActorId?: string | null;
+        paymentIntentId?: string | null;
+      }
+    >,
+  ): Promise<PurchaseOrder | null>;
+
+  // payments
+  createPaymentIntent(input: NewPaymentIntent): Promise<PaymentIntent>;
+  getPaymentIntent(id: string): Promise<PaymentIntent | null>;
+  listPaymentIntents(filter?: {
+    buyerOrganizationId?: string;
+    sellerOrganizationId?: string;
+    purchaseOrderId?: string;
+  }): Promise<PaymentIntent[]>;
+  updatePaymentIntent(
+    id: string,
+    patch: Partial<
+      Pick<
+        PaymentIntent,
+        | "status"
+        | "providerReference"
+        | "provider"
+        | "metadata"
+      > & {
+        approvedByActorId?: string | null;
+      }
+    >,
+  ): Promise<PaymentIntent | null>;
+
+  createPaymentRecord(input: NewPaymentRecord): Promise<PaymentRecord>;
+  listPaymentRecords(paymentIntentId: string): Promise<PaymentRecord[]>;
 }

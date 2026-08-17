@@ -4,6 +4,7 @@ import { AtSign, Paperclip, Plus } from "lucide-react";
 
 import { CopilotChat } from "@copilotkit/react-core/v2";
 import "@copilotkit/react-core/v2/styles.css";
+import { CommerceToolBridge } from "@/components/commerce/use-commerce-tools";
 
 function Hint() {
   return (
@@ -28,6 +29,7 @@ function Hint() {
 export function ChatWorkspace() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <CommerceToolBridge />
       <div className="min-h-0 flex-1 overflow-hidden">
         <CopilotChat
           className="h-full"

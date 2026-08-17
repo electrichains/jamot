@@ -2,6 +2,8 @@ export * from "./db.js";
 export * from "./schema/index.js";
 export * from "./events/event-bus.js";
 export * from "./policy/policy-engine.js";
+export * from "./commerce/index.js";
+export * from "./payments/index.js";
 
 export type {
   Actor,

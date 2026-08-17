@@ -2,14 +2,24 @@ import { randomUUID } from "node:crypto";
 import {
   Actor,
   Agent,
+  BuyerAgreement,
   Capability,
+  Catalog,
+  CatalogOffer,
   Connector,
   Organization,
+  PaymentIntent,
+  PaymentRecord,
   Person,
   Policy,
+  Product,
+  PurchaseOrder,
+  Quote,
+  QuoteRequest,
   Role,
   Skill,
   Space,
+  Supplier,
   Task,
   TaskAttachment,
   TaskList,
@@ -17,16 +27,26 @@ import {
 import type { Id } from "@jamot/contracts";
 import type {
   JamotRepository,
+  NewBuyerAgreement,
   NewActor,
   NewAgent,
   NewCapability,
+  NewCatalog,
+  NewCatalogOffer,
   NewConnector,
   NewOrganization,
+  NewPaymentIntent,
+  NewPaymentRecord,
   NewPerson,
   NewPolicy,
+  NewProduct,
+  NewPurchaseOrder,
+  NewQuote,
+  NewQuoteRequest,
   NewRole,
   NewSkill,
   NewSpace,
+  NewSupplier,
   NewTask,
   NewTaskAttachment,
   NewTaskList,
@@ -51,6 +71,16 @@ export function createMemoryRepository(): JamotRepository {
   const capabilities = new Map<string, Capability>();
   const policies = new Map<string, Policy>();
   const secrets = new Map<string, SecretRecord>();
+  const supplierStore = new Map<string, Supplier>();
+  const productStore = new Map<string, Product>();
+  const catalogStore = new Map<string, Catalog>();
+  const catalogOfferStore = new Map<string, CatalogOffer>();
+  const buyerAgreementStore = new Map<string, BuyerAgreement>();
+  const quoteRequestStore = new Map<string, QuoteRequest>();
+  const quoteStore = new Map<string, Quote>();
+  const purchaseOrderStore = new Map<string, PurchaseOrder>();
+  const paymentIntentStore = new Map<string, PaymentIntent>();
+  const paymentRecordStore = new Map<string, PaymentRecord>();
 
   const repo: JamotRepository = {
     async createActor(input: NewActor) {
@@ -488,6 +518,378 @@ export function createMemoryRepository(): JamotRepository {
 
     async deleteSecret(ref) {
       secrets.delete(ref);
+    },
+
+    async createSupplier(input: NewSupplier) {
+      const supplier = Supplier.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        actorId: input.actorId,
+        organizationId: input.organizationId ?? null,
+        onboardingStatus: input.onboardingStatus ?? "active",
+        defaultCurrency: input.defaultCurrency ?? "USD",
+        terms: input.terms ?? null,
+      });
+      supplierStore.set(supplier.id, supplier);
+      return supplier;
+    },
+
+    async getSupplier(id) {
+      return supplierStore.get(id) ?? null;
+    },
+
+    async getSupplierByActor(actorId) {
+      for (const supplier of supplierStore.values()) {
+        if (supplier.actorId === actorId) return supplier;
+      }
+      return null;
+    },
+
+    async listSuppliers(filter) {
+      const all = [...supplierStore.values()];
+      if (!filter?.organizationId) return all;
+      return all.filter((s) => s.organizationId === filter.organizationId);
+    },
+
+    async updateSupplier(id, patch) {
+      const existing = supplierStore.get(id);
+      if (!existing) return null;
+      const updated = Supplier.parse({ ...existing, ...patch, updatedAt: now() });
+      supplierStore.set(id, updated);
+      return updated;
+    },
+
+    async createProduct(input: NewProduct) {
+      const product = Product.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        gtin: input.gtin ?? null,
+        sku: input.sku ?? null,
+        manufacturerId: input.manufacturerId ?? null,
+        name: input.name,
+        description: input.description ?? "",
+        dimensions: input.dimensions ?? null,
+        packaging: input.packaging ?? null,
+        unitOfMeasure: input.unitOfMeasure ?? "each",
+        taxCategory: input.taxCategory ?? null,
+        compliance: input.compliance ?? [],
+        lifecycle: input.lifecycle ?? "draft",
+      });
+      productStore.set(product.id, product);
+      return product;
+    },
+
+    async getProduct(id) {
+      return productStore.get(id) ?? null;
+    },
+
+    async listProducts() {
+      return [...productStore.values()];
+    },
+
+    async createCatalog(input: NewCatalog) {
+      const catalog = Catalog.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        ownerOrganizationId: input.ownerOrganizationId,
+        name: input.name,
+        version: input.version ?? "1.0.0",
+        visibility: input.visibility ?? "private",
+        source: input.source ?? "native",
+        sourceOfTruth: input.sourceOfTruth ?? "server",
+        syncRef: input.syncRef ?? null,
+        lastSyncAt: input.lastSyncAt ?? null,
+        status: input.status ?? "draft",
+      });
+      catalogStore.set(catalog.id, catalog);
+      return catalog;
+    },
+
+    async getCatalog(id) {
+      return catalogStore.get(id) ?? null;
+    },
+
+    async listCatalogs(filter) {
+      const all = [...catalogStore.values()];
+      if (!filter?.ownerOrganizationId) return all;
+      return all.filter((c) => c.ownerOrganizationId === filter.ownerOrganizationId);
+    },
+
+    async updateCatalog(id, patch) {
+      const existing = catalogStore.get(id);
+      if (!existing) return null;
+      const updated = Catalog.parse({ ...existing, ...patch, updatedAt: now() });
+      catalogStore.set(id, updated);
+      return updated;
+    },
+
+    async createCatalogOffer(input: NewCatalogOffer) {
+      const offer = CatalogOffer.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        catalogId: input.catalogId,
+        productId: input.productId,
+        sellerOrganizationId: input.sellerOrganizationId,
+        orderableUnit: input.orderableUnit ?? "each",
+        priceQuantity: input.priceQuantity ?? 1,
+        priceTiers: input.priceTiers,
+        minQty: input.minQty ?? 0,
+        maxQty: input.maxQty ?? null,
+        orderIncrement: input.orderIncrement ?? 1,
+        availability: input.availability ?? null,
+        leadTime: input.leadTime ?? null,
+        validityFrom: input.validityFrom ?? null,
+        validityTo: input.validityTo ?? null,
+        taxIncluded: input.taxIncluded ?? false,
+        status: input.status ?? "active",
+      });
+      catalogOfferStore.set(offer.id, offer);
+      return offer;
+    },
+
+    async getCatalogOffer(id) {
+      return catalogOfferStore.get(id) ?? null;
+    },
+
+    async listCatalogOffers(filter) {
+      let all = [...catalogOfferStore.values()];
+      if (filter?.catalogId) all = all.filter((o) => o.catalogId === filter.catalogId);
+      if (filter?.sellerOrganizationId) {
+        all = all.filter((o) => o.sellerOrganizationId === filter.sellerOrganizationId);
+      }
+      return all;
+    },
+
+    async updateCatalogOffer(id, patch) {
+      const existing = catalogOfferStore.get(id);
+      if (!existing) return null;
+      const updated = CatalogOffer.parse({ ...existing, ...patch, updatedAt: now() });
+      catalogOfferStore.set(id, updated);
+      return updated;
+    },
+
+    async createBuyerAgreement(input: NewBuyerAgreement) {
+      const agreement = BuyerAgreement.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        catalogOfferId: input.catalogOfferId,
+        buyerOrganizationId: input.buyerOrganizationId,
+        priceTiers: input.priceTiers,
+        validityFrom: input.validityFrom ?? null,
+        validityTo: input.validityTo ?? null,
+      });
+      buyerAgreementStore.set(agreement.id, agreement);
+      return agreement;
+    },
+
+    async listBuyerAgreements(filter) {
+      let all = [...buyerAgreementStore.values()];
+      if (filter?.catalogOfferId) {
+        all = all.filter((a) => a.catalogOfferId === filter.catalogOfferId);
+      }
+      if (filter?.buyerOrganizationId) {
+        all = all.filter((a) => a.buyerOrganizationId === filter.buyerOrganizationId);
+      }
+      return all;
+    },
+
+    async createQuoteRequest(input: NewQuoteRequest) {
+      const quoteRequest = QuoteRequest.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        buyerOrganizationId: input.buyerOrganizationId,
+        title: input.title,
+        description: input.description ?? "",
+        items: input.items,
+        status: input.status ?? "open",
+        responseDeadline: input.responseDeadline ?? null,
+        metadata: input.metadata ?? null,
+      });
+      quoteRequestStore.set(quoteRequest.id, quoteRequest);
+      return quoteRequest;
+    },
+
+    async getQuoteRequest(id) {
+      return quoteRequestStore.get(id) ?? null;
+    },
+
+    async listQuoteRequests(filter) {
+      const all = [...quoteRequestStore.values()];
+      if (!filter?.buyerOrganizationId) return all;
+      return all.filter((q) => q.buyerOrganizationId === filter.buyerOrganizationId);
+    },
+
+    async updateQuoteRequestStatus(id, status) {
+      const existing = quoteRequestStore.get(id);
+      if (!existing) return null;
+      const updated = QuoteRequest.parse({ ...existing, status, updatedAt: now() });
+      quoteRequestStore.set(id, updated);
+      return updated;
+    },
+
+    async createQuote(input: NewQuote) {
+      const quote = Quote.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        quoteRequestId: input.quoteRequestId,
+        sellerOrganizationId: input.sellerOrganizationId,
+        items: input.items,
+        total: input.total,
+        currency: input.currency ?? "USD",
+        terms: input.terms ?? null,
+        status: input.status ?? "submitted",
+        transcript: input.transcript ?? [],
+        validUntil: input.validUntil ?? null,
+      });
+      quoteStore.set(quote.id, quote);
+      return quote;
+    },
+
+    async getQuote(id) {
+      return quoteStore.get(id) ?? null;
+    },
+
+    async listQuotes(filter) {
+      const all = [...quoteStore.values()];
+      if (!filter?.quoteRequestId) return all;
+      return all.filter((q) => q.quoteRequestId === filter.quoteRequestId);
+    },
+
+    async updateQuoteStatus(id, status) {
+      const existing = quoteStore.get(id);
+      if (!existing) return null;
+      const updated = Quote.parse({ ...existing, status, updatedAt: now() });
+      quoteStore.set(id, updated);
+      return updated;
+    },
+
+    async appendQuoteTranscript(id, message) {
+      const existing = quoteStore.get(id);
+      if (!existing) return null;
+      const updated = Quote.parse({
+        ...existing,
+        transcript: [...existing.transcript, message],
+        updatedAt: now(),
+      });
+      quoteStore.set(id, updated);
+      return updated;
+    },
+
+    async createPurchaseOrder(input: NewPurchaseOrder) {
+      const purchaseOrder = PurchaseOrder.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        quoteId: input.quoteId,
+        buyerOrganizationId: input.buyerOrganizationId,
+        sellerOrganizationId: input.sellerOrganizationId,
+        items: input.items,
+        total: input.total,
+        currency: input.currency ?? "USD",
+        status: input.status ?? "pending_approval",
+        approvedByActorId: input.approvedByActorId ?? null,
+        paymentIntentId: null,
+      });
+      purchaseOrderStore.set(purchaseOrder.id, purchaseOrder);
+      return purchaseOrder;
+    },
+
+    async getPurchaseOrder(id) {
+      return purchaseOrderStore.get(id) ?? null;
+    },
+
+    async listPurchaseOrders(filter) {
+      let all = [...purchaseOrderStore.values()];
+      if (filter?.buyerOrganizationId) {
+        all = all.filter((p) => p.buyerOrganizationId === filter.buyerOrganizationId);
+      }
+      if (filter?.sellerOrganizationId) {
+        all = all.filter((p) => p.sellerOrganizationId === filter.sellerOrganizationId);
+      }
+      return all;
+    },
+
+    async updatePurchaseOrder(id, patch) {
+      const existing = purchaseOrderStore.get(id);
+      if (!existing) return null;
+      const updated = PurchaseOrder.parse({ ...existing, ...patch, updatedAt: now() });
+      purchaseOrderStore.set(id, updated);
+      return updated;
+    },
+
+    async createPaymentIntent(input: NewPaymentIntent) {
+      const intent = PaymentIntent.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        purchaseOrderId: input.purchaseOrderId,
+        buyerOrganizationId: input.buyerOrganizationId,
+        sellerOrganizationId: input.sellerOrganizationId,
+        currency: input.currency ?? "USD",
+        estimatedAmount: input.estimatedAmount,
+        status: input.status ?? "draft",
+        provider: input.provider ?? "ledger",
+        requiresApproval: input.requiresApproval ?? true,
+        approvedByActorId: input.approvedByActorId ?? null,
+        providerReference: input.providerReference ?? null,
+        metadata: input.metadata ?? null,
+      });
+      paymentIntentStore.set(intent.id, intent);
+      return intent;
+    },
+
+    async getPaymentIntent(id) {
+      return paymentIntentStore.get(id) ?? null;
+    },
+
+    async listPaymentIntents(filter) {
+      let all = [...paymentIntentStore.values()];
+      if (filter?.buyerOrganizationId) {
+        all = all.filter((p) => p.buyerOrganizationId === filter.buyerOrganizationId);
+      }
+      if (filter?.sellerOrganizationId) {
+        all = all.filter((p) => p.sellerOrganizationId === filter.sellerOrganizationId);
+      }
+      if (filter?.purchaseOrderId) {
+        all = all.filter((p) => p.purchaseOrderId === filter.purchaseOrderId);
+      }
+      return all;
+    },
+
+    async updatePaymentIntent(id, patch) {
+      const existing = paymentIntentStore.get(id);
+      if (!existing) return null;
+      const updated = PaymentIntent.parse({ ...existing, ...patch, updatedAt: now() });
+      paymentIntentStore.set(id, updated);
+      return updated;
+    },
+
+    async createPaymentRecord(input: NewPaymentRecord) {
+      const record = PaymentRecord.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        paymentIntentId: input.paymentIntentId,
+        paidAmount: input.paidAmount,
+        currency: input.currency ?? "USD",
+        providerReference: input.providerReference ?? null,
+        settledAt: input.settledAt ?? null,
+      });
+      paymentRecordStore.set(record.id, record);
+      return record;
+    },
+
+    async listPaymentRecords(paymentIntentId) {
+      return [...paymentRecordStore.values()].filter(
+        (r) => r.paymentIntentId === paymentIntentId,
+      );
     },
   };
 

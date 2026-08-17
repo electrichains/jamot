@@ -45,6 +45,15 @@ import { createInMemoryReputationService } from "@jamot/core/reputation";
 import type { ReputationService } from "@jamot/core/reputation";
 import { createInMemoryTreasuryService } from "@jamot/core/treasury";
 import type { TreasuryService } from "@jamot/core/treasury";
+import { createCommerceService } from "@jamot/core/commerce";
+import type { CommerceService } from "@jamot/core/commerce";
+import { createPaymentService } from "@jamot/core/payments";
+import type { PaymentService } from "@jamot/core/payments";
+import { createLedgerPaymentProvider } from "@jamot/core/payments";
+import suppliersRoutes from "./routes/suppliers.js";
+import catalogRoutes from "./routes/catalog.js";
+import procurementRoutes from "./routes/procurement.js";
+import paymentsRoutes from "./routes/payments.js";
 
 export interface SecretStoreLike {
   encrypt(plaintext: string): string;
@@ -62,6 +71,8 @@ export interface BuildAppOptions {
   apps?: AppRegistry;
   reputation?: ReputationService;
   treasury?: TreasuryService;
+  commerce?: CommerceService;
+  payments?: PaymentService;
 }
 
 const deriveKey = (secret: string): string =>
@@ -78,6 +89,27 @@ export async function buildApp(opts: BuildAppOptions) {
   const apps = opts.apps ?? createAppRegistry();
   const reputation = opts.reputation ?? createInMemoryReputationService();
   const treasury = opts.treasury ?? createInMemoryTreasuryService();
+  const ledgerProvider = createLedgerPaymentProvider({
+    settle: (input) =>
+      treasury.recordPayment({
+        buyerOrganizationId: input.buyerOrganizationId,
+        sellerOrganizationId: input.sellerOrganizationId,
+        amount: input.amount,
+        currency: input.currency,
+        description: input.description,
+        metadata: input.metadata,
+      }),
+  });
+  const payments: PaymentService = opts.payments ?? createPaymentService({
+    repo: opts.repository,
+    providers: { ledger: ledgerProvider },
+    defaultProvider: "ledger",
+  });
+  const commerce: CommerceService = opts.commerce ?? createCommerceService({
+    repo: opts.repository,
+    createPaymentIntentForOrder: (po) => payments.intentForPurchaseOrder(po),
+    approvalThreshold: 1000,
+  });
 
   app.decorateRequest("actor", null);
   app.decorateRequest("person", null);
@@ -136,6 +168,10 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(treasuryRoutes, { prefix: "/api", treasury });
   await app.register(oauthRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(waRoutes, { prefix: "/api", repository: opts.repository });
+  await app.register(suppliersRoutes, { prefix: "/api", commerce });
+  await app.register(catalogRoutes, { prefix: "/api", commerce });
+  await app.register(procurementRoutes, { prefix: "/api", commerce });
+  await app.register(paymentsRoutes, { prefix: "/api", payments });
 
   return app;
 }

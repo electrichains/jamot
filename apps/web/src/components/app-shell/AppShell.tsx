@@ -14,7 +14,6 @@ import { House, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/command-palette";
 import {
-  AppShellProvider,
   DEFAULT_LEFT_SIZE,
   DEFAULT_RIGHT_SIZE,
   DEFAULT_SECTION_WIDTH,
@@ -29,11 +28,7 @@ import { useBreakpoint } from "./use-breakpoint";
 const LAYOUT_KEY = "jamot:shell:layout";
 
 export function AppShell() {
-  return (
-    <AppShellProvider>
-      <AppShellInner />
-    </AppShellProvider>
-  );
+  return <AppShellInner />;
 }
 
 function AppShellInner() {

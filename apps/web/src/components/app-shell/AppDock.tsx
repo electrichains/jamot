@@ -9,6 +9,7 @@ import { OrganizationWorkspace } from "@/components/organization/OrganizationWor
 import { TasksBoard } from "@/components/tasks/TasksBoard";
 import { CanvasWorkspace } from "@/components/canvas/CanvasWorkspace";
 import { WhatsAppApp } from "@/components/whatsapp/WhatsAppApp";
+import { FinanceWorkspace } from "@/components/finance/FinanceWorkspace";
 
 import { SECTION_TITLES, useAppShell, type SectionId } from "./app-shell-context";
 import { ContextDock } from "./ContextDock";
@@ -17,12 +18,7 @@ export interface AppDockProps {
   onCollapse?: () => void;
 }
 
-const PLACEHOLDER_SECTIONS: SectionId[] = [
-  "calendar",
-  "inventory",
-  "crm",
-  "finance",
-];
+const PLACEHOLDER_SECTIONS: SectionId[] = ["calendar", "inventory", "crm"];
 
 function PlaceholderSection({ title }: { title: string }) {
   return (
@@ -58,6 +54,9 @@ export function AppDock({ onCollapse }: AppDockProps) {
       break;
     case "whatsapp":
       content = <WhatsAppApp compact />;
+      break;
+    case "finance":
+      content = <FinanceWorkspace />;
       break;
     default:
       content = PLACEHOLDER_SECTIONS.includes(activeSection) ? (

@@ -2830,3 +2830,93 @@ Design the interfaces so they can be added later without breaking the core.
 **Jamot 0.1 should be small, secure, modular and real.**
 
 The network can become enormous later because the kernel remains simple.
+
+---
+
+# 75. Universal Commerce Protocol (UCP) & AP2 Alignment
+
+## 75.1 Positioning
+
+The **Universal Commerce Protocol (UCP)** is an open industry standard (backed by
+Google with Shopify, Etsy, Wayfair, Target and Walmart, January 2026) that lets AI
+agents discover products and complete purchases across participating merchants.
+UCP addresses *consumer checkout*: product discovery, cart, checkout, orders and
+payment handlers.
+
+JAMOT is **procurement-first and agentic-first**: it starts from an organizational
+problem, negotiates supply via RFQ → Quote → Purchase Order with human/governance
+approval gates (§14, §41), then settles on an internal treasury ledger through a
+`PaymentProvider` abstraction (§31). Consumer-style checkout, carts and public
+storefronts are **out of scope for JAMOT 0.1 and explicitly deferred below**.
+
+UCP is therefore treated as an **optional edge protocol** in the same class as A2A
+(§19) and MCP (§18): something a JAMOT deployment may *speak* at its boundary, not
+something the kernel embeds. JAMOT interoperates with UCP agents/merchants via the
+already-planned network and capability layers rather than importing UCP internal
+semantics.
+
+Status: **Conceptual — alignment only, no code or schema changes.**
+
+## 75.2 Terminology mapping
+
+| UCP / AP2 concept | JAMOT equivalent | Alignment |
+| --- | --- | --- |
+| Merchant / Seller agent | `Supplier` role on an `actorId` + its `organizationId` | supplier-as-actor (§67) |
+| Product catalog | `Catalog` + `catalog_offers` (per-offer pricing `PriceTier`) | network catalog, `/.well-known/jamot` manifest (§22.3) |
+| Product discovery | `catalog_offers` over sync-able sources (`source: "mcp" \| "erp" \| "native"`) | MCP is the primary capability layer (§18) |
+| Product card | `ProductBase` / `ProductVariant` + offer | catalog_offer carries sellable config |
+| Price (merchant-specified) | `PriceTier[]` with `minQty` breaks, `currency`, `amount` | negotiated per-buyer via `buyer_agreements` |
+| Cart | **Deferred** | RFQ items act as the negotiation cart; no server cart entity |
+| Checkout | **Deferred** | PO approval + `PaymentIntent` is the JAMOT checkout gate (§31) |
+| Order | `PurchaseOrder` (items, totals, buyer/seller orgs) | PO *is* the order; UCP order would map 1:1 |
+| Payment handler | `PaymentProvider` seam (`createPayment`, `confirm`, `cancel`, `refund`) | `card` provider maps onto UCP payment handlers |
+| Payment instrument / AP2 | `PaymentProviderKind` (`ledger`, `card`, `bank`, `stablecoin`) | ledger remains the internal default transport |
+| Session (AP2 mandate) | PO/`PaymentIntent` `approvedByActorId` + policy gates | future `mandateRef` field (see 75.4) |
+| UCP agent discovery | Network search + federation (§22) + MCP resources | `searchNetwork` returns ranked hits |
+| `/.well-known/ucp` | `/.well-known/jamot` manifest (§22.3) | parallel discovery conventions |
+
+## 75.3 Out of scope — explicitly deferred
+
+The following UCP/AP2 concepts are **deferred and will not be modeled in JAMOT**:
+
+- server-side **cart** and **checkout** endpoints;
+- **consumer profile / payment-profile** endpoints;
+- **order fulfillment/shipping tracking** as UCP states;
+- **AP2 mandate endpoints** and two-phase mandate registration.
+
+Rationale: they assume a consumer storefront and a payment orchestrator that JAMOT
+replaces with procurement gates (§41) and its own settlement seam (§31). Adopting
+them without a merchant/checkout consumer would add surface area and schema weight
+with no JAMOT actor.
+
+## 75.4 Potential future alignment points
+
+Kept as protocol-ready interfaces so they can be added without breaking the core:
+
+| Area | Current JAMOT seam | Future UCP/AP2 hook |
+| --- | --- | --- |
+| Payment approval | `PaymentIntent.requiresApproval` + `approvedByActorId` | store AP2 `mandateId` / `mandateRef` on `metadata` or a dedicated column |
+| Merchant capabilities | `supplier.onboardingStatus`, `defaultCurrency`, `terms` | advertise UCP capability descriptors in the public manifest |
+| Order hand-off | `app.order.syncRef` | emit UCP `order_id` when confirming an order with an external merchant |
+| Catalog sync | `catalog.sourceOfTruth: "server" \| "local" \| "merge"` | register UCP catalog sync agents via MCP |
+| Settlement rails | `PaymentProviderKind` enum | map `card` provider onto UCP payment handler endpoints |
+
+## 75.5 Transport story
+
+The existing stack (§20) already supports every transport UCP agents may advertise:
+
+- **REST/JSON** — JAMOT API routes for catalog, procurement and payments;
+- **MCP** — supplier catalogs exposed as MCP tools/resources (`examples/supplier-mcp-server`);
+- **A2A** — cross-organization agent negotiation (§19) before RFQ→PO.
+
+UCP agents discover JAMOT catalogs exactly like any other federation peer: via the
+public manifest (§22.3) and network discovery (§22.1), subject to identity,
+permissions and policy (§18, §40.3). No new transport is required.
+
+## 75.6 Relationship to NIST / payment standards (informational)
+
+AP2 draws on EMVCo-derived concepts (payment credentials, mandates). JAMOT treats
+EMVCo/AP2 as informational references only: the `PaymentProvider` interface (§31)
+is the single point where an external standards-compliant rail can be attached
+without touching the kernel. Standards conformance is an edge concern, not a
+kernel feature, for JAMOT 0.1.

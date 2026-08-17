@@ -96,5 +96,34 @@ export function createInMemoryTreasuryService(): TreasuryService {
       list.push(entry);
       ledgerByAccount.set(accountId, list);
     },
+
+    async recordPayment(input) {
+      const buyerAccountId = await ensureAccount(input.buyerOrganizationId);
+      const sellerAccountId = await ensureAccount(input.sellerOrganizationId);
+      const metadata = { ...(input.metadata ?? {}), paymentIntentId: input.metadata?.paymentIntentId };
+      const entryBase = {
+        description: input.description ?? null,
+        metadata,
+        createdAt: nowIso(),
+      };
+      const buyerList = ledgerByAccount.get(buyerAccountId) ?? [];
+      const sellerList = ledgerByAccount.get(sellerAccountId) ?? [];
+      buyerList.push({
+        id: randomUUID(),
+        accountId: buyerAccountId,
+        entryType: "debit",
+        amount: -input.amount,
+        ...entryBase,
+      } as TreasuryLedgerEntry);
+      sellerList.push({
+        id: randomUUID(),
+        accountId: sellerAccountId,
+        entryType: "credit",
+        amount: input.amount,
+        ...entryBase,
+      } as TreasuryLedgerEntry);
+      ledgerByAccount.set(buyerAccountId, buyerList);
+      ledgerByAccount.set(sellerAccountId, sellerList);
+    },
   };
 }

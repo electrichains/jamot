@@ -652,6 +652,174 @@ export const distributionRules = pgTable("distribution_rules", {
   ...timestamps(),
 });
 
+export const suppliers = pgTable("suppliers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorId: uuid("actor_id").notNull(),
+  organizationId: uuid("organization_id"),
+  onboardingStatus: text("onboarding_status").notNull().default("active"),
+  defaultCurrency: text("default_currency").notNull().default("USD"),
+  terms: text("terms"),
+  reputation: jsonb("reputation")
+    .$type<Record<string, number>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  ...timestamps(),
+});
+
+export const productBase = pgTable("product_base", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  gtin: text("gtin"),
+  sku: text("sku"),
+  manufacturerId: text("manufacturer_id"),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  dimensions: jsonb("dimensions").$type<Record<string, unknown>>(),
+  packaging: jsonb("packaging").$type<Record<string, unknown>>(),
+  unitOfMeasure: text("unit_of_measure").notNull().default("each"),
+  taxCategory: text("tax_category"),
+  compliance: text("compliance").array().notNull().default(sql`'{}'::text[]`),
+  lifecycle: text("lifecycle").notNull().default("draft"),
+  ...timestamps(),
+});
+
+export const productVariants = pgTable("product_variants", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  productId: uuid("product_id").notNull(),
+  attributes: jsonb("attributes")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  ...timestamps(),
+});
+
+export const catalogs = pgTable("catalogs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerOrganizationId: uuid("owner_organization_id").notNull(),
+  name: text("name").notNull(),
+  version: text("version").notNull().default("1.0.0"),
+  visibility: text("visibility").notNull().default("private"),
+  source: text("source").notNull().default("native"),
+  sourceOfTruth: text("source_of_truth").notNull().default("server"),
+  syncRef: text("sync_ref"),
+  lastSyncAt: timestamp("last_sync_at", { mode: "string", withTimezone: true }),
+  status: text("status").notNull().default("draft"),
+  ...timestamps(),
+});
+
+export const catalogOffers = pgTable("catalog_offers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  catalogId: uuid("catalog_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  sellerOrganizationId: uuid("seller_organization_id").notNull(),
+  orderableUnit: text("orderable_unit").notNull().default("each"),
+  priceQuantity: integer("price_quantity").notNull().default(1),
+  priceTiers: jsonb("price_tiers")
+    .$type<Record<string, unknown>[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  minQty: integer("min_qty").notNull().default(0),
+  maxQty: integer("max_qty"),
+  orderIncrement: integer("order_increment").notNull().default(1),
+  availability: text("availability"),
+  leadTime: text("lead_time"),
+  validityFrom: timestamp("validity_from", { mode: "string", withTimezone: true }),
+  validityTo: timestamp("validity_to", { mode: "string", withTimezone: true }),
+  taxIncluded: boolean("tax_included").notNull().default(false),
+  status: text("status").notNull().default("active"),
+  ...timestamps(),
+});
+
+export const buyerAgreements = pgTable("buyer_agreements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  catalogOfferId: uuid("catalog_offer_id").notNull(),
+  buyerOrganizationId: uuid("buyer_organization_id").notNull(),
+  priceTiers: jsonb("price_tiers")
+    .$type<Record<string, unknown>[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  validityFrom: timestamp("validity_from", { mode: "string", withTimezone: true }),
+  validityTo: timestamp("validity_to", { mode: "string", withTimezone: true }),
+  ...timestamps(),
+});
+
+export const quoteRequests = pgTable("quote_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  buyerOrganizationId: uuid("buyer_organization_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  items: jsonb("items")
+    .$type<Record<string, unknown>[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  status: text("status").notNull().default("open"),
+  responseDeadline: timestamp("response_deadline", { mode: "string", withTimezone: true }),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  ...timestamps(),
+});
+
+export const quotes = pgTable("quotes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  quoteRequestId: uuid("quote_request_id").notNull(),
+  sellerOrganizationId: uuid("seller_organization_id").notNull(),
+  items: jsonb("items")
+    .$type<Record<string, unknown>[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  total: numeric("total").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  terms: text("terms"),
+  status: text("status").notNull().default("submitted"),
+  transcript: jsonb("transcript")
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  validUntil: timestamp("valid_until", { mode: "string", withTimezone: true }),
+  ...timestamps(),
+});
+
+export const purchaseOrders = pgTable("purchase_orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  quoteId: uuid("quote_id").notNull(),
+  buyerOrganizationId: uuid("buyer_organization_id").notNull(),
+  sellerOrganizationId: uuid("seller_organization_id").notNull(),
+  items: jsonb("items")
+    .$type<Record<string, unknown>[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  total: numeric("total").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  status: text("status").notNull().default("pending_approval"),
+  approvedByActorId: uuid("approved_by_actor_id"),
+  paymentIntentId: uuid("payment_intent_id"),
+  ...timestamps(),
+});
+
+export const paymentIntents = pgTable("payment_intents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  purchaseOrderId: uuid("purchase_order_id").notNull(),
+  buyerOrganizationId: uuid("buyer_organization_id").notNull(),
+  sellerOrganizationId: uuid("seller_organization_id").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  estimatedAmount: numeric("estimated_amount").notNull(),
+  status: text("status").notNull().default("draft"),
+  provider: text("provider").notNull().default("ledger"),
+  requiresApproval: boolean("requires_approval").notNull().default(true),
+  approvedByActorId: uuid("approved_by_actor_id"),
+  providerReference: text("provider_reference"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  ...timestamps(),
+});
+
+export const paymentRecords = pgTable("payment_records", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  paymentIntentId: uuid("payment_intent_id").notNull(),
+  paidAmount: numeric("paid_amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  providerReference: text("provider_reference"),
+  settledAt: timestamp("settled_at", { mode: "string", withTimezone: true }),
+  ...timestamps(),
+});
+
 export const sessions = pgTable("sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
   actorId: uuid("actor_id"),
@@ -717,6 +885,17 @@ export const schema = {
   treasuryProposals,
   contributionCredits,
   distributionRules,
+  suppliers,
+  productBase,
+  productVariants,
+  catalogs,
+  catalogOffers,
+  buyerAgreements,
+  quoteRequests,
+  quotes,
+  purchaseOrders,
+  paymentIntents,
+  paymentRecords,
   sessions,
   users,
 };

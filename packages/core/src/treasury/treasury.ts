@@ -41,4 +41,13 @@ export interface TreasuryService {
     capability: string,
     amount: number,
   ): Promise<void>;
+  /** Posts a settled payment: buyer debit + seller credit (ledger settlement). */
+  recordPayment(input: {
+    buyerOrganizationId: string;
+    sellerOrganizationId: string;
+    amount: number;
+    currency?: string;
+    description?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }): Promise<void>;
 }

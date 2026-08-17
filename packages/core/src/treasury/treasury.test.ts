@@ -40,4 +40,28 @@ describe("treasury service", () => {
     const b = await svc.ensureAccount(ORG, "EUR");
     expect(a).toBe(b);
   });
+
+  it("recordPayment posts buyer debit and seller credit", async () => {
+    const svc = createInMemoryTreasuryService();
+    const SELLER = "00000000-0000-4000-8000-000000000099";
+    await svc.recordPayment({
+      buyerOrganizationId: ORG,
+      sellerOrganizationId: SELLER,
+      amount: 250,
+      currency: "USD",
+      description: "payment intent settlement",
+      metadata: { paymentIntentId: "pi-1" },
+    });
+
+    const buyerLedger = await svc.ledger(ORG);
+    expect(buyerLedger).toHaveLength(1);
+    expect(buyerLedger[0]?.entryType).toBe("debit");
+    expect(buyerLedger[0]?.amount).toBe(-250);
+
+    const sellerLedger = await svc.ledger(SELLER);
+    expect(sellerLedger).toHaveLength(1);
+    expect(sellerLedger[0]?.entryType).toBe("credit");
+    expect(sellerLedger[0]?.amount).toBe(250);
+    expect(sellerLedger[0]?.metadata).toEqual({ paymentIntentId: "pi-1" });
+  });
 });

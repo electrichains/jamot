@@ -148,5 +148,28 @@ export function createPostgresTreasuryService(db: Db): TreasuryService {
         amount: String(amount),
       });
     },
+
+    async recordPayment(input) {
+      const buyerAccountId = await ensureAccount(input.buyerOrganizationId);
+      const sellerAccountId = await ensureAccount(input.sellerOrganizationId);
+      const amount = input.amount;
+      const metadata = { ...(input.metadata ?? {}), paymentIntentId: input.metadata?.paymentIntentId };
+      await client.insert(treasuryLedger).values([
+        {
+          accountId: buyerAccountId,
+          entryType: "debit",
+          amount: String(-amount),
+          description: input.description ?? "payment out",
+          metadata,
+        },
+        {
+          accountId: sellerAccountId,
+          entryType: "credit",
+          amount: String(amount),
+          description: input.description ?? "payment in",
+          metadata,
+        },
+      ]);
+    },
   };
 }

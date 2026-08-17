@@ -2,14 +2,24 @@ import { and, arrayContains, asc, eq, inArray, or } from "drizzle-orm";
 import type {
   Actor,
   Agent,
+  BuyerAgreement,
   Capability,
+  Catalog,
+  CatalogOffer,
   Connector,
   Organization,
+  PaymentIntent,
+  PaymentRecord,
   Person,
   Policy,
+  Product,
+  PurchaseOrder,
+  Quote,
+  QuoteRequest,
   Role,
   Skill,
   Space,
+  Supplier,
   Task,
   TaskAttachment,
   TaskList,
@@ -19,31 +29,51 @@ import type { Db } from "../db.js";
 import {
   actors,
   agents,
+  buyerAgreements,
   capabilities,
+  catalogs,
+  catalogOffers,
   connectors,
   organizations,
+  paymentIntents,
+  paymentRecords,
   people,
   policies,
+  productBase,
+  purchaseOrders,
+  quotes,
+  quoteRequests,
   roles,
   secrets,
   skills,
   spaces,
+  suppliers,
   taskAttachments,
   taskLists,
   tasks,
 } from "../schema/index.js";
 import type {
   JamotRepository,
+  NewBuyerAgreement,
   NewActor,
   NewAgent,
   NewCapability,
+  NewCatalog,
+  NewCatalogOffer,
   NewConnector,
   NewOrganization,
+  NewPaymentIntent,
+  NewPaymentRecord,
   NewPerson,
   NewPolicy,
+  NewProduct,
+  NewPurchaseOrder,
+  NewQuote,
+  NewQuoteRequest,
   NewRole,
   NewSkill,
   NewSpace,
+  NewSupplier,
   NewTask,
   NewTaskAttachment,
   NewTaskList,
@@ -262,6 +292,173 @@ function toSecret(row: SecretRow): SecretRecord {
     ownerActorId: (row.ownerActorId as Id | null) ?? null,
     ownerOrganizationId: (row.ownerOrganizationId as Id | null) ?? null,
     ciphertext: row.ciphertext,
+  };
+}
+
+function toSupplier(row: typeof suppliers.$inferSelect): Supplier {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    actorId: row.actorId as Id,
+    organizationId: (row.organizationId as Id | null) ?? null,
+    onboardingStatus: row.onboardingStatus as Supplier["onboardingStatus"],
+    defaultCurrency: row.defaultCurrency,
+    terms: row.terms,
+    reputation: row.reputation,
+  };
+}
+
+function toProduct(row: typeof productBase.$inferSelect): Product {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    gtin: row.gtin,
+    sku: row.sku,
+    manufacturerId: row.manufacturerId,
+    name: row.name,
+    description: row.description,
+    dimensions: row.dimensions,
+    packaging: row.packaging,
+    unitOfMeasure: row.unitOfMeasure,
+    taxCategory: row.taxCategory,
+    compliance: row.compliance,
+    lifecycle: row.lifecycle as Product["lifecycle"],
+  };
+}
+
+function toCatalog(row: typeof catalogs.$inferSelect): Catalog {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    ownerOrganizationId: row.ownerOrganizationId as Id,
+    name: row.name,
+    version: row.version,
+    visibility: row.visibility as Catalog["visibility"],
+    source: row.source as Catalog["source"],
+    sourceOfTruth: row.sourceOfTruth as Catalog["sourceOfTruth"],
+    syncRef: row.syncRef,
+    lastSyncAt: row.lastSyncAt,
+    status: row.status as Catalog["status"],
+  };
+}
+
+function toCatalogOffer(row: typeof catalogOffers.$inferSelect): CatalogOffer {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    catalogId: row.catalogId as Id,
+    productId: row.productId as Id,
+    sellerOrganizationId: row.sellerOrganizationId as Id,
+    orderableUnit: row.orderableUnit,
+    priceQuantity: row.priceQuantity,
+    priceTiers: row.priceTiers as CatalogOffer["priceTiers"],
+    minQty: row.minQty,
+    maxQty: row.maxQty,
+    orderIncrement: row.orderIncrement,
+    availability: row.availability,
+    leadTime: row.leadTime,
+    validityFrom: row.validityFrom,
+    validityTo: row.validityTo,
+    taxIncluded: row.taxIncluded,
+    status: row.status as CatalogOffer["status"],
+  };
+}
+
+function toBuyerAgreement(row: typeof buyerAgreements.$inferSelect): BuyerAgreement {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    catalogOfferId: row.catalogOfferId as Id,
+    buyerOrganizationId: row.buyerOrganizationId as Id,
+    priceTiers: row.priceTiers as BuyerAgreement["priceTiers"],
+    validityFrom: row.validityFrom,
+    validityTo: row.validityTo,
+  };
+}
+
+function toQuoteRequest(row: typeof quoteRequests.$inferSelect): QuoteRequest {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    buyerOrganizationId: row.buyerOrganizationId as Id,
+    title: row.title,
+    description: row.description,
+    items: row.items as QuoteRequest["items"],
+    status: row.status as QuoteRequest["status"],
+    responseDeadline: row.responseDeadline,
+    metadata: row.metadata,
+  };
+}
+
+function toQuote(row: typeof quotes.$inferSelect): Quote {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    quoteRequestId: row.quoteRequestId as Id,
+    sellerOrganizationId: row.sellerOrganizationId as Id,
+    items: row.items as Quote["items"],
+    total: Number(row.total),
+    currency: row.currency,
+    terms: row.terms,
+    status: row.status as Quote["status"],
+    transcript: row.transcript ?? [],
+    validUntil: row.validUntil,
+  };
+}
+
+function toPurchaseOrder(row: typeof purchaseOrders.$inferSelect): PurchaseOrder {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    quoteId: row.quoteId as Id,
+    buyerOrganizationId: row.buyerOrganizationId as Id,
+    sellerOrganizationId: row.sellerOrganizationId as Id,
+    items: row.items as PurchaseOrder["items"],
+    total: Number(row.total),
+    currency: row.currency,
+    status: row.status as PurchaseOrder["status"],
+    approvedByActorId: (row.approvedByActorId as Id | null) ?? null,
+    paymentIntentId: (row.paymentIntentId as Id | null) ?? null,
+  };
+}
+
+function toPaymentIntent(row: typeof paymentIntents.$inferSelect): PaymentIntent {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    purchaseOrderId: row.purchaseOrderId as Id,
+    buyerOrganizationId: row.buyerOrganizationId as Id,
+    sellerOrganizationId: row.sellerOrganizationId as Id,
+    currency: row.currency,
+    estimatedAmount: Number(row.estimatedAmount),
+    status: row.status as PaymentIntent["status"],
+    provider: row.provider as PaymentIntent["provider"],
+    requiresApproval: row.requiresApproval,
+    approvedByActorId: (row.approvedByActorId as Id | null) ?? null,
+    providerReference: row.providerReference,
+    metadata: row.metadata,
+  };
+}
+
+function toPaymentRecord(row: typeof paymentRecords.$inferSelect): PaymentRecord {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    paymentIntentId: row.paymentIntentId as Id,
+    paidAmount: Number(row.paidAmount),
+    currency: row.currency,
+    providerReference: row.providerReference,
+    settledAt: row.settledAt,
   };
 }
 
@@ -861,6 +1058,471 @@ export function createPgRepository(db: Db): JamotRepository {
 
     async deleteSecret(ref) {
       await q.delete(secrets).where(eq(secrets.ref, ref));
+    },
+
+    async createSupplier(input: NewSupplier) {
+      const [row] = await q
+        .insert(suppliers)
+        .values({
+          actorId: input.actorId,
+          organizationId: input.organizationId ?? null,
+          onboardingStatus: input.onboardingStatus ?? "active",
+          defaultCurrency: input.defaultCurrency ?? "USD",
+          terms: input.terms ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create supplier");
+      return toSupplier(row);
+    },
+
+    async getSupplier(id) {
+      const [row] = await q
+        .select()
+        .from(suppliers)
+        .where(eq(suppliers.id, id))
+        .limit(1);
+      return row ? toSupplier(row) : null;
+    },
+
+    async getSupplierByActor(actorId) {
+      const [row] = await q
+        .select()
+        .from(suppliers)
+        .where(eq(suppliers.actorId, actorId))
+        .limit(1);
+      return row ? toSupplier(row) : null;
+    },
+
+    async listSuppliers(filter) {
+      const rows = await q
+        .select()
+        .from(suppliers)
+        .where(filter?.organizationId ? eq(suppliers.organizationId, filter.organizationId) : undefined);
+      return rows.map(toSupplier);
+    },
+
+    async updateSupplier(id, patch) {
+      const [row] = await q
+        .update(suppliers)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(suppliers.id, id))
+        .returning();
+      return row ? toSupplier(row) : null;
+    },
+
+    async createProduct(input: NewProduct) {
+      const [row] = await q
+        .insert(productBase)
+        .values({
+          gtin: input.gtin ?? null,
+          sku: input.sku ?? null,
+          manufacturerId: input.manufacturerId ?? null,
+          name: input.name,
+          description: input.description ?? "",
+          dimensions: input.dimensions ?? null,
+          packaging: input.packaging ?? null,
+          unitOfMeasure: input.unitOfMeasure ?? "each",
+          taxCategory: input.taxCategory ?? null,
+          compliance: input.compliance ?? [],
+          lifecycle: input.lifecycle ?? "draft",
+        })
+        .returning();
+      if (!row) throw new Error("failed to create product");
+      return toProduct(row);
+    },
+
+    async getProduct(id) {
+      const [row] = await q
+        .select()
+        .from(productBase)
+        .where(eq(productBase.id, id))
+        .limit(1);
+      return row ? toProduct(row) : null;
+    },
+
+    async listProducts() {
+      const rows = await q.select().from(productBase);
+      return rows.map(toProduct);
+    },
+
+    async createCatalog(input: NewCatalog) {
+      const [row] = await q
+        .insert(catalogs)
+        .values({
+          ownerOrganizationId: input.ownerOrganizationId,
+          name: input.name,
+          version: input.version ?? "1.0.0",
+          visibility: input.visibility ?? "private",
+          source: input.source ?? "native",
+          sourceOfTruth: input.sourceOfTruth ?? "server",
+          syncRef: input.syncRef ?? null,
+          lastSyncAt: input.lastSyncAt ?? null,
+          status: input.status ?? "draft",
+        })
+        .returning();
+      if (!row) throw new Error("failed to create catalog");
+      return toCatalog(row);
+    },
+
+    async getCatalog(id) {
+      const [row] = await q
+        .select()
+        .from(catalogs)
+        .where(eq(catalogs.id, id))
+        .limit(1);
+      return row ? toCatalog(row) : null;
+    },
+
+    async listCatalogs(filter) {
+      const rows = await q
+        .select()
+        .from(catalogs)
+        .where(filter?.ownerOrganizationId ? eq(catalogs.ownerOrganizationId, filter.ownerOrganizationId) : undefined)
+        .orderBy(asc(catalogs.createdAt));
+      return rows.map(toCatalog);
+    },
+
+    async updateCatalog(id, patch) {
+      const [row] = await q
+        .update(catalogs)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(catalogs.id, id))
+        .returning();
+      return row ? toCatalog(row) : null;
+    },
+
+    async createCatalogOffer(input: NewCatalogOffer) {
+      const [row] = await q
+        .insert(catalogOffers)
+        .values({
+          catalogId: input.catalogId,
+          productId: input.productId,
+          sellerOrganizationId: input.sellerOrganizationId,
+          orderableUnit: input.orderableUnit ?? "each",
+          priceQuantity: input.priceQuantity ?? 1,
+          priceTiers: input.priceTiers,
+          minQty: input.minQty ?? 0,
+          maxQty: input.maxQty ?? null,
+          orderIncrement: input.orderIncrement ?? 1,
+          availability: input.availability ?? null,
+          leadTime: input.leadTime ?? null,
+          validityFrom: input.validityFrom ?? null,
+          validityTo: input.validityTo ?? null,
+          taxIncluded: input.taxIncluded ?? false,
+          status: input.status ?? "active",
+        })
+        .returning();
+      if (!row) throw new Error("failed to create catalog offer");
+      return toCatalogOffer(row);
+    },
+
+    async getCatalogOffer(id) {
+      const [row] = await q
+        .select()
+        .from(catalogOffers)
+        .where(eq(catalogOffers.id, id))
+        .limit(1);
+      return row ? toCatalogOffer(row) : null;
+    },
+
+    async listCatalogOffers(filter) {
+      const rows = await q
+        .select()
+        .from(catalogOffers)
+        .where(
+          and(
+            filter?.catalogId ? eq(catalogOffers.catalogId, filter.catalogId) : undefined,
+            filter?.sellerOrganizationId
+              ? eq(catalogOffers.sellerOrganizationId, filter.sellerOrganizationId)
+              : undefined,
+          ),
+        )
+        .orderBy(asc(catalogOffers.createdAt));
+      return rows.map(toCatalogOffer);
+    },
+
+    async updateCatalogOffer(id, patch) {
+      const [row] = await q
+        .update(catalogOffers)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(catalogOffers.id, id))
+        .returning();
+      return row ? toCatalogOffer(row) : null;
+    },
+
+    async createBuyerAgreement(input: NewBuyerAgreement) {
+      const [row] = await q
+        .insert(buyerAgreements)
+        .values({
+          catalogOfferId: input.catalogOfferId,
+          buyerOrganizationId: input.buyerOrganizationId,
+          priceTiers: input.priceTiers,
+          validityFrom: input.validityFrom ?? null,
+          validityTo: input.validityTo ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create buyer agreement");
+      return toBuyerAgreement(row);
+    },
+
+    async listBuyerAgreements(filter) {
+      const rows = await q
+        .select()
+        .from(buyerAgreements)
+        .where(
+          and(
+            filter?.catalogOfferId ? eq(buyerAgreements.catalogOfferId, filter.catalogOfferId) : undefined,
+            filter?.buyerOrganizationId
+              ? eq(buyerAgreements.buyerOrganizationId, filter.buyerOrganizationId)
+              : undefined,
+          ),
+        );
+      return rows.map(toBuyerAgreement);
+    },
+
+    async createQuoteRequest(input: NewQuoteRequest) {
+      const [row] = await q
+        .insert(quoteRequests)
+        .values({
+          buyerOrganizationId: input.buyerOrganizationId,
+          title: input.title,
+          description: input.description ?? "",
+          items: input.items,
+          status: input.status ?? "open",
+          responseDeadline: input.responseDeadline ?? null,
+          metadata: input.metadata ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create quote request");
+      return toQuoteRequest(row);
+    },
+
+    async getQuoteRequest(id) {
+      const [row] = await q
+        .select()
+        .from(quoteRequests)
+        .where(eq(quoteRequests.id, id))
+        .limit(1);
+      return row ? toQuoteRequest(row) : null;
+    },
+
+    async listQuoteRequests(filter) {
+      const rows = await q
+        .select()
+        .from(quoteRequests)
+        .where(filter?.buyerOrganizationId ? eq(quoteRequests.buyerOrganizationId, filter.buyerOrganizationId) : undefined)
+        .orderBy(asc(quoteRequests.createdAt));
+      return rows.map(toQuoteRequest);
+    },
+
+    async updateQuoteRequestStatus(id, status) {
+      const [row] = await q
+        .update(quoteRequests)
+        .set({ status, updatedAt: nowIso() })
+        .where(eq(quoteRequests.id, id))
+        .returning();
+      return row ? toQuoteRequest(row) : null;
+    },
+
+    async createQuote(input: NewQuote) {
+      const [row] = await q
+        .insert(quotes)
+        .values({
+          quoteRequestId: input.quoteRequestId,
+          sellerOrganizationId: input.sellerOrganizationId,
+          items: input.items,
+          total: String(input.total),
+          currency: input.currency ?? "USD",
+          terms: input.terms ?? null,
+          status: input.status ?? "submitted",
+          transcript: input.transcript ?? [],
+          validUntil: input.validUntil ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create quote");
+      return toQuote(row);
+    },
+
+    async getQuote(id) {
+      const [row] = await q
+        .select()
+        .from(quotes)
+        .where(eq(quotes.id, id))
+        .limit(1);
+      return row ? toQuote(row) : null;
+    },
+
+    async listQuotes(filter) {
+      const rows = await q
+        .select()
+        .from(quotes)
+        .where(filter?.quoteRequestId ? eq(quotes.quoteRequestId, filter.quoteRequestId) : undefined)
+        .orderBy(asc(quotes.createdAt));
+      return rows.map(toQuote);
+    },
+
+    async updateQuoteStatus(id, status) {
+      const [row] = await q
+        .update(quotes)
+        .set({ status, updatedAt: nowIso() })
+        .where(eq(quotes.id, id))
+        .returning();
+      return row ? toQuote(row) : null;
+    },
+
+    async appendQuoteTranscript(id, message) {
+      const [existing] = await q
+        .select()
+        .from(quotes)
+        .where(eq(quotes.id, id))
+        .limit(1);
+      if (!existing) return null;
+      const [row] = await q
+        .update(quotes)
+        .set({
+          transcript: [...(existing.transcript ?? []), message],
+          updatedAt: nowIso(),
+        })
+        .where(eq(quotes.id, id))
+        .returning();
+      return row ? toQuote(row) : null;
+    },
+
+    async createPurchaseOrder(input: NewPurchaseOrder) {
+      const [row] = await q
+        .insert(purchaseOrders)
+        .values({
+          quoteId: input.quoteId,
+          buyerOrganizationId: input.buyerOrganizationId,
+          sellerOrganizationId: input.sellerOrganizationId,
+          items: input.items,
+          total: String(input.total),
+          currency: input.currency ?? "USD",
+          status: input.status ?? "pending_approval",
+        })
+        .returning();
+      if (!row) throw new Error("failed to create purchase order");
+      return toPurchaseOrder(row);
+    },
+
+    async getPurchaseOrder(id) {
+      const [row] = await q
+        .select()
+        .from(purchaseOrders)
+        .where(eq(purchaseOrders.id, id))
+        .limit(1);
+      return row ? toPurchaseOrder(row) : null;
+    },
+
+    async listPurchaseOrders(filter) {
+      const rows = await q
+        .select()
+        .from(purchaseOrders)
+        .where(
+          and(
+            filter?.buyerOrganizationId
+              ? eq(purchaseOrders.buyerOrganizationId, filter.buyerOrganizationId)
+              : undefined,
+            filter?.sellerOrganizationId
+              ? eq(purchaseOrders.sellerOrganizationId, filter.sellerOrganizationId)
+              : undefined,
+          ),
+        )
+        .orderBy(asc(purchaseOrders.createdAt));
+      return rows.map(toPurchaseOrder);
+    },
+
+    async updatePurchaseOrder(id, patch) {
+      const [row] = await q
+        .update(purchaseOrders)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(purchaseOrders.id, id))
+        .returning();
+      return row ? toPurchaseOrder(row) : null;
+    },
+
+    async createPaymentIntent(input: NewPaymentIntent) {
+      const [row] = await q
+        .insert(paymentIntents)
+        .values({
+          purchaseOrderId: input.purchaseOrderId,
+          buyerOrganizationId: input.buyerOrganizationId,
+          sellerOrganizationId: input.sellerOrganizationId,
+          currency: input.currency ?? "USD",
+          estimatedAmount: String(input.estimatedAmount),
+          status: input.status ?? "draft",
+          provider: input.provider ?? "ledger",
+          requiresApproval: input.requiresApproval ?? true,
+          approvedByActorId: input.approvedByActorId ?? null,
+          providerReference: input.providerReference ?? null,
+          metadata: input.metadata ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create payment intent");
+      return toPaymentIntent(row);
+    },
+
+    async getPaymentIntent(id) {
+      const [row] = await q
+        .select()
+        .from(paymentIntents)
+        .where(eq(paymentIntents.id, id))
+        .limit(1);
+      return row ? toPaymentIntent(row) : null;
+    },
+
+    async listPaymentIntents(filter) {
+      const rows = await q
+        .select()
+        .from(paymentIntents)
+        .where(
+          and(
+            filter?.buyerOrganizationId
+              ? eq(paymentIntents.buyerOrganizationId, filter.buyerOrganizationId)
+              : undefined,
+            filter?.sellerOrganizationId
+              ? eq(paymentIntents.sellerOrganizationId, filter.sellerOrganizationId)
+              : undefined,
+            filter?.purchaseOrderId
+              ? eq(paymentIntents.purchaseOrderId, filter.purchaseOrderId)
+              : undefined,
+          ),
+        )
+        .orderBy(asc(paymentIntents.createdAt));
+      return rows.map(toPaymentIntent);
+    },
+
+    async updatePaymentIntent(id, patch) {
+      const [row] = await q
+        .update(paymentIntents)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(paymentIntents.id, id))
+        .returning();
+      return row ? toPaymentIntent(row) : null;
+    },
+
+    async createPaymentRecord(input: NewPaymentRecord) {
+      const [row] = await q
+        .insert(paymentRecords)
+        .values({
+          paymentIntentId: input.paymentIntentId,
+          paidAmount: String(input.paidAmount),
+          currency: input.currency ?? "USD",
+          providerReference: input.providerReference ?? null,
+          settledAt: input.settledAt ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create payment record");
+      return toPaymentRecord(row);
+    },
+
+    async listPaymentRecords(paymentIntentId) {
+      const rows = await q
+        .select()
+        .from(paymentRecords)
+        .where(eq(paymentRecords.paymentIntentId, paymentIntentId))
+        .orderBy(asc(paymentRecords.createdAt));
+      return rows.map(toPaymentRecord);
     },
   };
 
