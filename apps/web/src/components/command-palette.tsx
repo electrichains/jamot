@@ -20,7 +20,13 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-type PaletteAction = { type: "navigate"; href: string } | { type: "run" };
+import { useAppShell } from "@/components/app-shell/app-shell-context";
+import { requestAddPerson } from "@/components/people/add-person-signal";
+
+type PaletteAction =
+  | { type: "navigate"; href: string }
+  | { type: "run" }
+  | { type: "add-person" };
 
 interface PaletteItem {
   id: string;
@@ -50,7 +56,7 @@ const GROUPS: PaletteGroup[] = [
         action: { type: "navigate", href: "/organization" },
       },
       { id: "add-whatsapp", label: "Add WhatsApp", icon: MessageSquare, action: { type: "run" } },
-      { id: "invite-person", label: "Invite person", icon: UserPlus, action: { type: "run" } },
+      { id: "invite-person", label: "Invite person", icon: UserPlus, keywords: "add human member team", action: { type: "add-person" } },
       {
         id: "create-agent",
         label: "Create agent",
@@ -90,6 +96,7 @@ const GROUPS: PaletteGroup[] = [
 
 export function CommandPalette() {
   const router = useRouter();
+  const { setActiveSection } = useAppShell();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -124,6 +131,9 @@ export function CommandPalette() {
   const runAction = (action: PaletteAction) => {
     if (action.type === "navigate") {
       router.push(action.href);
+    } else if (action.type === "add-person") {
+      setActiveSection("people");
+      requestAddPerson();
     }
     close();
   };

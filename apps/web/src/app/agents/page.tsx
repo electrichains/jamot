@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { AgentsWorkspace } from "@/components/agents/AgentsWorkspace";
 
 export default function AgentsPage() {
@@ -14,7 +15,7 @@ export default function AgentsPage() {
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Jamot
+          <BrandLogo className="size-5" />
         </Link>
         <span className="font-display text-sm font-semibold">Agents</span>
       </header>

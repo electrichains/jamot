@@ -20,6 +20,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/components/auth/auth-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChatHistory } from "@/components/chat/ChatHistory";
@@ -33,9 +34,7 @@ export function LeftSidebar() {
   return (
     <aside className="flex h-full flex-col border-r border-border bg-sidebar text-sidebar-foreground">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-        <div className="flex size-6 items-center justify-center rounded-md bg-space-accent text-space-accent-foreground">
-          <span className="font-display text-sm font-bold">J</span>
-        </div>
+        <BrandLogo className="size-6" />
         <span className="font-display text-sm font-semibold tracking-tight">Jamot</span>
       </div>
 

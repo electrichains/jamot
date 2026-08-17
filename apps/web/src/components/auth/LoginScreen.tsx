@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BrandLogo } from "@/components/brand-logo";
 import { API_URL, useAuth } from "./auth-context";
 
 type Mode = "login" | "register";
@@ -52,9 +53,7 @@ export function LoginScreen() {
     <div className="flex min-h-full items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-md bg-space-accent text-space-accent-foreground">
-            <span className="font-display text-sm font-bold">J</span>
-          </div>
+          <BrandLogo className="size-8" />
           <span className="font-display text-lg font-semibold">Jamot</span>
         </div>
 

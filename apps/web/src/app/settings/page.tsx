@@ -28,6 +28,7 @@ import {
   Wand,
 } from "lucide-react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { SettingsLayout, type SettingsGroup } from "@/components/settings/settings-layout";
 import {
   AccountSection,
@@ -149,7 +150,7 @@ export default function SettingsPage() {
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Jamot
+          <BrandLogo className="size-5" />
         </Link>
         <span className="font-display text-sm font-semibold">Settings</span>
       </header>

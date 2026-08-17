@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { OrganizationWorkspace } from "@/components/organization/OrganizationWorkspace";
 
 export default function OrganizationPage() {
@@ -12,7 +13,7 @@ export default function OrganizationPage() {
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Jamot
+          <BrandLogo className="size-5" />
         </Link>
         <span className="font-display text-sm font-semibold">Organization — OrganicChart</span>
       </header>

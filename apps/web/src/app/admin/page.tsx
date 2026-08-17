@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/settings/section-primitives";
 import { OrgAppsList } from "@/components/settings/org-apps-list";
+import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/components/auth/auth-context";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
 import {
@@ -158,7 +159,7 @@ export default function AdminPage() {
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Jamot
+          <BrandLogo className="size-5" />
         </Link>
         <span className="font-display text-sm font-semibold">Admin</span>
       </header>
