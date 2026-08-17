@@ -59,8 +59,8 @@ export function createCommerceService(opts: CommerceServiceOptions): CommerceSer
       return repo.createProduct(input);
     },
 
-    async listProducts() {
-      return repo.listProducts();
+    async listProducts(filter) {
+      return repo.listProducts(filter);
     },
 
     async createCatalog(ownerOrganizationId, input) {
@@ -182,8 +182,8 @@ export function createCommerceService(opts: CommerceServiceOptions): CommerceSer
       });
     },
 
-    async listQuoteRequests(buyerOrganizationId) {
-      return repo.listQuoteRequests({ buyerOrganizationId });
+    async listQuoteRequests(buyerOrganizationId, filter) {
+      return repo.listQuoteRequests({ buyerOrganizationId, spaceId: filter?.spaceId });
     },
 
     async submitQuote(quoteRequestId, sellerOrganizationId, input) {

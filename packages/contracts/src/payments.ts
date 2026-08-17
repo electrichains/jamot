@@ -22,6 +22,7 @@ export const PaymentIntent = EntityBase.extend({
   purchaseOrderId: Id,
   buyerOrganizationId: Id,
   sellerOrganizationId: Id,
+  spaceId: Id.nullable().optional(),
   currency: z.string().default("USD"),
   estimatedAmount: z.number().positive(),
   status: PaymentIntentStatus,
@@ -36,6 +37,7 @@ export type PaymentIntent = z.infer<typeof PaymentIntent>;
 /** Execution record once an intent settles. */
 export const PaymentRecord = EntityBase.extend({
   paymentIntentId: Id,
+  spaceId: Id.nullable().optional(),
   paidAmount: z.number().positive(),
   currency: z.string().default("USD"),
   providerReference: z.string().nullable().default(null),

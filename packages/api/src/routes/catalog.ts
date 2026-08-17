@@ -90,9 +90,12 @@ export default async function catalogRoutes(
     return product;
   });
 
-  app.get("/products", { preHandler: requireAuth }, async () => ({
-    items: await commerce.listProducts(),
-  }));
+  app.get("/products", { preHandler: requireAuth }, async (request) => {
+    const query = request.query as { spaceId?: string };
+    return {
+      items: await commerce.listProducts(query.spaceId ? { spaceId: query.spaceId } : undefined),
+    };
+  });
 
   // catalogs
   app.post("/catalogs", { preHandler: requireAuth }, async (request, reply) => {
@@ -138,11 +141,12 @@ export default async function catalogRoutes(
   });
 
   app.get("/catalog-offers", { preHandler: requireAuth }, async (request) => {
-    const query = request.query as { catalogId?: string; sellerOrganizationId?: string };
+    const query = request.query as { catalogId?: string; sellerOrganizationId?: string; spaceId?: string };
     return {
       items: await commerce.listCatalogOffers({
         catalogId: query.catalogId,
         sellerOrganizationId: query.sellerOrganizationId,
+        spaceId: query.spaceId,
       }),
     };
   });

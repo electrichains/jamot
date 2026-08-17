@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/auth/auth-context";
 import { TaskCard } from "./TaskCard";
 import { TaskDetail } from "./TaskDetail";
+import { useAppShell } from "@/components/app-shell/app-shell-context";
 import {
   createTask,
   createTaskList,
@@ -39,7 +40,8 @@ import type { Actor, KanbanList, KanbanTask, TaskDraft } from "./tasks-data";
 
 export function TasksBoard() {
   const { user } = useAuth();
-  const spaceId = user?.person?.membershipSpaceIds[0] ?? null;
+  const { space } = useAppShell();
+  const spaceId = space.spaceId ?? user?.person?.membershipSpaceIds[0] ?? null;
 
   const [actors, setActors] = useState<Actor[]>([]);
   const [lists, setLists] = useState<KanbanList[]>([]);

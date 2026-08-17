@@ -23,6 +23,7 @@ import type {
   Task,
   TaskAttachment,
   TaskList,
+  Workspace,
 } from "@jamot/contracts";
 import type { Id } from "@jamot/contracts";
 import type { Db } from "../db.js";
@@ -35,6 +36,7 @@ import {
   catalogOffers,
   connectors,
   organizations,
+  workspaces,
   paymentIntents,
   paymentRecords,
   people,
@@ -84,6 +86,7 @@ type ActorRow = typeof actors.$inferSelect;
 type AgentRow = typeof agents.$inferSelect;
 type SpaceRow = typeof spaces.$inferSelect;
 type OrganizationRow = typeof organizations.$inferSelect;
+type WorkspaceRow = typeof workspaces.$inferSelect;
 type RoleRow = typeof roles.$inferSelect;
 type TaskRow = typeof tasks.$inferSelect;
 type TaskListRow = typeof taskLists.$inferSelect;
@@ -162,6 +165,17 @@ function toOrganization(row: OrganizationRow): Organization {
     enabledAppIds: row.enabledAppIds,
     treasuryId: (row.treasuryId as Id | null) ?? null,
     reputation: row.reputation,
+  };
+}
+
+function toWorkspace(row: WorkspaceRow): Workspace {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    organizationId: row.organizationId as Id,
+    spaceId: row.spaceId as Id,
+    name: row.name,
   };
 }
 
@@ -314,6 +328,7 @@ function toProduct(row: typeof productBase.$inferSelect): Product {
     id: row.id as Id,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    spaceId: (row.spaceId as Id | null) ?? null,
     gtin: row.gtin,
     sku: row.sku,
     manufacturerId: row.manufacturerId,
@@ -353,6 +368,7 @@ function toCatalogOffer(row: typeof catalogOffers.$inferSelect): CatalogOffer {
     catalogId: row.catalogId as Id,
     productId: row.productId as Id,
     sellerOrganizationId: row.sellerOrganizationId as Id,
+    spaceId: (row.spaceId as Id | null) ?? null,
     orderableUnit: row.orderableUnit,
     priceQuantity: row.priceQuantity,
     priceTiers: row.priceTiers as CatalogOffer["priceTiers"],
@@ -387,6 +403,7 @@ function toQuoteRequest(row: typeof quoteRequests.$inferSelect): QuoteRequest {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     buyerOrganizationId: row.buyerOrganizationId as Id,
+    spaceId: (row.spaceId as Id | null) ?? null,
     title: row.title,
     description: row.description,
     items: row.items as QuoteRequest["items"],
@@ -403,6 +420,7 @@ function toQuote(row: typeof quotes.$inferSelect): Quote {
     updatedAt: row.updatedAt,
     quoteRequestId: row.quoteRequestId as Id,
     sellerOrganizationId: row.sellerOrganizationId as Id,
+    spaceId: (row.spaceId as Id | null) ?? null,
     items: row.items as Quote["items"],
     total: Number(row.total),
     currency: row.currency,
@@ -421,6 +439,7 @@ function toPurchaseOrder(row: typeof purchaseOrders.$inferSelect): PurchaseOrder
     quoteId: row.quoteId as Id,
     buyerOrganizationId: row.buyerOrganizationId as Id,
     sellerOrganizationId: row.sellerOrganizationId as Id,
+    spaceId: (row.spaceId as Id | null) ?? null,
     items: row.items as PurchaseOrder["items"],
     total: Number(row.total),
     currency: row.currency,
@@ -438,6 +457,7 @@ function toPaymentIntent(row: typeof paymentIntents.$inferSelect): PaymentIntent
     purchaseOrderId: row.purchaseOrderId as Id,
     buyerOrganizationId: row.buyerOrganizationId as Id,
     sellerOrganizationId: row.sellerOrganizationId as Id,
+    spaceId: (row.spaceId as Id | null) ?? null,
     currency: row.currency,
     estimatedAmount: Number(row.estimatedAmount),
     status: row.status as PaymentIntent["status"],
@@ -455,6 +475,7 @@ function toPaymentRecord(row: typeof paymentRecords.$inferSelect): PaymentRecord
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     paymentIntentId: row.paymentIntentId as Id,
+    spaceId: (row.spaceId as Id | null) ?? null,
     paidAmount: Number(row.paidAmount),
     currency: row.currency,
     providerReference: row.providerReference,
@@ -555,8 +576,13 @@ export function createPgRepository(db: Db): JamotRepository {
       return row ? toPerson(row) : null;
     },
 
-    async listPeople() {
-      const rows = await q.select().from(people);
+    async listPeople(filter) {
+      const rows = filter?.spaceId
+        ? await q
+            .select()
+            .from(people)
+            .where(arrayContains(people.membershipSpaceIds, [filter.spaceId]))
+        : await q.select().from(people);
       return rows.map(toPerson);
     },
 
@@ -672,6 +698,40 @@ export function createPgRepository(db: Db): JamotRepository {
     async listOrganizations() {
       const rows = await q.select().from(organizations);
       return rows.map(toOrganization);
+    },
+
+    async createWorkspace(input) {
+      const [row] = await q
+        .insert(workspaces)
+        .values({
+          organizationId: input.organizationId,
+          spaceId: input.spaceId,
+          name: input.name,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create workspace");
+      return toWorkspace(row);
+    },
+
+    async getWorkspace(id) {
+      const [row] = await q
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.id, id))
+        .limit(1);
+      return row ? toWorkspace(row) : null;
+    },
+
+    async listWorkspaces(organizationId) {
+      const rows = await q
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.organizationId, organizationId));
+      return rows.map(toWorkspace);
+    },
+
+    async deleteWorkspace(id) {
+      await q.delete(workspaces).where(eq(workspaces.id, id));
     },
 
     async updateOrganization(id, patch) {
@@ -1114,6 +1174,7 @@ export function createPgRepository(db: Db): JamotRepository {
       const [row] = await q
         .insert(productBase)
         .values({
+          spaceId: input.spaceId ?? null,
           gtin: input.gtin ?? null,
           sku: input.sku ?? null,
           manufacturerId: input.manufacturerId ?? null,
@@ -1140,8 +1201,13 @@ export function createPgRepository(db: Db): JamotRepository {
       return row ? toProduct(row) : null;
     },
 
-    async listProducts() {
-      const rows = await q.select().from(productBase);
+    async listProducts(filter) {
+      const rows = filter?.spaceId
+        ? await q
+            .select()
+            .from(productBase)
+            .where(eq(productBase.spaceId, filter.spaceId))
+        : await q.select().from(productBase);
       return rows.map(toProduct);
     },
 
@@ -1198,6 +1264,7 @@ export function createPgRepository(db: Db): JamotRepository {
           catalogId: input.catalogId,
           productId: input.productId,
           sellerOrganizationId: input.sellerOrganizationId,
+          spaceId: input.spaceId ?? null,
           orderableUnit: input.orderableUnit ?? "each",
           priceQuantity: input.priceQuantity ?? 1,
           priceTiers: input.priceTiers,
@@ -1235,6 +1302,7 @@ export function createPgRepository(db: Db): JamotRepository {
             filter?.sellerOrganizationId
               ? eq(catalogOffers.sellerOrganizationId, filter.sellerOrganizationId)
               : undefined,
+            filter?.spaceId ? eq(catalogOffers.spaceId, filter.spaceId) : undefined,
           ),
         )
         .orderBy(asc(catalogOffers.createdAt));
@@ -1285,6 +1353,7 @@ export function createPgRepository(db: Db): JamotRepository {
         .insert(quoteRequests)
         .values({
           buyerOrganizationId: input.buyerOrganizationId,
+          spaceId: input.spaceId ?? null,
           title: input.title,
           description: input.description ?? "",
           items: input.items,
@@ -1310,7 +1379,14 @@ export function createPgRepository(db: Db): JamotRepository {
       const rows = await q
         .select()
         .from(quoteRequests)
-        .where(filter?.buyerOrganizationId ? eq(quoteRequests.buyerOrganizationId, filter.buyerOrganizationId) : undefined)
+        .where(
+          and(
+            filter?.buyerOrganizationId
+              ? eq(quoteRequests.buyerOrganizationId, filter.buyerOrganizationId)
+              : undefined,
+            filter?.spaceId ? eq(quoteRequests.spaceId, filter.spaceId) : undefined,
+          ),
+        )
         .orderBy(asc(quoteRequests.createdAt));
       return rows.map(toQuoteRequest);
     },
@@ -1330,6 +1406,7 @@ export function createPgRepository(db: Db): JamotRepository {
         .values({
           quoteRequestId: input.quoteRequestId,
           sellerOrganizationId: input.sellerOrganizationId,
+          spaceId: input.spaceId ?? null,
           items: input.items,
           total: String(input.total),
           currency: input.currency ?? "USD",
@@ -1395,6 +1472,7 @@ export function createPgRepository(db: Db): JamotRepository {
           quoteId: input.quoteId,
           buyerOrganizationId: input.buyerOrganizationId,
           sellerOrganizationId: input.sellerOrganizationId,
+          spaceId: input.spaceId ?? null,
           items: input.items,
           total: String(input.total),
           currency: input.currency ?? "USD",
@@ -1426,6 +1504,7 @@ export function createPgRepository(db: Db): JamotRepository {
             filter?.sellerOrganizationId
               ? eq(purchaseOrders.sellerOrganizationId, filter.sellerOrganizationId)
               : undefined,
+            filter?.spaceId ? eq(purchaseOrders.spaceId, filter.spaceId) : undefined,
           ),
         )
         .orderBy(asc(purchaseOrders.createdAt));
@@ -1448,6 +1527,7 @@ export function createPgRepository(db: Db): JamotRepository {
           purchaseOrderId: input.purchaseOrderId,
           buyerOrganizationId: input.buyerOrganizationId,
           sellerOrganizationId: input.sellerOrganizationId,
+          spaceId: input.spaceId ?? null,
           currency: input.currency ?? "USD",
           estimatedAmount: String(input.estimatedAmount),
           status: input.status ?? "draft",
@@ -1486,6 +1566,7 @@ export function createPgRepository(db: Db): JamotRepository {
             filter?.purchaseOrderId
               ? eq(paymentIntents.purchaseOrderId, filter.purchaseOrderId)
               : undefined,
+            filter?.spaceId ? eq(paymentIntents.spaceId, filter.spaceId) : undefined,
           ),
         )
         .orderBy(asc(paymentIntents.createdAt));
@@ -1506,6 +1587,7 @@ export function createPgRepository(db: Db): JamotRepository {
         .insert(paymentRecords)
         .values({
           paymentIntentId: input.paymentIntentId,
+          spaceId: input.spaceId ?? null,
           paidAmount: String(input.paidAmount),
           currency: input.currency ?? "USD",
           providerReference: input.providerReference ?? null,

@@ -25,10 +25,20 @@ export interface Space {
   updatedAt: string;
 }
 
+export interface Workspace {
+  id: string;
+  organizationId: string;
+  spaceId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OrganizationListItem {
   organization: Organization;
   space: Space;
   role: OrgRole;
+  workspaces: Workspace[];
 }
 
 export interface OrganizationMember {
@@ -109,6 +119,33 @@ export async function getOrganizations(): Promise<OrganizationListItem[]> {
 
 export async function getOrganization(id: string): Promise<Organization> {
   return api<Organization>(`/api/organizations/${id}`);
+}
+
+export async function listWorkspaces(organizationId: string): Promise<Workspace[]> {
+  const data = await api<{ items: Workspace[] }>(
+    `/api/organizations/${encodeURIComponent(organizationId)}/workspaces`,
+  );
+  return data.items;
+}
+
+export async function createWorkspace(
+  organizationId: string,
+  name: string,
+): Promise<Workspace> {
+  return api<Workspace>(
+    `/api/organizations/${encodeURIComponent(organizationId)}/workspaces`,
+    { method: "POST", body: JSON.stringify({ name }) },
+  );
+}
+
+export async function deleteWorkspace(
+  organizationId: string,
+  workspaceId: string,
+): Promise<unknown> {
+  return api(
+    `/api/organizations/${encodeURIComponent(organizationId)}/workspaces/${encodeURIComponent(workspaceId)}`,
+    { method: "DELETE" },
+  );
 }
 
 export async function createOrganization(input: {
@@ -313,6 +350,7 @@ export interface ApiPaymentRecord {
 export async function registerSupplier(input: {
   actorId: string;
   organizationId?: string | null;
+  terms?: string | null;
 }): Promise<ApiSupplier> {
   return api<ApiSupplier>("/api/suppliers", {
     method: "POST",
@@ -322,6 +360,17 @@ export async function registerSupplier(input: {
 
 export async function listSuppliers(): Promise<ApiSupplier[]> {
   const data = await api<{ items: ApiSupplier[] }>("/api/suppliers");
+  return data.items;
+}
+
+export interface ApiActor {
+  id: string;
+  type: "human" | "agent";
+  displayName: string;
+}
+
+export async function listActors(): Promise<ApiActor[]> {
+  const data = await api<{ items: ApiActor[] }>("/api/actors");
   return data.items;
 }
 
@@ -338,8 +387,11 @@ export async function createProduct(input: {
   });
 }
 
-export async function listProducts(): Promise<ApiProduct[]> {
-  const data = await api<{ items: ApiProduct[] }>("/api/products");
+export async function listProducts(spaceId?: string): Promise<ApiProduct[]> {
+  const path = spaceId
+    ? `/api/products?spaceId=${encodeURIComponent(spaceId)}`
+    : "/api/products";
+  const data = await api<{ items: ApiProduct[] }>(path);
   return data.items;
 }
 
@@ -381,8 +433,17 @@ export async function createCatalogOffer(input: {
   });
 }
 
-export async function listCatalogOffers(): Promise<ApiCatalogOffer[]> {
-  const data = await api<{ items: ApiCatalogOffer[] }>("/api/catalog-offers");
+export async function listCatalogOffers(opts?: {
+  sellerOrganizationId?: string;
+}): Promise<ApiCatalogOffer[]> {
+  const params = new URLSearchParams();
+  if (opts?.sellerOrganizationId) {
+    params.set("sellerOrganizationId", opts.sellerOrganizationId);
+  }
+  const qs = params.toString();
+  const data = await api<{ items: ApiCatalogOffer[] }>(
+    `/api/catalog-offers${qs ? `?${qs}` : ""}`,
+  );
   return data.items;
 }
 
@@ -446,8 +507,11 @@ export async function createPurchaseOrder(quoteId: string): Promise<ApiPurchaseO
   });
 }
 
-export async function listPurchaseOrders(): Promise<ApiPurchaseOrder[]> {
-  const data = await api<{ items: ApiPurchaseOrder[] }>("/api/purchase-orders");
+export async function listPurchaseOrders(spaceId?: string): Promise<ApiPurchaseOrder[]> {
+  const path = spaceId
+    ? `/api/purchase-orders?spaceId=${encodeURIComponent(spaceId)}`
+    : "/api/purchase-orders";
+  const data = await api<{ items: ApiPurchaseOrder[] }>(path);
   return data.items;
 }
 
@@ -459,8 +523,11 @@ export async function fulfillPurchaseOrder(id: string): Promise<ApiPurchaseOrder
   return api<ApiPurchaseOrder>(`/api/purchase-orders/${id}/fulfill`, { method: "POST" });
 }
 
-export async function listPaymentIntents(): Promise<ApiPaymentIntent[]> {
-  const data = await api<{ items: ApiPaymentIntent[] }>("/api/payment-intents");
+export async function listPaymentIntents(spaceId?: string): Promise<ApiPaymentIntent[]> {
+  const path = spaceId
+    ? `/api/payment-intents?spaceId=${encodeURIComponent(spaceId)}`
+    : "/api/payment-intents";
+  const data = await api<{ items: ApiPaymentIntent[] }>(path);
   return data.items;
 }
 

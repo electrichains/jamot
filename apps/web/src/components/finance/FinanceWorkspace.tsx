@@ -56,9 +56,9 @@ export function FinanceWorkspace() {
     setError(null);
     try {
       const [allIntents, allOrders, products] = await Promise.all([
-        listPaymentIntents(),
-        listPurchaseOrders(),
-        listProducts().catch(() => []),
+        listPaymentIntents(space.spaceId),
+        listPurchaseOrders(space.spaceId),
+        listProducts(space.spaceId).catch(() => []),
       ]);
       setIntents(allIntents);
       setPurchaseOrders(allOrders);
@@ -69,7 +69,7 @@ export function FinanceWorkspace() {
       const reason = err instanceof Error ? err.message : "failed to load";
       setError(reason);
     }
-  }, []);
+  }, [space.spaceId]);
 
   useEffect(() => {
     void refresh();

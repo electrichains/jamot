@@ -24,6 +24,15 @@ export const Organization = EntityBase.extend({
 });
 export type Organization = z.infer<typeof Organization>;
 
+/** A workspace is an org-owned space: the data container for one tenant.
+ * Every workspace maps 1:1 to a Space, which keys all tenant data. */
+export const Workspace = EntityBase.extend({
+  organizationId: Id,
+  spaceId: Id,
+  name: z.string().min(1),
+});
+export type Workspace = z.infer<typeof Workspace>;
+
 /** Relationship between an Actor and a Space. */
 export const Role = EntityBase.extend({
   actorId: Id,

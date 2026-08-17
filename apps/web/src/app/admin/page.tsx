@@ -132,7 +132,10 @@ export default function AdminPage() {
   };
 
   const openOrg = (org: OrganizationListItem) => {
-    setSpace(org.organization.id);
+    const firstWorkspace = org.workspaces?.[0] ?? {
+      spaceId: org.space.id,
+    };
+    setSpace(firstWorkspace.spaceId);
     router.push("/");
   };
 

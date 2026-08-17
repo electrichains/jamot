@@ -30,8 +30,9 @@ export interface PaymentService {
   listByOrganization(
     organizationId: string,
     role: "buyer" | "seller",
+    spaceId?: string,
   ): Promise<PaymentIntent[]>;
-  listAll(): Promise<PaymentIntent[]>;
+  listAll(spaceId?: string): Promise<PaymentIntent[]>;
   listRecords(intentId: string): Promise<PaymentRecord[]>;
   intentForPurchaseOrder(po: PurchaseOrder): Promise<PaymentIntent>;
 }
@@ -195,18 +196,21 @@ export function createPaymentService(opts: PaymentServiceOptions): PaymentServic
       return repo.getPaymentIntent(intentId);
     },
 
-    async listByOrganization(organizationId, role) {
+    async listByOrganization(organizationId, role, spaceId?) {
+      const list = spaceId
+        ? await repo.listPaymentIntents({ spaceId })
+        : await repo.listPaymentIntents();
       return role === "buyer"
-        ? repo.listPaymentIntents().then((all) => all.filter((i) => i.buyerOrganizationId === organizationId))
-        : repo.listPaymentIntents().then((all) => all.filter((i) => i.sellerOrganizationId === organizationId));
+        ? list.filter((i) => i.buyerOrganizationId === organizationId)
+        : list.filter((i) => i.sellerOrganizationId === organizationId);
     },
 
     async listRecords(intentId) {
       return repo.listPaymentRecords(intentId);
     },
 
-    async listAll() {
-      return repo.listPaymentIntents();
+    async listAll(spaceId?) {
+      return spaceId ? repo.listPaymentIntents({ spaceId }) : repo.listPaymentIntents();
     },
 
     async intentForPurchaseOrder(po) {

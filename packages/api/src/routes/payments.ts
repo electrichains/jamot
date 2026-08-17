@@ -40,11 +40,11 @@ export default async function paymentsRoutes(
   });
 
   app.get("/payment-intents", { preHandler: requireAuth }, async (request) => {
-    const query = request.query as { organizationId?: string; role?: "buyer" | "seller" };
+    const query = request.query as { organizationId?: string; role?: "buyer" | "seller"; spaceId?: string };
     if (query.organizationId && (query.role === "buyer" || query.role === "seller")) {
-      return { items: await payments.listByOrganization(query.organizationId, query.role) };
+      return { items: await payments.listByOrganization(query.organizationId, query.role, query.spaceId) };
     }
-    return { items: await payments.listAll() };
+    return { items: await payments.listAll(query.spaceId) };
   });
 
   app.get("/payment-intents/:id", { preHandler: requireAuth }, async (request, reply) => {

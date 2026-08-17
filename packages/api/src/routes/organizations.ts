@@ -25,6 +25,10 @@ const CreateOrganizationBody = z.object({
   dream: z.string().optional(),
 });
 
+const CreateWorkspaceBody = z.object({
+  name: z.string().min(1),
+});
+
 const UpdateOrganizationBody = z.object({
   dream: z.string().min(1),
 });
@@ -51,6 +55,7 @@ type OrgListItem = {
   organization: NonNullable<Awaited<ReturnType<JamotRepository["getOrganization"]>>>;
   space: NonNullable<Awaited<ReturnType<JamotRepository["getSpace"]>>>;
   role: RoleKind | null;
+  workspaces: Awaited<ReturnType<JamotRepository["listWorkspaces"]>>;
 };
 
 type AppsPayload = {
@@ -123,6 +128,11 @@ export function organizationsRoutes(
         spaceId: space.id,
         dream: body.dream,
       });
+      await repo.createWorkspace({
+        organizationId: organization.id,
+        spaceId: space.id,
+        name: body.name,
+      });
       await repo.createRole({ actorId, spaceId: space.id, kind: "owner" });
 
       const personId = request.session.personId;
@@ -156,13 +166,14 @@ export function organizationsRoutes(
       for (const organization of orgs) {
         const space = await repo.getSpace(organization.spaceId);
         if (!space) continue;
+        const workspaces = await repo.listWorkspaces(organization.id);
         if (isSuperAdminUser(user)) {
           const role = await actorRoleInSpace(
             repo,
             actorId as Id,
             organization.spaceId as Id,
           );
-          items.push({ organization, space, role });
+          items.push({ organization, space, role, workspaces });
           continue;
         }
         const role = await actorRoleInSpace(
@@ -171,7 +182,7 @@ export function organizationsRoutes(
           organization.spaceId as Id,
         );
         if (!role) continue;
-        items.push({ organization, space, role });
+        items.push({ organization, space, role, workspaces });
       }
 
       items.sort((a, b) => {
@@ -194,6 +205,78 @@ export function organizationsRoutes(
         const organization = await repo.getOrganization(id);
         if (!organization) return fail(reply, 404, "organization not found");
         return organization;
+      },
+    );
+
+    app.get(
+      "/organizations/:id/workspaces",
+      { preHandler: rbac.requireOrgAccess("id") },
+      async (request, reply) => {
+        const params = request.params as { id?: string };
+        const id = parse(Id, params.id, reply);
+        if (!id) return;
+        const organization = await repo.getOrganization(id);
+        if (!organization) return fail(reply, 404, "organization not found");
+        return { items: await repo.listWorkspaces(id) };
+      },
+    );
+
+    app.post(
+      "/organizations/:id/workspaces",
+      { preHandler: rbac.requireOrgAdmin("id") },
+      async (request, reply) => {
+        const params = request.params as { id?: string };
+        const id = parse(Id, params.id, reply);
+        if (!id) return;
+        const organization = await repo.getOrganization(id);
+        if (!organization) return fail(reply, 404, "organization not found");
+        const body = parse(CreateWorkspaceBody, request.body, reply);
+        if (!body) return;
+
+        const actorId = request.session.actorId!;
+        const space = await repo.createSpace({
+          kind: "organization",
+          ownerActorId: organization.spaceId,
+          name: body.name,
+        });
+        const workspace = await repo.createWorkspace({
+          organizationId: id,
+          spaceId: space.id,
+          name: body.name,
+        });
+        await repo.createRole({ actorId, spaceId: space.id, kind: "owner" });
+
+        await writeOrgMemory(id, {
+          type: "workspace.created",
+          name: body.name,
+          byActorId: actorId,
+        });
+
+        reply.code(201);
+        return workspace;
+      },
+    );
+
+    app.delete(
+      "/organizations/:id/workspaces/:workspaceId",
+      { preHandler: rbac.requireOrgAdmin("id") },
+      async (request, reply) => {
+        const params = request.params as { id?: string; workspaceId?: string };
+        const id = parse(Id, params.id, reply);
+        if (!id) return;
+        const workspaceId = parse(Id, params.workspaceId, reply);
+        if (!workspaceId) return;
+        const organization = await repo.getOrganization(id);
+        if (!organization) return fail(reply, 404, "organization not found");
+        const workspace = await repo.getWorkspace(workspaceId);
+        if (!workspace || workspace.organizationId !== id) {
+          return fail(reply, 404, "workspace not found");
+        }
+        if (workspace.spaceId === organization.spaceId) {
+          return fail(reply, 400, "cannot delete the organization's default workspace");
+        }
+        await repo.deleteWorkspace(workspaceId);
+        return { ok: true };
       },
     );
 

@@ -44,9 +44,9 @@ export default async function procurementRoutes(
   });
 
   app.get("/quote-requests", { preHandler: requireAuth }, async (request, reply) => {
-    const query = request.query as { buyerOrganizationId?: string };
+    const query = request.query as { buyerOrganizationId?: string; spaceId?: string };
     if (!query.buyerOrganizationId) return fail(reply, 400, "buyerOrganizationId is required");
-    return { items: await commerce.listQuoteRequests(query.buyerOrganizationId) };
+    return { items: await commerce.listQuoteRequests(query.buyerOrganizationId, { spaceId: query.spaceId }) };
   });
 
   app.post(
@@ -128,7 +128,7 @@ export default async function procurementRoutes(
   });
 
   app.get("/purchase-orders", { preHandler: requireAuth }, async (request) => {
-    const query = request.query as { buyerOrganizationId?: string; sellerOrganizationId?: string };
+    const query = request.query as { buyerOrganizationId?: string; sellerOrganizationId?: string; spaceId?: string };
     return { items: await commerce.listPurchaseOrders(query) };
   });
 

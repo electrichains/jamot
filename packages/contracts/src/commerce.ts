@@ -17,6 +17,7 @@ export type Supplier = z.infer<typeof Supplier>;
 
 /** Master product data (GS1-oriented). Not priced; source of truth for identifiers. */
 export const Product = EntityBase.extend({
+  spaceId: Id.nullable().optional(),
   gtin: z.string().nullable(),
   sku: z.string().nullable(),
   manufacturerId: z.string().nullable(),
@@ -63,6 +64,7 @@ export const CatalogOffer = EntityBase.extend({
   catalogId: Id,
   productId: Id,
   sellerOrganizationId: Id,
+  spaceId: Id.nullable().optional(),
   orderableUnit: z.string().default("each"),
   priceQuantity: z.number().int().min(1).default(1),
   priceTiers: z.array(PriceTier).min(1),
@@ -99,6 +101,7 @@ export type QuoteRequestItem = z.infer<typeof QuoteRequestItem>;
 
 export const QuoteRequest = EntityBase.extend({
   buyerOrganizationId: Id,
+  spaceId: Id.nullable().optional(),
   title: z.string().min(1),
   description: z.string().default(""),
   items: z.array(QuoteRequestItem).min(1),
@@ -121,6 +124,7 @@ export type QuoteItem = z.infer<typeof QuoteItem>;
 export const Quote = EntityBase.extend({
   quoteRequestId: Id,
   sellerOrganizationId: Id,
+  spaceId: Id.nullable().optional(),
   items: z.array(QuoteItem).min(1),
   total: z.number().positive(),
   currency: z.string().default("USD"),
@@ -146,6 +150,7 @@ export const PurchaseOrder = EntityBase.extend({
   quoteId: Id,
   buyerOrganizationId: Id,
   sellerOrganizationId: Id,
+  spaceId: Id.nullable().optional(),
   items: z.array(PurchaseOrderItem).min(1),
   total: z.number().positive(),
   currency: z.string().default("USD"),

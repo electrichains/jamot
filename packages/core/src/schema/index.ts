@@ -210,9 +210,7 @@ export const agents = pgTable("agents", {
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id")
-    .notNull()
-    .references(() => spaces.id),
+  spaceId: uuid("space_id").references(() => spaces.id),
   dream: text("dream").notNull().default(""),
   blueprint: jsonb("blueprint")
     .$type<Record<string, unknown>>()
@@ -229,6 +227,25 @@ export const organizations = pgTable("organizations", {
     .default(sql`'{}'::jsonb`),
   ...timestamps(),
 });
+
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    spaceId: uuid("space_id")
+      .notNull()
+      .unique()
+      .references(() => spaces.id),
+    name: text("name").notNull(),
+    ...timestamps(),
+  },
+  (table) => [
+    index("workspaces_organization_id_idx").on(table.organizationId),
+  ],
+);
 
 export const roles = pgTable(
   "roles",
@@ -278,9 +295,7 @@ export const positions = pgTable("positions", {
 
 export const goals = pgTable("goals", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id")
-    .notNull()
-    .references(() => spaces.id),
+  spaceId: uuid("space_id").references(() => spaces.id),
   parentGoalId: uuid("parent_goal_id").references((): AnyPgColumn => goals.id),
   title: text("title").notNull(),
   status: goalStatusEnum("status").notNull().default("active"),
@@ -331,9 +346,7 @@ export const tasks = pgTable(
 
 export const taskLists = pgTable("task_lists", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id")
-    .notNull()
-    .references(() => spaces.id),
+  spaceId: uuid("space_id").references(() => spaces.id),
   name: text("name").notNull(),
   position: integer("position").notNull().default(0),
   ...timestamps(),
@@ -424,17 +437,13 @@ export const capabilities = pgTable("capabilities", {
     .$type<Record<string, unknown>>()
     .notNull()
     .default(sql`'{}'::jsonb`),
-  spaceId: uuid("space_id")
-    .notNull()
-    .references(() => spaces.id),
+  spaceId: uuid("space_id").references(() => spaces.id),
   ...timestamps(),
 });
 
 export const policies = pgTable("policies", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id")
-    .notNull()
-    .references(() => spaces.id),
+  spaceId: uuid("space_id").references(() => spaces.id),
   name: text("name").notNull(),
   capability: text("capability").notNull(),
   resource: text("resource").notNull().default("*"),
@@ -491,9 +500,7 @@ export const secrets = pgTable("secrets", {
 
 export const channels = pgTable("channels", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id")
-    .notNull()
-    .references(() => spaces.id),
+  spaceId: uuid("space_id").references(() => spaces.id),
   name: text("name").notNull(),
   kind: text("kind").notNull(),
   ...timestamps(),
@@ -501,9 +508,7 @@ export const channels = pgTable("channels", {
 
 export const waAccounts = pgTable("wa_accounts", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id")
-    .notNull()
-    .references(() => spaces.id),
+  spaceId: uuid("space_id").references(() => spaces.id),
   label: text("label").notNull(),
   phone: text("phone"),
   status: waAccountStatusEnum("status").notNull().default("offline"),
@@ -512,9 +517,7 @@ export const waAccounts = pgTable("wa_accounts", {
 
 export const conversations = pgTable("conversations", {
   id: uuid("id").defaultRandom().primaryKey(),
-  spaceId: uuid("space_id")
-    .notNull()
-    .references(() => spaces.id),
+  spaceId: uuid("space_id").references(() => spaces.id),
   channelId: uuid("channel_id").references(() => channels.id),
   title: text("title"),
   ...timestamps(),
@@ -548,6 +551,7 @@ export const memories = pgTable(
 
 export const knowledgeEntities = pgTable("knowledge_entities", {
   id: uuid("id").defaultRandom().primaryKey(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   type: text("type").notNull(),
   name: text("name").notNull(),
   properties: jsonb("properties")
@@ -561,6 +565,7 @@ export const knowledgeEdges = pgTable(
   "knowledge_edges",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    spaceId: uuid("space_id").references(() => spaces.id),
     sourceId: uuid("source_id").notNull(),
     targetId: uuid("target_id").notNull(),
     relation: text("relation").notNull(),
@@ -668,6 +673,7 @@ export const suppliers = pgTable("suppliers", {
 
 export const productBase = pgTable("product_base", {
   id: uuid("id").defaultRandom().primaryKey(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   gtin: text("gtin"),
   sku: text("sku"),
   manufacturerId: text("manufacturer_id"),
@@ -685,6 +691,7 @@ export const productBase = pgTable("product_base", {
 export const productVariants = pgTable("product_variants", {
   id: uuid("id").defaultRandom().primaryKey(),
   productId: uuid("product_id").notNull(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   attributes: jsonb("attributes")
     .$type<Record<string, unknown>>()
     .notNull()
@@ -711,6 +718,7 @@ export const catalogOffers = pgTable("catalog_offers", {
   catalogId: uuid("catalog_id").notNull(),
   productId: uuid("product_id").notNull(),
   sellerOrganizationId: uuid("seller_organization_id").notNull(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   orderableUnit: text("orderable_unit").notNull().default("each"),
   priceQuantity: integer("price_quantity").notNull().default(1),
   priceTiers: jsonb("price_tiers")
@@ -745,6 +753,7 @@ export const buyerAgreements = pgTable("buyer_agreements", {
 export const quoteRequests = pgTable("quote_requests", {
   id: uuid("id").defaultRandom().primaryKey(),
   buyerOrganizationId: uuid("buyer_organization_id").notNull(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   items: jsonb("items")
@@ -761,6 +770,7 @@ export const quotes = pgTable("quotes", {
   id: uuid("id").defaultRandom().primaryKey(),
   quoteRequestId: uuid("quote_request_id").notNull(),
   sellerOrganizationId: uuid("seller_organization_id").notNull(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   items: jsonb("items")
     .$type<Record<string, unknown>[]>()
     .notNull()
@@ -782,6 +792,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
   quoteId: uuid("quote_id").notNull(),
   buyerOrganizationId: uuid("buyer_organization_id").notNull(),
   sellerOrganizationId: uuid("seller_organization_id").notNull(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   items: jsonb("items")
     .$type<Record<string, unknown>[]>()
     .notNull()
@@ -799,6 +810,7 @@ export const paymentIntents = pgTable("payment_intents", {
   purchaseOrderId: uuid("purchase_order_id").notNull(),
   buyerOrganizationId: uuid("buyer_organization_id").notNull(),
   sellerOrganizationId: uuid("seller_organization_id").notNull(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   currency: text("currency").notNull().default("USD"),
   estimatedAmount: numeric("estimated_amount").notNull(),
   status: text("status").notNull().default("draft"),
@@ -813,6 +825,7 @@ export const paymentIntents = pgTable("payment_intents", {
 export const paymentRecords = pgTable("payment_records", {
   id: uuid("id").defaultRandom().primaryKey(),
   paymentIntentId: uuid("payment_intent_id").notNull(),
+  spaceId: uuid("space_id").references(() => spaces.id),
   paidAmount: numeric("paid_amount").notNull(),
   currency: text("currency").notNull().default("USD"),
   providerReference: text("provider_reference"),
@@ -857,6 +870,7 @@ export const schema = {
   people,
   agents,
   organizations,
+  workspaces,
   roles,
   organicCharts,
   positions,

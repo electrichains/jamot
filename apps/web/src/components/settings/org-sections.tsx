@@ -2,6 +2,7 @@
 
 import { SectionHeading, Card } from "./section-primitives";
 import { ChannelsSection } from "./channels-section";
+import { WorkspacesSection } from "./workspaces-section";
 
 function OrgStub({
   title,
@@ -22,7 +23,10 @@ function OrgStub({
   );
 }
 
-export { GeneralOrgSection } from "./general-org-section";
+export function GeneralOrgSection() {
+  return <WorkspacesSection />;
+}
+
 export { PeopleOrgSection } from "./people-org-section";
 export { AppsOrgSection } from "./apps-org-section";
 

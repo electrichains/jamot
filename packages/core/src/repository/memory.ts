@@ -23,6 +23,7 @@ import {
   Task,
   TaskAttachment,
   TaskList,
+  Workspace,
 } from "@jamot/contracts";
 import type { Id } from "@jamot/contracts";
 import type {
@@ -62,6 +63,7 @@ export function createMemoryRepository(): JamotRepository {
   const agents = new Map<string, Agent>();
   const spaces = new Map<string, Space>();
   const organizations = new Map<string, Organization>();
+  const workspaces = new Map<string, Workspace>();
   const roles = new Map<string, Role>();
   const tasks = new Map<string, Task>();
   const taskLists = new Map<string, TaskList>();
@@ -138,8 +140,11 @@ export function createMemoryRepository(): JamotRepository {
       return people.get(id) ?? null;
     },
 
-    async listPeople() {
-      return [...people.values()];
+    async listPeople(filter) {
+      if (!filter?.spaceId) return [...people.values()];
+      return [...people.values()].filter((p) =>
+        (p.membershipSpaceIds ?? []).includes(filter.spaceId as Id),
+      );
     },
 
     async updatePerson(id, patch) {
@@ -236,6 +241,33 @@ export function createMemoryRepository(): JamotRepository {
       const updated = Organization.parse({ ...existing, ...patch, updatedAt: now() });
       organizations.set(id, updated);
       return updated;
+    },
+
+    async createWorkspace(input) {
+      const workspace = Workspace.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        organizationId: input.organizationId,
+        spaceId: input.spaceId,
+        name: input.name,
+      });
+      workspaces.set(workspace.id, workspace);
+      return workspace;
+    },
+
+    async getWorkspace(id) {
+      return workspaces.get(id) ?? null;
+    },
+
+    async listWorkspaces(organizationId) {
+      return [...workspaces.values()].filter(
+        (w) => w.organizationId === organizationId,
+      );
+    },
+
+    async deleteWorkspace(id) {
+      workspaces.delete(id);
     },
 
     async createRole(input: NewRole) {
@@ -585,8 +617,11 @@ export function createMemoryRepository(): JamotRepository {
       return productStore.get(id) ?? null;
     },
 
-    async listProducts() {
-      return [...productStore.values()];
+    async listProducts(filter) {
+      const items = [...productStore.values()];
+      return filter?.spaceId
+        ? items.filter((p) => p.spaceId === filter.spaceId)
+        : items;
     },
 
     async createCatalog(input: NewCatalog) {
@@ -661,6 +696,7 @@ export function createMemoryRepository(): JamotRepository {
       if (filter?.sellerOrganizationId) {
         all = all.filter((o) => o.sellerOrganizationId === filter.sellerOrganizationId);
       }
+      if (filter?.spaceId) all = all.filter((o) => o.spaceId === filter.spaceId);
       return all;
     },
 
@@ -720,9 +756,12 @@ export function createMemoryRepository(): JamotRepository {
     },
 
     async listQuoteRequests(filter) {
-      const all = [...quoteRequestStore.values()];
-      if (!filter?.buyerOrganizationId) return all;
-      return all.filter((q) => q.buyerOrganizationId === filter.buyerOrganizationId);
+      let all = [...quoteRequestStore.values()];
+      if (filter?.buyerOrganizationId) {
+        all = all.filter((q) => q.buyerOrganizationId === filter.buyerOrganizationId);
+      }
+      if (filter?.spaceId) all = all.filter((q) => q.spaceId === filter.spaceId);
+      return all;
     },
 
     async updateQuoteRequestStatus(id, status) {
@@ -813,6 +852,7 @@ export function createMemoryRepository(): JamotRepository {
       if (filter?.sellerOrganizationId) {
         all = all.filter((p) => p.sellerOrganizationId === filter.sellerOrganizationId);
       }
+      if (filter?.spaceId) all = all.filter((p) => p.spaceId === filter.spaceId);
       return all;
     },
 
@@ -860,6 +900,7 @@ export function createMemoryRepository(): JamotRepository {
       if (filter?.purchaseOrderId) {
         all = all.filter((p) => p.purchaseOrderId === filter.purchaseOrderId);
       }
+      if (filter?.spaceId) all = all.filter((p) => p.spaceId === filter.spaceId);
       return all;
     },
 

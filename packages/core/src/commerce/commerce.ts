@@ -100,7 +100,7 @@ export interface CommerceService {
     unitOfMeasure?: string;
     description?: string;
   }): Promise<Product>;
-  listProducts(): Promise<Product[]>;
+  listProducts(filter?: { spaceId?: string }): Promise<Product[]>;
 
   // catalogs
   createCatalog(ownerOrganizationId: string, input: CreateCatalogInput): Promise<Catalog>;
@@ -113,7 +113,7 @@ export interface CommerceService {
     sellerOrganizationId: string,
     input: CreateCatalogOfferInput,
   ): Promise<CatalogOffer>;
-  listCatalogOffers(filter?: { catalogId?: string; sellerOrganizationId?: string }): Promise<CatalogOffer[]>;
+  listCatalogOffers(filter?: { catalogId?: string; sellerOrganizationId?: string; spaceId?: string }): Promise<CatalogOffer[]>;
   updateCatalogOffer(
     id: string,
     patch: Partial<Pick<CatalogOffer, "priceTiers" | "minQty" | "maxQty" | "orderIncrement" | "availability" | "leadTime" | "validityFrom" | "validityTo" | "taxIncluded" | "status">>,
@@ -135,7 +135,7 @@ export interface CommerceService {
 
   // procurement
   createQuoteRequest(buyerOrganizationId: string, input: CreateQuoteRequestInput): Promise<QuoteRequest>;
-  listQuoteRequests(buyerOrganizationId: string): Promise<QuoteRequest[]>;
+  listQuoteRequests(buyerOrganizationId: string, filter?: { spaceId?: string }): Promise<QuoteRequest[]>;
   submitQuote(quoteRequestId: string, sellerOrganizationId: string, input: SubmitQuoteInput): Promise<Quote>;
   listQuotes(quoteRequestId: string): Promise<Quote[]>;
   acceptQuote(quoteRequestId: string, quoteId: string): Promise<{ request: QuoteRequest; quote: Quote }>;
@@ -143,7 +143,7 @@ export interface CommerceService {
   createPurchaseOrder(quoteId: string, approvedByActorId: string): Promise<PurchaseOrder>;
   approvePurchaseOrder(purchaseOrderId: string, actorId: string): Promise<PurchaseOrder>;
   fulfillPurchaseOrder(purchaseOrderId: string): Promise<PurchaseOrder>;
-  listPurchaseOrders(filter?: { buyerOrganizationId?: string; sellerOrganizationId?: string }): Promise<PurchaseOrder[]>;
+  listPurchaseOrders(filter?: { buyerOrganizationId?: string; sellerOrganizationId?: string; spaceId?: string }): Promise<PurchaseOrder[]>;
   getPurchaseOrder(id: string): Promise<PurchaseOrder | null>;
 
   // reputation signal

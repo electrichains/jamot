@@ -22,6 +22,7 @@ import type {
   Task,
   TaskAttachment,
   TaskList,
+  Workspace,
 } from "@jamot/contracts";
 
 /**
@@ -172,6 +173,7 @@ export interface NewSupplier {
 }
 
 export interface NewProduct {
+  spaceId?: string | null;
   gtin?: string | null;
   sku?: string | null;
   manufacturerId?: string | null;
@@ -201,6 +203,7 @@ export interface NewCatalogOffer {
   catalogId: string;
   productId: string;
   sellerOrganizationId: string;
+  spaceId?: string | null;
   orderableUnit?: string;
   priceQuantity?: number;
   priceTiers: CatalogOffer["priceTiers"];
@@ -225,6 +228,7 @@ export interface NewBuyerAgreement {
 
 export interface NewQuoteRequest {
   buyerOrganizationId: string;
+  spaceId?: string | null;
   title: string;
   description?: string;
   items: QuoteRequest["items"];
@@ -236,6 +240,7 @@ export interface NewQuoteRequest {
 export interface NewQuote {
   quoteRequestId: string;
   sellerOrganizationId: string;
+  spaceId?: string | null;
   items: Quote["items"];
   total: number;
   currency?: string;
@@ -249,6 +254,7 @@ export interface NewPurchaseOrder {
   quoteId: string;
   buyerOrganizationId: string;
   sellerOrganizationId: string;
+  spaceId?: string | null;
   items: PurchaseOrder["items"];
   total: number;
   currency?: string;
@@ -260,6 +266,7 @@ export interface NewPaymentIntent {
   purchaseOrderId: string;
   buyerOrganizationId: string;
   sellerOrganizationId: string;
+  spaceId?: string | null;
   currency?: string;
   estimatedAmount: number;
   status?: PaymentIntent["status"];
@@ -272,6 +279,7 @@ export interface NewPaymentIntent {
 
 export interface NewPaymentRecord {
   paymentIntentId: string;
+  spaceId?: string | null;
   paidAmount: number;
   currency?: string;
   providerReference?: string | null;
@@ -308,7 +316,7 @@ export interface JamotRepository {
   // people
   createPerson(input: NewPerson): Promise<Person>;
   getPerson(id: string): Promise<Person | null>;
-  listPeople(): Promise<Person[]>;
+  listPeople(filter?: { spaceId?: string }): Promise<Person[]>;
   updatePerson(
     id: string,
     patch: Partial<
@@ -321,7 +329,7 @@ export interface JamotRepository {
   getAgent(id: string): Promise<Agent | null>;
   listAgents(filter?: { organizationId?: string }): Promise<Agent[]>;
 
-  // spaces & organizations
+  // spaces, organizations & workspaces
   createSpace(input: NewSpace): Promise<Space>;
   getSpace(id: string): Promise<Space | null>;
   listSpaces(): Promise<Space[]>;
@@ -332,6 +340,14 @@ export interface JamotRepository {
     id: string,
     patch: Partial<Pick<Organization, "dream" | "blueprint" | "enabledAppIds">>,
   ): Promise<Organization | null>;
+  createWorkspace(input: {
+    organizationId: string;
+    spaceId: string;
+    name: string;
+  }): Promise<Workspace>;
+  getWorkspace(id: string): Promise<Workspace | null>;
+  listWorkspaces(organizationId: string): Promise<Workspace[]>;
+  deleteWorkspace(id: string): Promise<void>;
 
   // roles
   createRole(input: NewRole): Promise<Role>;
@@ -419,7 +435,7 @@ export interface JamotRepository {
   // products (master data)
   createProduct(input: NewProduct): Promise<Product>;
   getProduct(id: string): Promise<Product | null>;
-  listProducts(): Promise<Product[]>;
+  listProducts(filter?: { spaceId?: string }): Promise<Product[]>;
 
   // catalogs
   createCatalog(input: NewCatalog): Promise<Catalog>;
@@ -438,6 +454,7 @@ export interface JamotRepository {
   listCatalogOffers(filter?: {
     catalogId?: string;
     sellerOrganizationId?: string;
+    spaceId?: string;
   }): Promise<CatalogOffer[]>;
   updateCatalogOffer(
     id: string,
@@ -458,6 +475,7 @@ export interface JamotRepository {
   getQuoteRequest(id: string): Promise<QuoteRequest | null>;
   listQuoteRequests(filter?: {
     buyerOrganizationId?: string;
+    spaceId?: string;
   }): Promise<QuoteRequest[]>;
   updateQuoteRequestStatus(
     id: string,
@@ -475,6 +493,7 @@ export interface JamotRepository {
   listPurchaseOrders(filter?: {
     buyerOrganizationId?: string;
     sellerOrganizationId?: string;
+    spaceId?: string;
   }): Promise<PurchaseOrder[]>;
   updatePurchaseOrder(
     id: string,
@@ -493,6 +512,7 @@ export interface JamotRepository {
     buyerOrganizationId?: string;
     sellerOrganizationId?: string;
     purchaseOrderId?: string;
+    spaceId?: string;
   }): Promise<PaymentIntent[]>;
   updatePaymentIntent(
     id: string,

@@ -18,12 +18,21 @@ export async function listOrgSpaces(): Promise<OrgSpaceRef[]> {
     throw new Error(body.error ?? `failed to load organizations (${res.status})`);
   }
   const data = (await res.json()) as {
-    items?: Array<{ space?: { id: string; name: string } }>;
+    items?: Array<{
+      space?: { id: string; name: string };
+      workspaces?: Array<{ spaceId: string; name: string }>;
+    }>;
   };
-  return (data.items ?? [])
-    .map((item) => ({
-      spaceId: item.space?.id ?? "",
-      name: item.space?.name ?? "",
-    }))
-    .filter((item) => item.spaceId.length > 0);
+  const refs: OrgSpaceRef[] = [];
+  for (const item of data.items ?? []) {
+    const workspaces = item.workspaces ?? [];
+    if (workspaces.length > 0) {
+      for (const w of workspaces) {
+        if (w.spaceId) refs.push({ spaceId: w.spaceId, name: w.name });
+      }
+    } else if (item.space?.id) {
+      refs.push({ spaceId: item.space.id, name: item.space.name ?? "" });
+    }
+  }
+  return refs;
 }

@@ -23,6 +23,7 @@ export interface Space {
   accentForeground: string;
   kind?: "personal" | "organization";
   organizationId?: string;
+  workspaceId?: string;
   spaceId?: string;
   role?: OrgRole;
 }
@@ -56,7 +57,7 @@ export type SectionId =
   | "canvas"
   | "whatsapp"
   | "calendar"
-  | "inventory"
+  | "suppliers"
   | "crm"
   | "finance";
 
@@ -68,7 +69,7 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   canvas: "Canvas",
   whatsapp: "WhatsApp",
   calendar: "Calendar",
-  inventory: "Inventory",
+  suppliers: "Suppliers",
   crm: "CRM",
   finance: "Finance",
 };
@@ -96,18 +97,35 @@ export const DEFAULT_LEFT_SIZE = 240;
 export const DEFAULT_RIGHT_SIZE = 320;
 export const DEFAULT_SECTION_WIDTH = 640;
 
-function spaceFromOrganization(item: OrganizationListItem, index: number): Space {
+const SPACE_KEY = "jamot:space";
+
+function spaceFromOrganization(item: OrganizationListItem, index: number): Space[] {
   const palette = ORG_ACCENTS[index % ORG_ACCENTS.length];
-  return {
-    id: item.organization.id,
-    name: item.space.name || "Organization",
+  const orgSpaces: Space[] = (item.workspaces ?? []).map((workspace) => ({
+    id: workspace.spaceId,
+    name: workspace.name || item.space.name || "Organization",
     accent: palette.accent,
     accentForeground: palette.accentForeground,
     kind: "organization",
     organizationId: item.organization.id,
-    spaceId: item.space.id,
+    workspaceId: workspace.id,
+    spaceId: workspace.spaceId,
     role: item.role,
-  };
+  }));
+  // Fallback: if an org somehow has no workspace row yet, expose its primary space.
+  if (orgSpaces.length === 0) {
+    orgSpaces.push({
+      id: item.space.id,
+      name: item.space.name || "Organization",
+      accent: palette.accent,
+      accentForeground: palette.accentForeground,
+      kind: "organization",
+      organizationId: item.organization.id,
+      spaceId: item.space.id,
+      role: item.role,
+    });
+  }
+  return orgSpaces;
 }
 
 export function AppShellProvider({
@@ -119,18 +137,25 @@ export function AppShellProvider({
 }) {
   const [leftSize, setLeftSize] = useState(DEFAULT_LEFT_SIZE);
   const [rightSize, setRightSize] = useState(DEFAULT_RIGHT_SIZE);
-  const [spaceId, setSpaceId] = useState("personal");
   const [activeSection, setActiveSection] = useState<SectionId | null>(null);
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [organizationsLoading, setOrganizationsLoading] = useState(true);
 
-  const spaces = useMemo<Space[]>(
-    () => [
-      PERSONAL_SPACE,
-      ...organizations.map((item, index) => spaceFromOrganization(item, index)),
-    ],
-    [organizations],
-  );
+  const spaces = useMemo<Space[]>(() => {
+    const orgSpaces = organizations.flatMap((item, index) =>
+      spaceFromOrganization(item, index),
+    );
+    return [PERSONAL_SPACE, ...orgSpaces];
+  }, [organizations]);
+
+  const [spaceId, setSpaceId] = useState<string>(() => {
+    try {
+      const saved = window.localStorage.getItem(SPACE_KEY);
+      return saved || "personal";
+    } catch {
+      return "personal";
+    }
+  });
 
   const reloadOrganizations = useCallback(async () => {
     try {
@@ -164,7 +189,14 @@ export function AppShellProvider({
     (id: string) => {
       setSpaceId((current) => {
         if (!id) return current;
-        if (spaces.some((candidate) => candidate.id === id)) return id;
+        if (spaces.some((candidate) => candidate.id === id)) {
+          try {
+            window.localStorage.setItem(SPACE_KEY, id);
+          } catch {
+            // ignore storage errors
+          }
+          return id;
+        }
         return current === "personal" || spaces.some((c) => c.id === current)
           ? current
           : "personal";

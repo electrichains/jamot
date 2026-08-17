@@ -15,7 +15,7 @@ import QRCode from "qrcode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { listOrgSpaces } from "@/lib/org-spaces";
+import { useAppShell } from "@/components/app-shell/app-shell-context";
 import {
   createAccount,
   deleteAccount,
@@ -130,6 +130,8 @@ function QrPanel({
 }
 
 export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
+  const { space } = useAppShell();
+  const activeSpaceId = space.spaceId ?? null;
   const [accounts, setAccounts] = useState<WaAccount[]>([]);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
@@ -150,13 +152,11 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   const connected = state?.connection === "open";
 
   useEffect(() => {
+    if (!activeSpaceId) return;
     let cancelled = false;
     void (async () => {
       try {
-        const orgs = await listOrgSpaces();
-        const firstOrg = orgs[0];
-        if (!firstOrg) return;
-        const items = await listAccounts(firstOrg.spaceId);
+        const items = await listAccounts(activeSpaceId);
         if (cancelled) return;
         setAccounts(items);
         setAccountId(items[0]?.id ?? null);
@@ -168,7 +168,7 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeSpaceId]);
 
   useEffect(() => {
     if (!accountId) return;
@@ -314,11 +314,9 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     setAccountBusy(true);
     setWorkerError(null);
     try {
-      const orgs = await listOrgSpaces();
-      const firstOrg = orgs[0];
-      if (!firstOrg) throw new Error("No organization found");
-      const account = await createAccount(firstOrg.spaceId, "WhatsApp");
-      const items = await listAccounts(firstOrg.spaceId);
+      if (!activeSpaceId) throw new Error("No workspace selected");
+      const account = await createAccount(activeSpaceId, "WhatsApp");
+      const items = await listAccounts(activeSpaceId);
       setAccounts(items);
       setAccountId(account.id);
     } catch (err) {
