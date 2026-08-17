@@ -9,7 +9,7 @@ export interface AgentProfile {
   skills: { name: string; proficiency: number }[];
   channels: string[];
   reportsTo: string;
-  memory: { interactions: number };
+  memory: { interactions: number; notes: string[] };
   tasks: { active: number };
   reputation: Record<string, number>;
 }
@@ -39,8 +39,15 @@ export const AGENTS: AgentProfile[] = [
       { name: "Scheduling", proficiency: 74 },
     ],
     channels: ["WhatsApp"],
-    reportsTo: "Main Manager",
-    memory: { interactions: 1240 },
+    reportsTo: "Maria",
+    memory: {
+      interactions: 1240,
+      notes: [
+        "Keeps Maria's calendar and inbox tidy.",
+        "Prepares the Monday brief.",
+        "Logs call notes after customer calls.",
+      ],
+    },
     tasks: { active: 3 },
     reputation: {
       responsiveness: 94,
@@ -60,8 +67,15 @@ export const AGENTS: AgentProfile[] = [
       { name: "Enrichment", proficiency: 68 },
     ],
     channels: ["Email", "Telegram"],
-    reportsTo: "Main Manager",
-    memory: { interactions: 3420 },
+    reportsTo: "Maria",
+    memory: {
+      interactions: 3420,
+      notes: [
+        "Trained on Maria's tone.",
+        "Respects quiet hours 19:00–08:00.",
+        "Ran four sequences this week.",
+      ],
+    },
     tasks: { active: 12 },
     reputation: {
       reply_rate: 87,
@@ -81,8 +95,15 @@ export const AGENTS: AgentProfile[] = [
       { name: "Forecasting", proficiency: 73 },
     ],
     channels: ["Email"],
-    reportsTo: "Main Manager",
-    memory: { interactions: 2105 },
+    reportsTo: "Andrea",
+    memory: {
+      interactions: 2105,
+      notes: [
+        "Flags anomalies and drafts reports for Andrea.",
+        "Reconciles the bank feed nightly.",
+        "Codes expenses under Andrea's rules.",
+      ],
+    },
     tasks: { active: 9 },
     reputation: {
       accuracy: 96,

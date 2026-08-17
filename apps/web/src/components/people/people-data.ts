@@ -49,7 +49,7 @@ export const PEOPLE: PersonProfile[] = [
   {
     id: "maria",
     name: "Maria",
-    role: "Customer Success Lead",
+    role: "Sales Lead",
     identity: {
       email: "maria@example.com",
       department: "Sales",

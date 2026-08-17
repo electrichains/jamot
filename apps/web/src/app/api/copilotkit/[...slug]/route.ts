@@ -12,7 +12,7 @@ const copilotRuntime = new CopilotRuntime({
         : "openai/gpt-4o",
       apiKey: process.env.OPENAI_API_KEY ?? "",
       prompt:
-        "You are the Jamot Main Manager. You help a person or organization plan, delegate and track work. Be concise and concrete.",
+        "You are the Jamot Main Manager. You help a person or organization plan, delegate and track work. Be concise and concrete. When asked to find or research people or agents, delegate to the searchPeople and searchAgents tools when they are available instead of guessing from memory.",
       maxSteps: 5,
     }),
   },

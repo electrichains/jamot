@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, Field, TextInput } from "@/components/settings/section-primitives";
+import type { AgentProfile } from "./agents-data";
 
 type Autonomy = "suggest" | "approve" | "autonomous";
 
@@ -18,7 +19,13 @@ const AUTONOMY_OPTIONS: { value: Autonomy; label: string; description: string }[
 
 const CHANNELS = ["WhatsApp", "Telegram", "Email", "Slack"] as const;
 
-export function CreateAgent({ onDone }: { onDone?: () => void }) {
+export function CreateAgent({
+  onAdd,
+  onDone,
+}: {
+  onAdd?: (agent: AgentProfile) => void;
+  onDone?: () => void;
+}) {
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
@@ -48,7 +55,7 @@ export function CreateAgent({ onDone }: { onDone?: () => void }) {
   return (
     <Card>
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-display text-base font-semibold">New agent</h3>
+        <h3 className="font-display text-base font-semibold">Add an agent</h3>
         {onDone ? (
           <Button
             variant="ghost"
@@ -226,7 +233,33 @@ export function CreateAgent({ onDone }: { onDone?: () => void }) {
         </div>
 
         <div className="flex justify-end">
-          <Button size="sm" disabled={!name.trim()}>
+          <Button
+            size="sm"
+            disabled={!name.trim()}
+            onClick={() => {
+              onAdd?.({
+                id: `agent-${Date.now()}`,
+                name: name.trim(),
+                role: purpose.trim() || "New agent",
+                availability: "available",
+                autonomy,
+                skills: skills.map((skill) => ({ name: skill, proficiency: 50 })),
+                channels,
+                reportsTo: "Main Manager",
+                memory: {
+                  interactions: 0,
+                  notes: ["Just added to the agent directory."],
+                },
+                tasks: { active: 0 },
+                reputation: {
+                  responsiveness: 50,
+                  reliability: 50,
+                  helpfulness: 50,
+                },
+              });
+              onDone?.();
+            }}
+          >
             Save
           </Button>
         </div>

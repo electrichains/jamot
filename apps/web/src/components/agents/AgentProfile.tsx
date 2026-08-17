@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Database,
   ListChecks,
+  MemoryStick,
   MessageSquare,
   Users,
 } from "lucide-react";
@@ -135,10 +136,31 @@ export function AgentProfile({ agent }: { agent: AgentProfile }) {
         <p className="text-sm">{agent.reportsTo}</p>
       </Section>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Stat label="Memory · interactions" value={agent.memory.interactions.toLocaleString()} />
-        <Stat label="Tasks · active" value={String(agent.tasks.active)} />
-      </div>
+      <Section
+        title="Memory"
+        icon={<MemoryStick className="size-4 text-muted-foreground" />}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {agent.memory.interactions}
+            </span>{" "}
+            interactions on record
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {agent.memory.notes.map((note) => (
+              <li
+                key={note}
+                className="rounded-md border border-border px-3 py-2 text-sm"
+              >
+                {note}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Section>
+
+      <Stat label="Tasks · active" value={String(agent.tasks.active)} />
 
       <Section
         title="Reputation"

@@ -138,7 +138,7 @@ export const orgNodes: OrgNode[] = [
     label: "Andrea",
     kind: "human",
     parentId: "finance",
-    role: "Finance Lead",
+    role: "Founder & Owner",
     skills: ["FP&A", "Invoicing", "Budgeting"],
     taskCount: 4,
     memory: "Owns the treasury and monthly close.",
