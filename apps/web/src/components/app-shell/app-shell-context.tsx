@@ -57,6 +57,7 @@ export type SectionId =
   | "canvas"
   | "whatsapp"
   | "calendar"
+  | "inventory"
   | "suppliers"
   | "crm"
   | "finance";
@@ -70,6 +71,7 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   whatsapp: "WhatsApp",
   calendar: "Calendar",
   suppliers: "Suppliers",
+  inventory: "Inventory",
   crm: "CRM",
   finance: "Finance",
 };
