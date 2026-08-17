@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Loader2, Paperclip, RotateCcw, Search, Send } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  Paperclip,
+  RotateCcw,
+  Search,
+  Send,
+  Upload,
+} from "lucide-react";
 import QRCode from "qrcode";
 
 import { Button } from "@/components/ui/button";
@@ -13,6 +21,7 @@ import {
   deleteAccount,
   getMessages,
   getState,
+  importSession,
   listAccounts,
   listChats,
   listContacts,
@@ -133,8 +142,10 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   const [results, setResults] = useState<WaMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [workerError, setWorkerError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const sessionFileRef = useRef<HTMLInputElement>(null);
 
   const connected = state?.connection === "open";
 
@@ -264,6 +275,41 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     })();
   };
 
+  const handleImportSession = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !accountId) return;
+    setImporting(true);
+    setWorkerError(null);
+    try {
+      const map: Record<string, string> = {};
+      for (const file of Array.from(files)) {
+        const rel =
+          (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
+          file.name;
+        const parts = rel.split("/");
+        parts.shift();
+        const clean = parts.join("/") || file.name;
+        map[clean] = await fileToBase64(file);
+      }
+      await importSession(accountId, map);
+      const [nextState, nextChats] = await Promise.all([
+        getState(accountId),
+        listChats(accountId),
+      ]);
+      setState(nextState);
+      setChats(nextChats);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Session import failed";
+      setWorkerError(message);
+    } finally {
+      setImporting(false);
+    }
+    event.target.value = "";
+  };
+
   const handleAddAccount = async () => {
     setAccountBusy(true);
     setWorkerError(null);
@@ -353,17 +399,42 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
             </select>
           ) : null}
           {accounts.length > 0 && accountId ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 shrink-0 text-xs text-muted-foreground"
-              onClick={() => {
-                if (accountId) void handleDeleteAccount(accountId);
-              }}
-              title="Remove this account"
-            >
-              Remove
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 text-xs text-muted-foreground"
+                onClick={() => sessionFileRef.current?.click()}
+                disabled={importing}
+                title="Import a paired WhatsApp session (run the local wa-pair helper, then pick that folder)"
+              >
+                {importing ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Upload className="size-3.5" />
+                )}
+                {importing ? "Importing…" : "Import"}
+              </Button>
+              <input
+                ref={sessionFileRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => void handleImportSession(e)}
+                {...({ webkitdirectory: "" } as Record<string, string>)}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 text-xs text-muted-foreground"
+                onClick={() => {
+                  if (accountId) void handleDeleteAccount(accountId);
+                }}
+                title="Remove this account"
+              >
+                Remove
+              </Button>
+            </>
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">

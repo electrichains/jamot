@@ -24,10 +24,12 @@
     "bullmq": "^5.34.0",
     "ioredis": "^5.4.1",
     "matrix-js-sdk": "^42.1.0",
+    "qrcode": "^1.5.4",
     "tsx": "^4.19.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/qrcode": "^1.5.5",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

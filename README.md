@@ -81,6 +81,32 @@ If a session is logged out or corrupted, use the **Reset pairing** button in the
 WhatsApp app (calls `POST /api/wa/reset`, which wipes the session dir and starts a
 fresh QR).
 
+### Pairing WhatsApp on cloud hosts (Render)
+
+WhatsApp refuses the *new-pairing* handshake from datacenter IPs (Render Oregon),
+so no QR can be generated there — the connection loops with `status=428` and no
+QR ever appears. Existing sessions resume fine from the same IPs.
+
+To pair a fresh session, run the helper from a machine on a residential/office
+network, then import the produced folder into the deployed worker:
+
+```bash
+pnpm --filter @jamot/workers exec tsx src/wa-pair.ts --out .wa-pair
+```
+
+Scan the printed/saved `wa-qr.png` with WhatsApp → Settings → Linked devices.
+Once paired, upload the `.wa-pair` directory via the web app
+(WhatsApp → **Import**), or post it directly:
+
+```bash
+# files: { "creds.json": "<base64>", ... }
+curl -X POST https://<api>/api/wa/accounts/<id>/session \
+  -H "Content-Type: application/json" -H "Cookie: <session>" \
+  -d '{"files":{...}}'
+```
+
+The deployed worker then resumes the session from Render's IP.
+
 ## Scripts
 
 ```bash
