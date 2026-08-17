@@ -105,7 +105,7 @@ projects:
             runtime: node
             region: oregon
             plan: starter
-            buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @jamot/workers build
+            buildCommand: pnpm install --frozen-lockfile && pnpm --filter @jamot/workers build
             startCommand: pnpm --filter @jamot/workers exec tsx src/channel.ts
             disk:
               name: wa-session
@@ -122,6 +122,9 @@ projects:
             envVars:
               - key: WHATSAPP_SESSION_DIR
                 value: /data/whatsapp
+              # The control server binds this port; must match WA_WORKER_URL on the API.
+              - key: WA_CONTROL_PORT
+                value: "10000"
               - key: NODE_ENV
                 value: production
 
