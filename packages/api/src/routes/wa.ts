@@ -133,4 +133,29 @@ export default async function waRoutes(
     if (!body) return;
     return proxy("/read", reply, jsonInit(body));
   });
+
+  app.get("/wa/net-meta", { preHandler: requireAuth }, async (_req, reply) => {
+    return proxy("/net/meta", reply);
+  });
+
+  app.post(
+    "/wa/session-import",
+    { preHandler: requireAuth, bodyLimit: 15728640 },
+    async (request, reply) => {
+      const body = request.body as { files?: Record<string, string> };
+      if (!body || !body.files || Object.keys(body.files).length === 0) {
+        return fail(reply, 400, "files is required");
+      }
+      const secret = process.env.WA_CONTROL_SECRET ?? "";
+      const init: RequestInit = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(secret ? { "x-control-secret": secret } : {}),
+        },
+        body: JSON.stringify(body),
+      };
+      return proxy("/session/import", reply, init);
+    },
+  );
 }

@@ -65,6 +65,25 @@ export function createWhatsAppControlServer(
         await adapter.resetSession();
         return json(res, 200, { ok: true });
       }
+      if (method === "POST" && path === "/session/import") {
+        const secret = process.env.WA_CONTROL_SECRET;
+        if (secret && req.headers["x-control-secret"] !== secret) {
+          return json(res, 403, { error: "forbidden" });
+        }
+        const body = (await readJson(req)) as {
+          files?: Record<string, string>;
+        };
+        if (!body.files || Object.keys(body.files).length === 0) {
+          return json(res, 400, { error: "files is required" });
+        }
+        await adapter.importSession(body.files);
+        return json(res, 200, { ok: true });
+      }
+      if (method === "GET" && path === "/net/meta") {
+        return json(res, 200, {
+          internalHostname: process.env.RENDER_INTERNAL_HOSTNAME ?? null,
+        });
+      }
       if (method === "GET" && path === "/chats") {
         return json(res, 200, { items: adapter.listChats() });
       }

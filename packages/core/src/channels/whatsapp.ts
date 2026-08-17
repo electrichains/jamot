@@ -1,8 +1,11 @@
-import { rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, normalize, sep } from "node:path";
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  fetchLatestBaileysVersion,
   isJidGroup,
+  makeCacheableSignalKeyStore,
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
 import type { WAMessage, WASocket } from "@whiskeysockets/baileys";
@@ -58,6 +61,7 @@ export interface WhatsAppAdapter extends ChannelAdapter {
   kind: "whatsapp";
   getState(): WaState;
   resetSession(): Promise<void>;
+  importSession(files: Record<string, string>): Promise<void>;
   listChats(): WaChat[];
   listContacts(query?: string): WaContact[];
   getMessages(
@@ -191,9 +195,14 @@ export function createWhatsAppAdapter(
     try {
       const { state: authState, saveCreds } =
         await useMultiFileAuthState(sessionDir);
+      const { version } = await fetchLatestBaileysVersion();
 
       const socket = makeWASocket({
-        auth: authState,
+        version,
+        auth: {
+          creds: authState.creds,
+          keys: makeCacheableSignalKeyStore(authState.keys),
+        },
         browser: Browsers.macOS("Desktop"),
         printQRInTerminal: false,
         syncFullHistory,
@@ -415,6 +424,28 @@ export function createWhatsAppAdapter(
         sock = undefined;
       }
       wipeSession();
+      void connect();
+    },
+
+    async importSession(files) {
+      const root = normalize(sessionDir);
+      mkdirSync(root, { recursive: true });
+      for (const [relPath, content] of Object.entries(files)) {
+        const target = normalize(join(root, relPath));
+        if (!target.startsWith(root + sep) && target !== root) {
+          throw new Error(`invalid session file path: ${relPath}`);
+        }
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, Buffer.from(content, "base64"));
+      }
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (sock) {
+        await sock.end(undefined);
+        sock = undefined;
+      }
+      state.qr = undefined;
+      state.connection = "connecting";
+      reconnectDelayMs = 5000;
       void connect();
     },
 
