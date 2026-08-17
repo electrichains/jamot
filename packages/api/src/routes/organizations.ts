@@ -236,7 +236,7 @@ export function organizationsRoutes(
         const actorId = request.session.actorId!;
         const space = await repo.createSpace({
           kind: "organization",
-          ownerActorId: organization.spaceId,
+          ownerActorId: actorId,
           name: body.name,
         });
         const workspace = await repo.createWorkspace({
