@@ -3,6 +3,12 @@
 import { SectionHeading, Card } from "./section-primitives";
 import { ChannelsSection } from "./channels-section";
 import { WorkspacesSection } from "./workspaces-section";
+import {
+  CapabilitiesSection as CapabilitiesDataSection,
+  KnowledgeSection as KnowledgeDataSection,
+  OrgMemorySection as OrgMemoryDataSection,
+  SharedSkillsSection as SharedSkillsDataSection,
+} from "./org-data-sections";
 
 function OrgStub({
   title,
@@ -52,9 +58,8 @@ export function ChannelsOrgSection() {
 }
 
 export function SharedSkillsSection() {
-  return <OrgStub title="Shared Skills" description="Skills shared across teams." />;
+  return <SharedSkillsDataSection />;
 }
-
 export function PoliciesSection() {
   return <OrgStub title="Policies" description="Policies that govern agent behavior." />;
 }
@@ -68,7 +73,15 @@ export function DreamSection() {
 }
 
 export function OrgMemorySection() {
-  return <OrgStub title="Memory" description="Shared organizational memory." />;
+  return <OrgMemoryDataSection />;
+}
+
+export function CapabilitiesOrgSection() {
+  return <CapabilitiesDataSection />;
+}
+
+export function KnowledgeOrgSection() {
+  return <KnowledgeDataSection />;
 }
 
 export function AuditSection() {

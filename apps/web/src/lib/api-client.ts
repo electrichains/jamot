@@ -240,6 +240,287 @@ export async function getAgents(): Promise<ApiAgent[]> {
   return data.items;
 }
 
+export type AgentAutonomyValue = "suggest" | "approve" | "autonomous";
+export type AgentAvailabilityValue = "available" | "busy" | "offline";
+
+export async function createAgent(input: {
+  name: string;
+  ownerId: string;
+  role?: string | null;
+  organizationIds?: string[];
+  autonomy?: AgentAutonomyValue;
+  availability?: AgentAvailabilityValue;
+  harness?: {
+    kind: string;
+    endpoint?: string | null;
+    config?: Record<string, unknown>;
+  };
+}): Promise<ApiAgent> {
+  return api<ApiAgent>("/api/agents", {
+    method: "POST",
+    body: JSON.stringify({
+      name: input.name,
+      ownerId: input.ownerId,
+      role: input.role ?? null,
+      organizationIds: input.organizationIds ?? [],
+      autonomy: input.autonomy ?? "approve",
+      availability: input.availability ?? "available",
+      harness: input.harness ?? { kind: "mcp", endpoint: null },
+    }),
+  });
+}
+
+export async function updateOwnProfile(
+  personId: string,
+  patch: {
+    email?: string | null;
+    profile?: {
+      selfDescribed?: Record<string, { value: unknown; source?: string; confidence?: number }>;
+      integral?: Record<string, { value: unknown; source?: string; confidence?: number }>;
+      preferences?: Record<string, { value: unknown; source?: string; confidence?: number }>;
+      skills?: string[];
+      goals?: string[];
+    };
+  },
+): Promise<unknown> {
+  return api(`/api/people/${personId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export interface ApiConnector {
+  id: string;
+  provider: string;
+  type: string;
+  ownerActorId: string | null;
+  ownerOrganizationId: string | null;
+  capabilities: string[];
+  credentialRef: { ref: string; scope: string };
+  scopes: string[];
+  configuration: Record<string, unknown>;
+  status: string;
+  createdAt: string;
+}
+
+export interface ApiVault {
+  connectors: ApiConnector[];
+  secretRefs: Array<{ ref: string; scope: string }>;
+}
+
+export async function getVault(): Promise<ApiVault> {
+  return api<ApiVault>("/api/vault");
+}
+
+export async function addVaultConnection(input: {
+  provider: string;
+  type?: string;
+  ref: string;
+  scope?: "user" | "organization" | "system" | "environment";
+  ownerActorId?: string | null;
+  ownerOrganizationId?: string | null;
+  capabilities?: string[];
+  scopes?: string[];
+  configuration?: Record<string, unknown>;
+  secretPlaintext: string;
+}): Promise<ApiConnector> {
+  return api<ApiConnector>("/api/vault/connections", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteVaultConnection(ref: string): Promise<{ status: string }> {
+  return api(`/api/vault/connections/${encodeURIComponent(ref)}`, { method: "DELETE" });
+}
+
+export async function listConnectors(
+  ownerOrganizationId?: string,
+): Promise<ApiConnector[]> {
+  const path = ownerOrganizationId
+    ? `/api/connectors?ownerOrganizationId=${encodeURIComponent(ownerOrganizationId)}`
+    : "/api/connectors";
+  const data = await api<{ items: ApiConnector[] }>(path);
+  return data.items;
+}
+
+export async function createConnector(input: {
+  provider: string;
+  type?: string;
+  ownerActorId?: string | null;
+  ownerOrganizationId?: string | null;
+  capabilities?: string[];
+  credentialRef: { ref: string; scope: string };
+  scopes?: string[];
+  configuration?: Record<string, unknown>;
+  secretPlaintext: string;
+}): Promise<ApiConnector> {
+  return api<ApiConnector>("/api/connectors", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface ApiSkill {
+  id: string;
+  ownerActorId: string | null;
+  ownerOrganizationId: string | null;
+  name: string;
+  description: string;
+  version: string;
+  inputs: Record<string, unknown>;
+  outputs: Record<string, unknown>;
+  prerequisites: string[];
+  allowedCapabilityIds: string[];
+  evaluationCriteria: string[];
+  status: string;
+  createdAt: string;
+}
+
+export async function listSkills(ownerOrganizationId?: string): Promise<ApiSkill[]> {
+  const path = ownerOrganizationId
+    ? `/api/skills?ownerOrganizationId=${encodeURIComponent(ownerOrganizationId)}`
+    : "/api/skills";
+  const data = await api<{ items: ApiSkill[] }>(path);
+  return data.items;
+}
+
+export async function createSkill(input: {
+  ownerActorId?: string | null;
+  ownerOrganizationId?: string | null;
+  name: string;
+  description?: string;
+  version?: string;
+  evaluationCriteria?: string[];
+  status?: "draft" | "validated" | "deprecated";
+  provenance?: { source?: string; confidence?: number };
+}): Promise<ApiSkill> {
+  return api<ApiSkill>("/api/skills", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface ApiCapability {
+  id: string;
+  name: string;
+  skillId: string;
+  connectorId: string;
+  policyIds: string[];
+  context: Record<string, unknown>;
+  spaceId: string;
+  createdAt: string;
+}
+
+export async function listCapabilities(spaceId?: string): Promise<ApiCapability[]> {
+  const path = spaceId
+    ? `/api/capabilities?spaceId=${encodeURIComponent(spaceId)}`
+    : "/api/capabilities";
+  const data = await api<{ items: ApiCapability[] }>(path);
+  return data.items;
+}
+
+export async function createCapability(input: {
+  name: string;
+  skillId: string;
+  connectorId: string;
+  policyIds?: string[];
+  context?: Record<string, unknown>;
+  spaceId: string;
+}): Promise<ApiCapability> {
+  return api<ApiCapability>("/api/capabilities", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface ApiMemoryEntry {
+  id: string;
+  scope: string;
+  ownerId: string;
+  content: Record<string, unknown>;
+  provenance: { source: string; confidence: number };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listMemory(scope: string, ownerId: string): Promise<ApiMemoryEntry[]> {
+  const data = await api<{ items: ApiMemoryEntry[] }>(
+    `/api/memory?scope=${encodeURIComponent(scope)}&ownerId=${encodeURIComponent(ownerId)}`,
+  );
+  return data.items;
+}
+
+export async function storeMemory(input: {
+  scope: string;
+  ownerId: string;
+  content: Record<string, unknown>;
+  provenance?: { source?: string; confidence?: number };
+}): Promise<ApiMemoryEntry> {
+  return api<ApiMemoryEntry>("/api/memory", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function forgetMemory(id: string): Promise<void> {
+  await api<void>(`/api/memory/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export interface ApiKnowledgeEntity {
+  id: string;
+  type: string;
+  name: string;
+  properties: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiKnowledgeEdge {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  relation: string;
+  validFrom: string;
+  validTo: string | null;
+  provenance: { source: string; confidence: number };
+}
+
+export async function listKnowledgeEntities(): Promise<ApiKnowledgeEntity[]> {
+  const data = await api<{ items: ApiKnowledgeEntity[] }>("/api/knowledge/entities");
+  return data.items;
+}
+
+export async function addKnowledgeEntity(input: {
+  type: string;
+  name: string;
+  properties?: Record<string, unknown>;
+}): Promise<ApiKnowledgeEntity> {
+  return api<ApiKnowledgeEntity>("/api/knowledge/entities", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listKnowledgeEdges(entityId: string): Promise<ApiKnowledgeEdge[]> {
+  const data = await api<{ items: ApiKnowledgeEdge[] }>(
+    `/api/knowledge/edges?entityId=${encodeURIComponent(entityId)}`,
+  );
+  return data.items;
+}
+
+export async function addKnowledgeEdge(input: {
+  sourceId: string;
+  targetId: string;
+  relation: string;
+  provenance?: { source?: string; confidence?: number };
+}): Promise<ApiKnowledgeEdge> {
+  return api<ApiKnowledgeEdge>("/api/knowledge/edges", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 export interface ApiSupplier {
   id: string;
   actorId: string;

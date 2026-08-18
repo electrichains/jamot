@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, Loader2, Plus, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/auth/auth-context";
+import { useAppShell } from "@/components/app-shell/app-shell-context";
 import { cn } from "@/lib/utils";
 import { Card, Field, TextInput } from "@/components/settings/section-primitives";
+import { createAgent } from "@/lib/api-client";
 import type { AgentProfile } from "./agents-data";
 
 type Autonomy = "suggest" | "approve" | "autonomous";
@@ -26,6 +29,8 @@ export function CreateAgent({
   onAdd?: (agent: AgentProfile) => void;
   onDone?: () => void;
 }) {
+  const { user } = useAuth();
+  const { space } = useAppShell();
   const [name, setName] = useState("");
   const [purpose, setPurpose] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
@@ -36,6 +41,8 @@ export function CreateAgent({
   const [temperature, setTemperature] = useState("0.7");
   const [topP, setTopP] = useState("1.0");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleChannel = (channel: string) => {
     setChannels((prev) =>
@@ -50,6 +57,45 @@ export function CreateAgent({
     if (!value) return;
     setSkills((prev) => [...prev, value]);
     setSkillDraft("");
+  };
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || !user || submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      await createAgent({
+        name: trimmed,
+        ownerId: user.actor.id,
+        role: purpose.trim() || "New agent",
+        organizationIds:
+          space.kind === "organization" && space.organizationId
+            ? [space.organizationId]
+            : [],
+        autonomy,
+      });
+      onAdd?.({
+        id: `agent-${Date.now()}`,
+        name: trimmed,
+        role: purpose.trim() || "New agent",
+        availability: "available",
+        autonomy,
+        skills: skills.map((skill) => ({ name: skill, proficiency: 50 })),
+        channels,
+        reportsTo: "Main Manager",
+        memory: { interactions: 0, notes: ["Just added to the agent directory."] },
+        tasks: { active: 0 },
+        reputation: { responsiveness: 50, reliability: 50, helpfulness: 50 },
+      });
+      onDone?.();
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not create the agent.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -232,35 +278,20 @@ export function CreateAgent({
           ) : null}
         </div>
 
+        {error ? (
+          <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+
         <div className="flex justify-end">
           <Button
             size="sm"
-            disabled={!name.trim()}
-            onClick={() => {
-              onAdd?.({
-                id: `agent-${Date.now()}`,
-                name: name.trim(),
-                role: purpose.trim() || "New agent",
-                availability: "available",
-                autonomy,
-                skills: skills.map((skill) => ({ name: skill, proficiency: 50 })),
-                channels,
-                reportsTo: "Main Manager",
-                memory: {
-                  interactions: 0,
-                  notes: ["Just added to the agent directory."],
-                },
-                tasks: { active: 0 },
-                reputation: {
-                  responsiveness: 50,
-                  reliability: 50,
-                  helpfulness: 50,
-                },
-              });
-              onDone?.();
-            }}
+            disabled={!name.trim() || !user || submitting}
+            onClick={() => void save()}
           >
-            Save
+            {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
+            {submitting ? "Saving…" : "Save"}
           </Button>
         </div>
       </div>

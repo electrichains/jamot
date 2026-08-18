@@ -124,6 +124,20 @@ function AgentsDirectory({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const reload = async () => {
+    try {
+      const items = await getAgents();
+      const visible = orgId
+        ? items.filter((agent) => agent.organizationIds.includes(orgId))
+        : items;
+      setAgents(visible.map(agentToAgentProfile));
+    } catch {
+      setAgents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     getAgents()
@@ -298,7 +312,7 @@ function AgentsDirectory({
                 transition={{ type: "tween", duration: 0.15 }}
               >
                 <CreateAgent
-                  onAdd={(agent) => setAgents((previous) => [...previous, agent])}
+                  onAdd={() => void reload()}
                   onDone={() => setCreating(false)}
                 />
               </motion.div>

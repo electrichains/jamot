@@ -26,6 +26,7 @@ import {
   Vault as VaultIcon,
   Wallet,
   Wand,
+  Zap,
 } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
@@ -45,9 +46,11 @@ import {
 import {
   AppsOrgSection,
   AuditSection,
+  CapabilitiesOrgSection,
   ChannelsOrgSection,
   DreamSection,
   GeneralOrgSection,
+  KnowledgeOrgSection,
   OrganicChartSection,
   OrgAgentsSection,
   OrgMemorySection,
@@ -126,6 +129,18 @@ const GROUPS: SettingsGroup[] = [
         label: "Shared Skills",
         icon: Wand,
         body: <SharedSkillsSection />,
+      },
+      {
+        id: "org-capabilities",
+        label: "Capabilities",
+        icon: Zap,
+        body: <CapabilitiesOrgSection />,
+      },
+      {
+        id: "org-knowledge",
+        label: "Knowledge",
+        icon: Database,
+        body: <KnowledgeOrgSection />,
       },
       { id: "org-policies", label: "Policies", icon: Scroll, body: <PoliciesSection /> },
       { id: "org-treasury", label: "Treasury", icon: Wallet, body: <TreasurySection /> },

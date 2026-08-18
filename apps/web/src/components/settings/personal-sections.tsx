@@ -1,14 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/auth/auth-context";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { cn } from "@/lib/utils";
 import { CreateAgent } from "@/components/agents/CreateAgent";
+import {
+  createConnector,
+  createSkill,
+  forgetMemory,
+  getAgents,
+  listConnectors,
+  listMemory,
+  listSkills,
+  storeMemory,
+  updateOwnProfile,
+} from "@/lib/api-client";
 import {
   Card,
   Field,
@@ -20,6 +32,27 @@ import {
 /* ------------------------------ Account ------------------------------ */
 
 export function AccountSection() {
+  const { user } = useAuth();
+  const [email, setEmail] = useState(user?.person?.email ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!user?.person) return;
+    setSaving(true);
+    setSaved(false);
+    setError(null);
+    try {
+      await updateOwnProfile(user.person.id, { email: email.trim() || null });
+      setSaved(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div>
       <SectionHeading
@@ -28,13 +61,22 @@ export function AccountSection() {
       />
       <Card className="flex max-w-xl flex-col gap-4">
         <Field label="Email">
-          <TextInput type="email" defaultValue="andrea@example.com" />
+          <TextInput type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
         </Field>
         <Field label="Display name">
-          <TextInput defaultValue="Andrea" />
+          <TextInput value={user?.actor?.displayName ?? ""} readOnly />
         </Field>
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : null}
+        {saved ? (
+          <p className="text-sm text-emerald-600">Saved.</p>
+        ) : null}
         <div className="flex justify-end">
-          <Button size="sm">Save changes</Button>
+          <Button size="sm" disabled={!user?.person || saving} onClick={() => void save()}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+            Save changes
+          </Button>
         </div>
       </Card>
     </div>
@@ -44,6 +86,36 @@ export function AccountSection() {
 /* ------------------------------ Profile ------------------------------ */
 
 export function ProfileSection() {
+  const { user } = useAuth();
+  const [name, setName] = useState(user?.actor?.displayName ?? "");
+  const [role, setRole] = useState("");
+  const [bio, setBio] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!user?.person) return;
+    setSaving(true);
+    setSaved(false);
+    setError(null);
+    try {
+      await updateOwnProfile(user.person.id, {
+        profile: {
+          selfDescribed: {
+            role: { value: role.trim(), source: "self_declared" },
+            bio: { value: bio.trim(), source: "self_declared" },
+          },
+        },
+      });
+      setSaved(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div>
       <SectionHeading
@@ -52,26 +124,37 @@ export function ProfileSection() {
       />
       <Card className="flex max-w-xl flex-col gap-4">
         <div className="flex items-center gap-3">
-          <Avatar name="Andrea" size="lg" />
+          <Avatar name={name} size="lg" />
           <Button variant="outline" size="sm">
             Change avatar
           </Button>
         </div>
         <Field label="Full name">
-          <TextInput defaultValue="Andrea Rossi" />
+          <TextInput value={name} onChange={(event) => setName(event.target.value)} />
         </Field>
         <Field label="Role" hint="Shown next to your name in people lists.">
-          <TextInput defaultValue="Founder" />
+          <TextInput
+            value={role}
+            placeholder="e.g. Founder"
+            onChange={(event) => setRole(event.target.value)}
+          />
         </Field>
         <Field label="Bio">
           <textarea
             rows={3}
-            defaultValue="Building a calmer way to run things."
+            value={bio}
+            placeholder="A sentence about you."
+            onChange={(event) => setBio(event.target.value)}
             className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         </Field>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {saved ? <p className="text-sm text-emerald-600">Saved.</p> : null}
         <div className="flex justify-end">
-          <Button size="sm">Save profile</Button>
+          <Button size="sm" disabled={!user?.person || saving} onClick={() => void save()}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+            Save profile
+          </Button>
         </div>
       </Card>
     </div>
@@ -80,14 +163,60 @@ export function ProfileSection() {
 
 /* ------------------------------ Memory ------------------------------ */
 
-const MEMORY_SEED = [
-  "Prefers brief updates before 10am",
-  "Q3 supplier list confirmed 12 Aug",
-  "Weekly standup on Mondays",
-];
-
 export function MemorySection() {
-  const [entries, setEntries] = useState<string[]>(MEMORY_SEED);
+  const { user } = useAuth();
+  const personId = user?.person?.id;
+  const [entries, setEntries] = useState<Awaited<ReturnType<typeof listMemory>>>([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!personId) return;
+    let cancelled = false;
+    listMemory("person", personId)
+      .then((items) => {
+        if (!cancelled) setEntries(items);
+      })
+      .catch(() => {
+        if (!cancelled) setEntries([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [personId]);
+
+  const add = async () => {
+    const text = draft.trim();
+    if (!text || !personId) return;
+    setAdding(true);
+    setError(null);
+    try {
+      const entry = await storeMemory({
+        scope: "person",
+        ownerId: personId,
+        content: { note: text },
+      });
+      setEntries((prev) => [...prev, entry]);
+      setDraft("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save memory.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const forget = async (id: string) => {
+    await forgetMemory(id);
+    setEntries((prev) => prev.filter((entry) => entry.id !== id));
+  };
+
+  const noteOf = (content: Record<string, unknown>): string =>
+    typeof content.note === "string" ? content.note : JSON.stringify(content);
 
   return (
     <div>
@@ -96,32 +225,47 @@ export function MemorySection() {
         description="Facts and preferences Jamot has learned about you."
       />
       <Card className="max-w-xl">
-        <ul className="flex flex-col gap-2">
-          {entries.map((entry, index) => (
-            <li
-              key={entry}
-              className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-            >
-              <span>{entry}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-muted-foreground"
-                aria-label="Forget"
-                onClick={() =>
-                  setEntries((prev) => prev.filter((_, i) => i !== index))
-                }
+        {loading ? (
+          <p className="py-2 text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {entries.map((entry) => (
+              <li
+                key={entry.id}
+                className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
               >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-        {entries.length === 0 ? (
-          <p className="py-2 text-sm text-muted-foreground">
-            No memories yet.
-          </p>
+                <span>{noteOf(entry.content)}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-muted-foreground"
+                  aria-label="Forget"
+                  onClick={() => void forget(entry.id)}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {entries.length === 0 && !loading ? (
+          <p className="py-2 text-sm text-muted-foreground">No memories yet.</p>
         ) : null}
+        <div className="mt-4 flex gap-2">
+          <TextInput
+            placeholder="e.g. Prefers brief updates before 10am"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void add();
+            }}
+          />
+          <Button size="sm" disabled={!draft.trim() || !personId || adding} onClick={() => void add()}>
+            {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            Add
+          </Button>
+        </div>
+        {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
       </Card>
     </div>
   );
@@ -166,17 +310,64 @@ export function PrivacyConsentSection() {
 
 /* ------------------------------ Connectors ------------------------------ */
 
-const CONNECTORS = [
-  { id: "whatsapp", name: "WhatsApp" },
-  { id: "telegram", name: "Telegram" },
-  { id: "gcal", name: "Google Calendar" },
-  { id: "github", name: "GitHub" },
-];
-
 export function ConnectorsSection() {
-  const [connected, setConnected] = useState<Record<string, boolean>>({
-    whatsapp: true,
-  });
+  const [connectors, setConnectors] = useState<Awaited<ReturnType<typeof listConnectors>>>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [provider, setProvider] = useState("custom");
+  const [ref, setRef] = useState("");
+  const [secret, setSecret] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = async () => {
+    try {
+      setConnectors(await listConnectors());
+    } catch {
+      setConnectors([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    listConnectors()
+      .then((items) => {
+        if (!cancelled) setConnectors(items);
+      })
+      .catch(() => {
+        if (!cancelled) setConnectors([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const save = async () => {
+    if (!ref.trim() || !secret.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await createConnector({
+        provider,
+        type: "channel",
+        credentialRef: { ref: ref.trim(), scope: "user" },
+        secretPlaintext: secret,
+      });
+      setAdding(false);
+      setRef("");
+      setSecret("");
+      await reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not connect.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div>
@@ -185,36 +376,87 @@ export function ConnectorsSection() {
         description="Services you have connected to Jamot."
       />
       <Card className="max-w-xl">
-        <ul className="flex flex-col gap-2">
-          {CONNECTORS.map((connector) => (
-            <li
-              key={connector.id}
-              className="flex items-center justify-between rounded-md border border-border px-3 py-2"
-            >
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <span
-                  className={cn(
-                    "size-2 rounded-full",
-                    connected[connector.id] ? "bg-emerald-500" : "bg-border",
-                  )}
-                />
-                {connector.name}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setConnected((prev) => ({
-                    ...prev,
-                    [connector.id]: !prev[connector.id],
-                  }))
-                }
+        {loading ? (
+          <p className="py-2 text-sm text-muted-foreground">Loading…</p>
+        ) : connectors.length === 0 ? (
+          <p className="py-2 text-sm text-muted-foreground">
+            No connectors yet. Add one below.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {connectors.map((connector) => (
+              <li
+                key={connector.id}
+                className="flex items-center justify-between rounded-md border border-border px-3 py-2"
               >
-                {connected[connector.id] ? "Disconnect" : "Connect"}
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <span
+                    className={cn(
+                      "size-2 rounded-full",
+                      connector.status === "connected" ? "bg-emerald-500" : "bg-border",
+                    )}
+                  />
+                  {connector.provider}
+                  <span className="text-xs text-muted-foreground">
+                    {connector.credentialRef.ref}
+                  </span>
+                </span>
+                <Badge variant="secondary">{connector.status}</Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {adding ? (
+          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border p-3">
+            <Field label="Provider">
+              <select
+                value={provider}
+                onChange={(event) => setProvider(event.target.value)}
+                className="flex h-9 w-full rounded-lg border border-border bg-card px-3 py-1 text-sm"
+              >
+                {["whatsapp", "telegram", "google_calendar", "github", "stripe", "matrix", "custom"].map(
+                  (option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ),
+                )}
+              </select>
+            </Field>
+            <Field label="Reference">
+              <TextInput
+                placeholder="e.g. connectors/whatsapp"
+                value={ref}
+                onChange={(event) => setRef(event.target.value)}
+              />
+            </Field>
+            <Field label="Secret" hint="Stored in the vault; never shown again.">
+              <TextInput
+                type="password"
+                value={secret}
+                onChange={(event) => setSecret(event.target.value)}
+              />
+            </Field>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
+                Cancel
               </Button>
-            </li>
-          ))}
-        </ul>
+              <Button size="sm" disabled={!ref.trim() || !secret.trim() || busy} onClick={() => void save()}>
+                {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+                Connect
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <Button size="sm" onClick={() => setAdding(true)}>
+              <Plus className="size-4" />
+              Add connector
+            </Button>
+          </div>
+        )}
         <p className="mt-3 text-xs text-muted-foreground">
           Secrets for these services live in the Vault.
         </p>
@@ -225,11 +467,45 @@ export function ConnectorsSection() {
 
 /* ------------------------------ Skills ------------------------------ */
 
-const SKILLS_SEED = ["Summarize email", "Book calendar", "Draft replies"];
-
 export function SkillsSection() {
-  const [skills, setSkills] = useState<string[]>(SKILLS_SEED);
+  const [skills, setSkills] = useState<Awaited<ReturnType<typeof listSkills>>>([]);
+  const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listSkills()
+      .then((items) => {
+        if (!cancelled) setSkills(items);
+      })
+      .catch(() => {
+        if (!cancelled) setSkills([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const add = async () => {
+    const name = draft.trim();
+    if (!name) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const skill = await createSkill({ name, status: "draft" });
+      setSkills((prev) => [...prev, skill]);
+      setDraft("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create skill.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div>
@@ -238,31 +514,35 @@ export function SkillsSection() {
         description="Reusable capabilities your agents can use."
       />
       <Card className="max-w-xl">
-        <ul className="flex flex-wrap gap-2">
-          {skills.map((skill) => (
-            <li key={skill}>
-              <Badge variant="secondary">{skill}</Badge>
-            </li>
-          ))}
-        </ul>
+        {loading ? (
+          <p className="py-2 text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {skills.map((skill) => (
+              <li key={skill.id}>
+                <Badge variant="secondary">{skill.name}</Badge>
+              </li>
+            ))}
+            {skills.length === 0 ? (
+              <li className="py-2 text-sm text-muted-foreground">No skills yet.</li>
+            ) : null}
+          </ul>
+        )}
         <div className="mt-4 flex gap-2">
           <TextInput
             placeholder="New skill…"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-          />
-          <Button
-            size="sm"
-            disabled={!draft.trim()}
-            onClick={() => {
-              setSkills((prev) => [...prev, draft.trim()]);
-              setDraft("");
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void add();
             }}
-          >
-            <Plus className="size-4" />
+          />
+          <Button size="sm" disabled={!draft.trim() || busy} onClick={() => void add()}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
             Add
           </Button>
         </div>
+        {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
       </Card>
     </div>
   );
@@ -270,13 +550,37 @@ export function SkillsSection() {
 
 /* --------------------------- Personal agents --------------------------- */
 
-const PERSONAL_AGENTS = [
-  { id: "pa1", name: "Scheduler", status: "idle" },
-  { id: "pa2", name: "Inbox triage", status: "busy" },
-];
-
 export function PersonalAgentsSection() {
   const [creating, setCreating] = useState(false);
+  const [agents, setAgents] = useState<Awaited<ReturnType<typeof getAgents>>>([]);
+  const [loading, setLoading] = useState(true);
+
+  const reload = async () => {
+    try {
+      setAgents(await getAgents());
+    } catch {
+      setAgents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    getAgents()
+      .then((items) => {
+        if (!cancelled) setAgents(items);
+      })
+      .catch(() => {
+        if (!cancelled) setAgents([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div>
@@ -285,25 +589,33 @@ export function PersonalAgentsSection() {
         description="Agents that work only for you."
       />
       <Card className="max-w-xl">
-        <ul className="flex flex-col gap-2">
-          {PERSONAL_AGENTS.map((agent) => (
-            <li
-              key={agent.id}
-              className="flex items-center justify-between rounded-md border border-border px-3 py-2"
-            >
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <span
-                  className={cn(
-                    "size-2 rounded-full",
-                    agent.status === "idle" ? "bg-emerald-500" : "bg-amber-500",
-                  )}
-                />
-                {agent.name}
-              </span>
-              <Badge variant="secondary">{agent.status}</Badge>
-            </li>
-          ))}
-        </ul>
+        {loading ? (
+          <p className="py-2 text-sm text-muted-foreground">Loading…</p>
+        ) : agents.length === 0 ? (
+          <p className="py-2 text-sm text-muted-foreground">
+            No agents yet. Create one below.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {agents.map((agent) => (
+              <li
+                key={agent.id}
+                className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <span
+                    className={cn(
+                      "size-2 rounded-full",
+                      agent.availability === "available" ? "bg-emerald-500" : "bg-amber-500",
+                    )}
+                  />
+                  {agent.role ?? agent.id}
+                </span>
+                <Badge variant="secondary">{agent.availability}</Badge>
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="mt-4">
           <Button size="sm" onClick={() => setCreating((value) => !value)}>
             <Plus className="size-4" />
@@ -314,7 +626,7 @@ export function PersonalAgentsSection() {
 
       {creating ? (
         <div className="mt-4 max-w-xl">
-          <CreateAgent onDone={() => setCreating(false)} />
+          <CreateAgent onAdd={() => void reload()} onDone={() => setCreating(false)} />
         </div>
       ) : null}
     </div>
