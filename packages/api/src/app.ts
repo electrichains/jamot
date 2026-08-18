@@ -121,6 +121,24 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(cors, { origin: true, credentials: true });
   await app.register(rateLimit, { max: 1000, timeWindow: "1 minute" });
 
+  // Tolerate `Content-Type: application/json` requests with an empty body
+  // (body-less POSTs like /wa/accounts/:id/reset) instead of 400ing.
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "string" },
+    (_req, body, done) => {
+      if (body === "" || body == null) {
+        done(null, undefined);
+        return;
+      }
+      try {
+        done(null, JSON.parse(body as string));
+      } catch (err) {
+        done(err as Error, undefined);
+      }
+    },
+  );
+
   app.addHook("onRequest", async (request) => {
     const actorId = request.session?.actorId;
     if (actorId) {

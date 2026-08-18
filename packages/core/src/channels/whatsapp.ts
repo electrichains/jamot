@@ -1,7 +1,6 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, normalize, sep } from "node:path";
 import makeWASocket, {
-  Browsers,
   DisconnectReason,
   fetchLatestBaileysVersion,
   isJidGroup,
@@ -207,10 +206,12 @@ export function createWhatsAppAdapter(
           creds: authState.creds,
           keys: makeCacheableSignalKeyStore(authState.keys),
         },
-        browser: Browsers.macOS("Desktop"),
-        printQRInTerminal: false,
+        // No `browser` override: Baileys defaults to macOS/Chrome, which
+        // registers as a regular web client (WEB_BROWSER). Overriding with a
+        // "Desktop" browser flags the connection as the macOS WhatsApp app
+        // (DARWIN sub-platform), which WhatsApp terminates with 428 during
+        // registration. Matches the leadpilot-proven configuration.
         syncFullHistory,
-        markOnlineOnConnect: false,
         agent: proxyAgent,
         fetchAgent: proxyAgent,
       });

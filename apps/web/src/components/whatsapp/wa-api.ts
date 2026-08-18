@@ -6,13 +6,20 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      // Only claim JSON when a body is actually sent — Fastify rejects
+      // body-less requests that carry a JSON content-type with a 400.
+      ...(init?.body !== undefined
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...(init?.headers ?? {}),
     },
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `request failed (${res.status})`);
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    };
+    throw new Error(body.message ?? body.error ?? `request failed (${res.status})`);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
