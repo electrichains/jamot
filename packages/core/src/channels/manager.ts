@@ -8,6 +8,7 @@ import {
 export interface WhatsAppManagerOpts {
   sessionBaseDir: string;
   onMessage?: (msg: InboundMessage) => void;
+  proxyUrl?: string;
 }
 
 export interface WhatsAppManager {
@@ -39,6 +40,7 @@ export function createWhatsAppManager(
       adapter = createWhatsAppAdapter({
         id: accountId,
         sessionDir: sessionDirFor(opts.sessionBaseDir, accountId),
+        proxyUrl: opts.proxyUrl,
       });
       adapter.onMessage(onMessage);
       adapters.set(accountId, adapter);

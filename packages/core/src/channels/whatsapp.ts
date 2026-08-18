@@ -9,6 +9,7 @@ import makeWASocket, {
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
 import type { WAMessage, WASocket } from "@whiskeysockets/baileys";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import type { ChannelAdapter, InboundMessage } from "./channel.js";
 
 export type WaConnection = "connecting" | "open" | "close";
@@ -55,6 +56,7 @@ export interface WhatsAppAdapterOpts {
   sessionDir: string;
   creds?: { type: "baileys"; [k: string]: unknown };
   syncFullHistory?: boolean;
+  proxyUrl?: string;
 }
 
 export interface WhatsAppAdapter extends ChannelAdapter {
@@ -114,6 +116,8 @@ export function createWhatsAppAdapter(
   const id = opts.id ?? "whatsapp";
   const sessionDir = opts.sessionDir;
   const syncFullHistory = opts.syncFullHistory ?? true;
+  const proxyUrl = opts.proxyUrl;
+  const proxyAgent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
   const handlers = new Set<(msg: InboundMessage) => void>();
   let sock: WASocket | undefined;
   let connecting = false;
@@ -207,6 +211,8 @@ export function createWhatsAppAdapter(
         printQRInTerminal: false,
         syncFullHistory,
         markOnlineOnConnect: false,
+        agent: proxyAgent,
+        fetchAgent: proxyAgent,
       });
       sock = socket;
 

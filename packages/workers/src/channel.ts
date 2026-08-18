@@ -31,6 +31,7 @@ export function startChannelWorker(): Promise<void> {
 
   const whatsappSessionDir =
     process.env.WHATSAPP_SESSION_DIR ?? "./.data/whatsapp";
+  const whatsappProxyUrl = process.env.WHATSAPP_PROXY_URL;
   const matrixHomeserver = process.env.MATRIX_HOMESERVER_URL;
   const matrixUser = process.env.MATRIX_BOT_USER;
   const matrixToken =
@@ -42,6 +43,7 @@ export function startChannelWorker(): Promise<void> {
     const manager = createWhatsAppManager({
       sessionBaseDir: whatsappSessionDir,
       onMessage,
+      proxyUrl: whatsappProxyUrl,
     });
 
     const controlPort = Number(
