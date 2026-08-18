@@ -18,7 +18,7 @@ projects:
             region: oregon
             plan: starter
             buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @jamot/api build
-            startCommand: pnpm --filter @jamot/api start
+            startCommand: pnpm --filter @jamot/api exec tsx src/index.ts
             healthCheckPath: /health
             buildFilter:
               paths:
@@ -29,6 +29,10 @@ projects:
                 - package.json
                 - pnpm-lock.yaml
                 - pnpm-workspace.yaml
+            disk:
+              name: wa-session
+              mountPath: /data
+              sizeGB: 1
             envVars:
               - key: DATABASE_URL
                 fromDatabase:
@@ -48,7 +52,11 @@ projects:
               - key: FRONTEND_URL
                 value: https://jamot-web.onrender.com
               - key: WA_WORKER_URL
-                value: http://jamot-channels:10000
+                value: ""
+              - key: WHATSAPP_SESSION_DIR
+                value: /data/whatsapp
+              - key: WHATSAPP_PROXY_URL
+                value: ""
               - key: NODE_ENV
                 value: production
               # Grant-only super admins; comma-separated emails. Leave empty unless you
@@ -99,34 +107,6 @@ projects:
                   type: keyvalue
                   name: jamot-redis
                   property: connectionString
-
-          - type: pserv
-            name: jamot-channels
-            runtime: node
-            region: oregon
-            plan: starter
-            buildCommand: pnpm install --frozen-lockfile && pnpm --filter @jamot/workers build
-            startCommand: pnpm --filter @jamot/workers exec tsx src/channel.ts
-            disk:
-              name: wa-session
-              mountPath: /data
-              sizeGB: 1
-            buildFilter:
-              paths:
-                - packages/workers/**
-                - packages/core/**
-                - packages/contracts/**
-                - package.json
-                - pnpm-lock.yaml
-                - pnpm-workspace.yaml
-            envVars:
-              - key: WHATSAPP_SESSION_DIR
-                value: /data/whatsapp
-              # The control server binds this port; must match WA_WORKER_URL on the API.
-              - key: WA_CONTROL_PORT
-                value: "10000"
-              - key: NODE_ENV
-                value: production
 
           - type: keyvalue
             name: jamot-redis

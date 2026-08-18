@@ -4,6 +4,7 @@ import { Id } from "@jamot/contracts";
 import { requireAuth, createRbac } from "../rbac.js";
 import { fail, parse } from "../util.js";
 import type { JamotRepository, WaAccountRecord } from "../repository.js";
+import type { WhatsAppManager } from "@jamot/core/channels";
 
 const CreateAccountBody = z.object({
   spaceId: z.string().min(1),
@@ -35,22 +36,7 @@ const ImportBody = z.object({
 export interface WaRouteOptions {
   repository: JamotRepository;
   workerUrl?: string;
-}
-
-async function forward(
-  workerBase: string,
-  path: string,
-  init?: RequestInit,
-): Promise<{ body: unknown; status: number }> {
-  const res = await fetch(`${workerBase}${path}`, init);
-  const text = await res.text();
-  let body: unknown = { raw: text };
-  try {
-    body = JSON.parse(text) as unknown;
-  } catch {
-    // keep raw fallback
-  }
-  return { body, status: res.status };
+  whatsAppManager?: WhatsAppManager;
 }
 
 type FailReply = Parameters<typeof fail>[0];
@@ -59,56 +45,9 @@ export default async function waRoutes(
   app: FastifyInstance,
   opts: WaRouteOptions,
 ): Promise<void> {
-  const workerBase = opts.workerUrl ?? process.env.WA_WORKER_URL ?? "";
   const { repository } = opts;
+  const manager = opts.whatsAppManager;
   const rbac = createRbac(repository);
-
-  const proxy = async (
-    path: string,
-    reply: FailReply,
-    init?: RequestInit,
-  ): Promise<unknown | undefined> => {
-    if (!workerBase) {
-      fail(reply, 503, "whatsapp worker not configured");
-      return undefined;
-    }
-    try {
-      const { body, status } = await forward(workerBase, path, init);
-      if (status >= 400) {
-        const message =
-          typeof body === "object" && body !== null && "error" in body
-            ? String((body as { error: unknown }).error)
-            : "whatsapp worker error";
-        fail(reply, status < 500 ? status : 502, message);
-        return undefined;
-      }
-      return body;
-    } catch {
-      fail(reply, 502, "whatsapp worker unreachable");
-      return undefined;
-    }
-  };
-
-  const jsonInit = (body: unknown): RequestInit => ({
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const secretInit = (body?: unknown): RequestInit => {
-    const secret = process.env.WA_CONTROL_SECRET ?? "";
-    return {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(secret ? { "x-control-secret": secret } : {}),
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    };
-  };
-
-  const accountPath = (path: string): string =>
-    `/accounts/${path}`;
 
   const loadAccount = async (
     id: string,
@@ -125,16 +64,14 @@ export default async function waRoutes(
   const resolveSpaceFromQuery = rbac.requireSpaceAccess("spaceId");
 
   const fetchStateBestEffort = async (id: string) => {
-    if (!workerBase) return undefined;
+    if (!manager) return undefined;
     try {
-      const { body, status } = await forward(
-        workerBase,
-        accountPath(`${encodeURIComponent(id)}/state`),
-      );
-      if (status !== 200 || typeof body !== "object" || body === null) {
-        return undefined;
-      }
-      return body as { connection?: string; qr?: string; phone?: string };
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      return adapter.getState() as {
+        connection?: string;
+        qr?: string;
+        phone?: string;
+      };
     } catch {
       return undefined;
     }
@@ -182,7 +119,9 @@ export default async function waRoutes(
       if (!id) return;
       const account = await loadAccount(id, reply);
       if (!account) return;
-      return proxy(accountPath(`${encodeURIComponent(id)}/state`), reply);
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      return adapter.getState();
     },
   );
 
@@ -195,10 +134,11 @@ export default async function waRoutes(
       if (!id) return;
       const account = await loadAccount(id, reply);
       if (!account) return;
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
       await repository.updateWaAccount(id, { status: "pairing" });
-      return proxy(accountPath(`${encodeURIComponent(id)}/reset`), reply, {
-        method: "POST",
-      });
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      await adapter.resetSession();
+      return { ok: true };
     },
   );
 
@@ -215,9 +155,11 @@ export default async function waRoutes(
         status: "offline",
         phone: null,
       });
-      return proxy(accountPath(`${encodeURIComponent(id)}/logout`), reply, {
-        method: "POST",
-      });
+      if (manager) {
+        const adapter = manager.get(id);
+        if (adapter) await manager.remove(id);
+      }
+      return { ok: true };
     },
   );
 
@@ -230,12 +172,9 @@ export default async function waRoutes(
       if (!id) return;
       const account = await loadAccount(id, reply);
       if (!account) return;
-      if (workerBase) {
-        await forward(
-          workerBase,
-          accountPath(`${encodeURIComponent(id)}/logout`),
-          { method: "POST" },
-        ).catch(() => {});
+      if (manager) {
+        const adapter = manager.get(id);
+        if (adapter) await manager.remove(id).catch(() => {});
       }
       await repository.deleteWaAccount(id);
       return { ok: true };
@@ -253,11 +192,10 @@ export default async function waRoutes(
       if (!account) return;
       const body = parse(ImportBody, request.body, reply);
       if (!body) return;
-      return proxy(
-        accountPath(`${encodeURIComponent(id)}/session`),
-        reply,
-        secretInit(body),
-      );
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      await adapter.importSession(body.files);
+      return { ok: true };
     },
   );
 
@@ -272,7 +210,10 @@ export default async function waRoutes(
       if (!account) return;
       const body = parse(SendBody, request.body, reply);
       if (!body) return;
-      return proxy(accountPath(`${encodeURIComponent(id)}/send`), reply, jsonInit(body));
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      await adapter.sendText(body.jid, body.text);
+      return { ok: true };
     },
   );
 
@@ -287,7 +228,10 @@ export default async function waRoutes(
       if (!account) return;
       const body = parse(MediaBody, request.body, reply);
       if (!body) return;
-      return proxy(accountPath(`${encodeURIComponent(id)}/media`), reply, jsonInit(body));
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      await adapter.sendMedia(body);
+      return { ok: true };
     },
   );
 
@@ -302,7 +246,10 @@ export default async function waRoutes(
       if (!account) return;
       const body = parse(ReadBody, request.body, reply);
       if (!body) return;
-      return proxy(accountPath(`${encodeURIComponent(id)}/read`), reply, jsonInit(body));
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      await adapter.markRead(body.jid);
+      return { ok: true };
     },
   );
 
@@ -315,7 +262,9 @@ export default async function waRoutes(
       if (!id) return;
       const account = await loadAccount(id, reply);
       if (!account) return;
-      return proxy(accountPath(`${encodeURIComponent(id)}/chats`), reply);
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      return { items: adapter.listChats() };
     },
   );
 
@@ -329,11 +278,9 @@ export default async function waRoutes(
       const account = await loadAccount(id, reply);
       if (!account) return;
       const query = request.query as { q?: string };
-      const q = query.q ? `?q=${encodeURIComponent(query.q)}` : "";
-      return proxy(
-        accountPath(`${encodeURIComponent(id)}/contacts${q}`),
-        reply,
-      );
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      return { items: adapter.listContacts(query.q) };
     },
   );
 
@@ -348,13 +295,12 @@ export default async function waRoutes(
       if (!account) return;
       const query = request.query as { jid?: string; before?: string; limit?: string };
       if (!query.jid) return fail(reply, 400, "jid is required");
-      const paramsArg = new URLSearchParams({ jid: query.jid });
-      if (query.before) paramsArg.set("before", query.before);
-      if (query.limit) paramsArg.set("limit", query.limit);
-      return proxy(
-        accountPath(`${encodeURIComponent(id)}/messages?${paramsArg.toString()}`),
-        reply,
-      );
+      const opts: { before?: number; limit?: number } = {};
+      if (query.before) opts.before = Number(query.before);
+      if (query.limit) opts.limit = Number(query.limit);
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      return { items: adapter.getMessages(query.jid, opts) };
     },
   );
 
@@ -368,15 +314,13 @@ export default async function waRoutes(
       const account = await loadAccount(id, reply);
       if (!account) return;
       const query = request.query as { q?: string };
-      const q = query.q ?? "";
-      return proxy(
-        accountPath(`${encodeURIComponent(id)}/search?q=${encodeURIComponent(q)}`),
-        reply,
-      );
+      if (!manager) return fail(reply, 503, "whatsapp manager not configured");
+      const adapter = manager.get(id) ?? manager.ensure(id);
+      return { items: adapter.searchMessages(query.q ?? "") };
     },
   );
 
   app.get("/wa/net-meta", { preHandler: requireAuth }, async (_req, reply) => {
-    return proxy("/net/meta", reply);
+    return { internalHostname: process.env.RENDER_INTERNAL_HOSTNAME ?? null };
   });
 }

@@ -92,6 +92,21 @@ async function main(): Promise<void> {
     }
     if (state.connection === "open") {
       sawOpen = true;
+      // Wait until WhatsApp fully registers the device (creds.registered=true)
+      // and the auth state is flushed to disk. If we disconnect too early, the
+      // exported session carries registered=false and WA rejects resume (428).
+      const regDeadline = Date.now() + 15000;
+      while (Date.now() < regDeadline) {
+        try {
+          const creds = JSON.parse(
+            readFileSync(join(args.out, "creds.json"), "utf8"),
+          ) as { registered?: boolean };
+          if (creds.registered) break;
+        } catch {
+          // creds.json may not be flushed yet; keep waiting
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
       break;
     }
     if (state.connection === "close" && !sawQr) {

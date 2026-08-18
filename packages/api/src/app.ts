@@ -73,6 +73,7 @@ export interface BuildAppOptions {
   treasury?: TreasuryService;
   commerce?: CommerceService;
   payments?: PaymentService;
+  whatsAppManager?: import("@jamot/core/channels").WhatsAppManager;
 }
 
 const deriveKey = (secret: string): string =>
@@ -167,7 +168,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(reputationRoutes, { prefix: "/api", reputation });
   await app.register(treasuryRoutes, { prefix: "/api", treasury });
   await app.register(oauthRoutes, { prefix: "/api", repository: opts.repository });
-  await app.register(waRoutes, { prefix: "/api", repository: opts.repository });
+  await app.register(waRoutes, { prefix: "/api", repository: opts.repository, whatsAppManager: opts.whatsAppManager });
   await app.register(suppliersRoutes, { prefix: "/api", commerce });
   await app.register(catalogRoutes, { prefix: "/api", commerce });
   await app.register(procurementRoutes, { prefix: "/api", commerce });
