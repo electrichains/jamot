@@ -10,6 +10,7 @@ import {
   createWhatsAppControlServer,
   type InboundMessage,
 } from "@jamot/core/channels";
+import { createWhatsAppPersonProvisioner } from "@jamot/core/ingest";
 import { createPostgresMemoryProvider } from "@jamot/core/memory";
 import { createPostgresKnowledgeStore } from "@jamot/core/knowledge";
 import { createPostgresReputationService } from "@jamot/core/reputation";
@@ -76,6 +77,7 @@ if (whatsappSessionDir) {
           text: msg.text,
           timestamp: msg.timestamp,
           room: msg.room,
+          raw: msg.raw,
         },
       })
       .catch((err) => {
@@ -86,6 +88,43 @@ if (whatsappSessionDir) {
     sessionBaseDir: whatsappSessionDir,
     onMessage,
     proxyUrl: process.env.WHATSAPP_PROXY_URL,
+  });
+
+  const provisioner = createWhatsAppPersonProvisioner({
+    repo: repository,
+    spaceResolver: async (channelId) => {
+      const account = await repository.getWaAccount(channelId);
+      return account?.spaceId;
+    },
+  });
+  const provisioned = new Set<string>();
+  eventBus.subscribe("message.received", async (event) => {
+    const payload = event.payload as {
+      channelId?: string;
+      kind?: string;
+      sender?: string;
+      timestamp?: string;
+    };
+    if (!payload?.channelId || !payload?.sender || !payload?.timestamp) return;
+    const dedupeKey = `${payload.kind}:${payload.channelId}:${payload.sender}:${payload.timestamp}`;
+    if (provisioned.has(dedupeKey)) return;
+    provisioned.add(dedupeKey);
+    try {
+      const result = await provisioner.handleInbound({
+        channelId: payload.channelId,
+        kind: payload.kind as InboundMessage["kind"],
+        sender: payload.sender,
+        text: "",
+        timestamp: payload.timestamp,
+      });
+      if (result.created) {
+        console.log(
+          `[channel] provisioned person ${result.person?.id} (${payload.sender})`,
+        );
+      }
+    } catch (err) {
+      console.error("[channel] person provisioning failed", err);
+    }
   });
 
   const waControlPort = Number(process.env.WA_CONTROL_PORT ?? 3001);

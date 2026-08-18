@@ -19,6 +19,7 @@
     "./harness": "./src/harness/index.ts",
     "./mcp": "./src/mcp/index.ts",
     "./channels": "./src/channels/index.ts",
+    "./ingest": "./src/ingest/index.ts",
     "./memory": "./src/memory/index.ts",
     "./knowledge": "./src/knowledge/index.ts",
     "./scheduler": "./src/scheduler/index.ts",

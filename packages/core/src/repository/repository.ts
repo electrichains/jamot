@@ -312,6 +312,8 @@ export interface JamotRepository {
   getActor(id: string): Promise<Actor | null>;
   listActors(filter?: { spaceId?: string }): Promise<Actor[]>;
   updateActor(id: string, patch: Partial<Pick<Actor, "displayName" | "status" | "personalSpaceId">>): Promise<Actor | null>;
+  findActorByExternalIdentity(provider: string, value: string): Promise<Actor | null>;
+  findPersonByActorId(actorId: string): Promise<Person | null>;
 
   // people
   createPerson(input: NewPerson): Promise<Person>;

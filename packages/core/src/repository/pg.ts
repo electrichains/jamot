@@ -1,4 +1,4 @@
-import { and, arrayContains, asc, eq, inArray, or } from "drizzle-orm";
+import { and, arrayContains, asc, eq, inArray, or, sql } from "drizzle-orm";
 import type {
   Actor,
   Agent,
@@ -544,6 +544,26 @@ export function createPgRepository(db: Db): JamotRepository {
         .where(eq(actors.id, id))
         .returning();
       return row ? toActor(row) : null;
+    },
+
+    async findActorByExternalIdentity(provider, value) {
+      const [row] = await q
+        .select()
+        .from(actors)
+        .where(
+          sql`${actors.externalIdentities} @> ${JSON.stringify([{ provider, value }])}::jsonb`,
+        )
+        .limit(1);
+      return row ? toActor(row) : null;
+    },
+
+    async findPersonByActorId(actorId) {
+      const [row] = await q
+        .select()
+        .from(people)
+        .where(eq(people.actorId, actorId))
+        .limit(1);
+      return row ? toPerson(row) : null;
     },
 
     async createPerson(input: NewPerson) {

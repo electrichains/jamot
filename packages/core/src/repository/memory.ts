@@ -123,6 +123,23 @@ export function createMemoryRepository(): JamotRepository {
       return updated;
     },
 
+    async findActorByExternalIdentity(provider, value) {
+      for (const actor of actors.values()) {
+        const found = (actor.externalIdentities ?? []).find(
+          (id) => id.provider === provider && id.value === value,
+        );
+        if (found) return actor;
+      }
+      return null;
+    },
+
+    async findPersonByActorId(actorId) {
+      for (const person of people.values()) {
+        if (person.actorId === actorId) return person;
+      }
+      return null;
+    },
+
     async createPerson(input: NewPerson) {
       const person = Person.parse({
         id: uuid(),
