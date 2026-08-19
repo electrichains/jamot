@@ -13,11 +13,6 @@ import { FinanceWorkspace } from "@/components/finance/FinanceWorkspace";
 import { SuppliersWorkspace } from "@/components/suppliers/SuppliersWorkspace";
 
 import { SECTION_TITLES, useAppShell, type SectionId } from "./app-shell-context";
-import { ContextDock } from "./ContextDock";
-
-export interface AppDockProps {
-  onCollapse?: () => void;
-}
 
 const PLACEHOLDER_SECTIONS: SectionId[] = ["calendar", "crm"];
 
@@ -29,11 +24,11 @@ function PlaceholderSection({ title }: { title: string }) {
   );
 }
 
-export function AppDock({ onCollapse }: AppDockProps) {
+export function AppDock() {
   const { activeSection, setActiveSection } = useAppShell();
 
   if (!activeSection) {
-    return <ContextDock onCollapse={onCollapse} />;
+    return null;
   }
 
   let content;

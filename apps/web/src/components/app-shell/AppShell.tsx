@@ -64,7 +64,8 @@ function DesktopShell() {
   const [dockCollapsed, setDockCollapsed] = useState(false);
 
   useEffect(() => {
-    if (activeSection && rightRef.current) {
+    if (!rightRef.current) return;
+    if (activeSection) {
       if (rightRef.current.isCollapsed()) {
         rightRef.current.expand();
       }
@@ -72,6 +73,8 @@ function DesktopShell() {
       if (current.inPixels < DEFAULT_SECTION_WIDTH) {
         rightRef.current.resize(DEFAULT_SECTION_WIDTH);
       }
+    } else if (!rightRef.current.isCollapsed()) {
+      rightRef.current.collapse();
     }
   }, [activeSection, rightRef]);
 
@@ -190,7 +193,7 @@ function DesktopShell() {
         onResize={handleRightResize}
         className="h-full"
       >
-        <AppDock onCollapse={() => rightRef.current?.collapse()} />
+        <AppDock />
       </Panel>
     </Group>
   );
@@ -226,7 +229,7 @@ function TabletShell() {
                 exit={{ x: "100%" }}
                 transition={{ type: "tween", duration: 0.2 }}
               >
-                <AppDock onCollapse={() => setDockOpen(false)} />
+                <AppDock />
               </motion.div>
             </>
           ) : null}
