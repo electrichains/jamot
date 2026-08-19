@@ -23,6 +23,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Jamot",
   description: "Universal organizational kernel",
+  icons: {
+    icon: "/brand/jamot-logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
