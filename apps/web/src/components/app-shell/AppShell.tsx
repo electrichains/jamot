@@ -26,6 +26,7 @@ import { AppRail } from "./AppRail";
 import { useBreakpoint } from "./use-breakpoint";
 
 const LAYOUT_KEY = "jamot:shell:layout";
+const LEFT_KEY = "jamot:left-collapsed";
 
 export function AppShell() {
   return <AppShellInner />;
@@ -60,7 +61,13 @@ function DesktopShell() {
   const leftRef = usePanelRef();
   const rightRef = usePanelRef();
   const restoredRef = useRef(false);
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [leftCollapsed, setLeftCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem(LEFT_KEY) === "1";
+    } catch {
+      return true;
+    }
+  });
   const [dockCollapsed, setDockCollapsed] = useState(false);
 
   useEffect(() => {
@@ -96,6 +103,21 @@ function DesktopShell() {
       restoredRef.current = true;
     }
   }, [leftRef, rightRef]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LEFT_KEY, leftCollapsed ? "1" : "0");
+    } catch {
+      // ignore storage errors
+    }
+  }, [leftCollapsed]);
+
+  useEffect(() => {
+    if (leftCollapsed) {
+      leftRef.current?.collapse();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const persistSize = (which: "left" | "right", value: number) => {
     if (!restoredRef.current) return;
