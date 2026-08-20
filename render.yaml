@@ -13,6 +13,8 @@ projects:
   - name: jamot
     environments:
       - name: production
+        previews:
+          generation: on
         databases:
           - name: jamot-db
             plan: starter
