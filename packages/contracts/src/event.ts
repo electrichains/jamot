@@ -5,9 +5,11 @@ import { Id, Timestamp } from "./common.js";
  * Canonical record of something that happened. The event layer is the source
  * for downstream memory, analytics and audit.
  *
- * `type` is `domain.action` (e.g. `actor.created`, `member.joined`).
+ * `type` is `domain.action` (e.g. `actor.created`, `member.joined`), or a
+ * deeper `domain.subdomain.action` for nested domains (e.g.
+ * `outreach.campaign.active`).
  */
-export const EventType = z.string().regex(/^[a-z]+\.[a-z_]+$/);
+export const EventType = z.string().regex(/^[a-z]+(\.[a-z_]+)+$/);
 export type EventType = z.infer<typeof EventType>;
 
 export const Event = z.object({
@@ -69,4 +71,13 @@ export const KNOWN_EVENT_TYPES = [
   "supplier.updated",
   "project.updated",
   "calendar.approaching",
+  "outreach.list.created",
+  "outreach.list.deleted",
+  "outreach.campaign.created",
+  "outreach.campaign.deleted",
+  "outreach.campaign.active",
+  "outreach.campaign.paused",
+  "outreach.campaign.completed",
+  "outreach.campaign.archived",
+  "outreach.send.delegated",
 ] as const;

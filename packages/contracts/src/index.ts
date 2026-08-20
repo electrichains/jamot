@@ -12,3 +12,5 @@ export * from "./event.js";
 export * from "./relationship.js";
 export * from "./commerce.js";
 export * from "./payments.js";
+export * from "./lead.js";
+export * from "./outreach.js";

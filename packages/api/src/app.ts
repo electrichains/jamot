@@ -60,6 +60,10 @@ import suppliersRoutes from "./routes/suppliers.js";
 import catalogRoutes from "./routes/catalog.js";
 import procurementRoutes from "./routes/procurement.js";
 import paymentsRoutes from "./routes/payments.js";
+import outreachRoutes from "./routes/outreach.js";
+import leadsRoutes from "./routes/leads.js";
+import { createLeadGenerationService, createLeadProviderRegistry } from "@jamot/core/leads";
+import type { LeadGenerationService } from "@jamot/core/leads";
 
 export interface SecretStoreLike {
   encrypt(plaintext: string): string;
@@ -82,6 +86,7 @@ export interface BuildAppOptions {
   payments?: PaymentService;
   whatsAppManager?: import("@jamot/core/channels").WhatsAppManager;
   composioService?: ComposioService;
+  leads?: LeadGenerationService;
 }
 
 const deriveKey = (secret: string): string =>
@@ -186,6 +191,24 @@ export async function buildApp(opts: BuildAppOptions) {
       baseUrl: process.env.COMPOSIO_BASE_URL,
     });
 
+  const leads =
+    opts.leads ??
+    createLeadGenerationService(
+      opts.repository,
+      createLeadProviderRegistry({
+        repo: opts.repository,
+        secretStore,
+        composio: composioService,
+        env: process.env,
+      }),
+      {
+        repo: opts.repository,
+        secretStore,
+        composio: composioService,
+        env: process.env,
+      },
+    );
+
   await app.register(healthRoutes);
   await app.register(actorsRoutes(opts.repository), { prefix: "/api" });
   await app.register(peopleRoutes(opts.repository), { prefix: "/api" });
@@ -219,6 +242,8 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(catalogRoutes, { prefix: "/api", commerce });
   await app.register(procurementRoutes, { prefix: "/api", commerce });
   await app.register(paymentsRoutes, { prefix: "/api", payments });
+  await app.register(outreachRoutes, { prefix: "/api", repository: opts.repository });
+  await app.register(leadsRoutes, { prefix: "/api", repository: opts.repository, leads });
 
   return app;
 }
