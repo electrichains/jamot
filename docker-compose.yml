@@ -44,6 +44,48 @@ services:
     # First run generates a config + homeserver; uncomment after bootstrap:
     # command: ["run"]
 
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: jamot-falkordb
+    environment:
+      FALKORDB_PASSWORD: ""
+      BROWSER: "0"            # skip the web UI; host port 3000 is the web app's
+    volumes:
+      - jamot_falkordb:/var/lib/falkordb/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # No host ports: 6379 is jamot-redis's, and graphiti-mcp reaches falkordb
+    # over the compose network (redis://falkordb:6379).
+
+  graphiti-mcp:
+    image: zepai/knowledge-graph-mcp:standalone
+    container_name: jamot-graphiti
+    environment:
+      FALKORDB_URI: redis://falkordb:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      GRAPHITI_GROUP_ID: ${GRAPHITI_GROUP_ID:-main}
+      GRAPHITI_TELEMETRY_ENABLED: ${GRAPHITI_TELEMETRY_ENABLED:-false}
+      SEMAPHORE_LIMIT: ${SEMAPHORE_LIMIT:-2}
+    volumes:
+      - ./infra/graphiti/config.yaml:/app/mcp/config/config.yaml:ro
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
 volumes:
   jamot_pgdata:
   jamot_redis:
+  jamot_falkordb:

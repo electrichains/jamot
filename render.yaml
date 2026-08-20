@@ -1,6 +1,13 @@
 # Jamot — Render Blueprint
 # Deploys the API, the Next.js web app, a scheduler worker, Postgres and Redis.
 # Validation: render blueprints validate
+#
+# NOTE: The temporal knowledge graph (Graphiti MCP server + FalkorDB, see
+# docker-compose.yml) is NOT provisioned here. It is not viable on the Render
+# free tier: it must run where the jamot-api service can reach it over HTTP and
+# needs OPENAI_API_KEY (per-episode LLM extraction). To enable in production,
+# run graphiti-mcp on a paid service / private network and set GRAPHITI_ENABLED
+# and GRAPHITI_MCP_URL on the jamot-api service below.
 
 projects:
   - name: jamot

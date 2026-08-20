@@ -472,6 +472,8 @@ Perspective must never be represented as an objective fact without provenance.
 
 Temporal organizational knowledge should use a graph implementation such as Graphiti + FalkorDB or a replaceable equivalent.
 
+Implementation status: wired as a dual-write projection of memory. Postgres `memories`/`knowledge` tables remain the source of truth; a self-hosted Graphiti MCP server (`zepai/knowledge-graph-mcp:standalone` over FalkorDB, see `docker-compose.yml`) receives a parallel write from the `MemoryProvider` layer (`createDualWriteMemoryProvider` + `createGraphitiMemoryMirror` in `packages/core/src/memory/`), enabled via `GRAPHITI_ENABLED`/`GRAPHITI_MCP_URL`. Reads come from Postgres; mirror failures are soft (logged, never fail the request).
+
 Graph should represent:
 
 - people;
