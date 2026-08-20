@@ -15,3 +15,5 @@ coverage/
 opencode.json
 # Self-hosted uploads (org logos) written by the API
 uploads/
+# Local WhatsApp session + persistent session-store data
+.data/

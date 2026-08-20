@@ -24,6 +24,7 @@ import type { KnowledgeStore } from "@jamot/core/knowledge";
 import type { ReputationService } from "@jamot/core/reputation";
 import type { TreasuryService } from "@jamot/core/treasury";
 import type { LLMProvider } from "@jamot/core/llm";
+import { createSessionStore } from "./session-store.js";
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -164,6 +165,7 @@ if (whatsappSessionDir) {
 const app = await buildApp({
   repository,
   secret,
+  sessionStore: await createSessionStore(),
   logger: true,
   memoryProvider,
   knowledgeStore,
@@ -172,6 +174,28 @@ const app = await buildApp({
   llm,
   whatsAppManager,
 });
+
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[api] ${signal} received — shutting down cleanly`);
+  try {
+    await app.close();
+  } catch (err) {
+    app.log.error(err);
+  }
+  if (whatsAppManager) {
+    try {
+      await whatsAppManager.close();
+    } catch (err) {
+      console.error("[channel] whatsapp close failed", err);
+    }
+  }
+  process.exit(0);
+};
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 try {
   await app.listen({ host, port });

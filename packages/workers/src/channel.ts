@@ -38,9 +38,10 @@ export function startChannelWorker(): Promise<void> {
     process.env.MATRIX_ACCESS_TOKEN ?? process.env.MATRIX_BOT_PASSWORD;
 
   const promises: Promise<void>[] = [];
+  let manager: ReturnType<typeof createWhatsAppManager> | undefined;
 
   if (whatsappSessionDir) {
-    const manager = createWhatsAppManager({
+    manager = createWhatsAppManager({
       sessionBaseDir: whatsappSessionDir,
       onMessage,
       proxyUrl: whatsappProxyUrl,
@@ -54,6 +55,28 @@ export function startChannelWorker(): Promise<void> {
     );
     const server = createWhatsAppControlServer(manager, { port: controlPort });
     promises.push(server.start());
+
+    let shuttingDown = false;
+    const shutdown = (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`[channel] ${signal} received — closing whatsapp sockets cleanly`);
+      void (async () => {
+        try {
+          await manager?.close();
+        } catch (err) {
+          console.error("[channel] whatsapp close failed", err);
+        }
+        try {
+          await server.close();
+        } catch (err) {
+          console.error("[channel] control server close failed", err);
+        }
+        process.exit(0);
+      })();
+    };
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
   }
 
   if (matrixHomeserver && matrixUser && matrixToken) {

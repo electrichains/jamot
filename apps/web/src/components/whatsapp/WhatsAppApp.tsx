@@ -100,29 +100,44 @@ function QrPanel({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
       <h3 className="font-display text-base font-semibold">Pair WhatsApp</h3>
-      <p className="max-w-sm text-sm text-muted-foreground">
-        {connection === "close"
-          ? "The previous session ended. Reset pairing to link a new device."
-          : "Scan the code with WhatsApp on your phone, under Settings → Linked devices, to connect this workspace."}
-      </p>
-      {connection === "close" ? (
-        <Button onClick={onReset}>
-          <RotateCcw className="size-4" />
-          Reset pairing
-        </Button>
-      ) : dataUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={dataUrl}
-          alt="WhatsApp pairing QR code"
-          className="rounded-lg border border-border bg-white p-2"
-        />
-      ) : failed ? (
-        <p className="text-sm text-destructive">Could not render QR code.</p>
+      {qr ? (
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Scan the code with WhatsApp on your phone, under Settings → Linked
+          devices, to connect this workspace.
+        </p>
       ) : (
-        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+        <p className="max-w-sm text-sm text-muted-foreground">
+          {connection === "close"
+            ? "Disconnected — reconnecting automatically. If it stays disconnected, reset the pairing."
+            : "Scan the code with WhatsApp on your phone, under Settings → Linked devices, to connect this workspace."}
+        </p>
+      )}
+      {qr ? (
+        dataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={dataUrl}
+            alt="WhatsApp pairing QR code"
+            className="rounded-lg border border-border bg-white p-2"
+          />
+        ) : failed ? (
+          <p className="text-sm text-destructive">Could not render QR code.</p>
+        ) : (
+          <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="size-5 animate-spin" />
+            {connection === "open" ? "Linked devices ready" : "Waiting for code…"}
+          </div>
+        )
+      ) : (
+        <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
-          {connection === "open" ? "Linked devices ready" : "Waiting for code…"}
+          {connection === "open" ? "Linked devices ready" : "Reconnecting…"}
+          {connection === "close" ? (
+            <Button variant="outline" size="sm" onClick={onReset}>
+              <RotateCcw className="size-4" />
+              Reset pairing
+            </Button>
+          ) : null}
         </div>
       )}
     </div>

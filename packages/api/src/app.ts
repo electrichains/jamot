@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { JamotRepository } from "./repository.js";
 import { sessionOptions } from "./auth.js";
+import type { FastifySessionOptions } from "@fastify/session";
 import { createSecretStore } from "@jamot/core/secrets/secret-store";
 import { createCredentialResolver } from "@jamot/core/secrets/credential-resolution";
 import { createLLMProvider } from "@jamot/core/llm";
@@ -59,6 +60,7 @@ import suppliersRoutes from "./routes/suppliers.js";
 import catalogRoutes from "./routes/catalog.js";
 import procurementRoutes from "./routes/procurement.js";
 import paymentsRoutes from "./routes/payments.js";
+import outreachRoutes from "./routes/outreach.js";
 
 export interface SecretStoreLike {
   encrypt(plaintext: string): string;
@@ -69,6 +71,7 @@ export interface BuildAppOptions {
   repository: JamotRepository;
   secret: string;
   logger?: boolean;
+  sessionStore?: FastifySessionOptions["store"];
   secretStore?: SecretStoreLike;
   llm?: LLMProvider;
   memoryProvider?: MemoryProvider;
@@ -122,7 +125,7 @@ export async function buildApp(opts: BuildAppOptions) {
   app.decorateRequest("person", null);
 
   await app.register(cookie);
-  await app.register(session, sessionOptions(opts.secret));
+  await app.register(session, sessionOptions(opts.secret, opts.sessionStore));
   await app.register(helmet, { global: true });
   await app.register(cors, { origin: true, credentials: true });
   await app.register(rateLimit, { max: 1000, timeWindow: "1 minute" });
@@ -217,6 +220,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(catalogRoutes, { prefix: "/api", commerce });
   await app.register(procurementRoutes, { prefix: "/api", commerce });
   await app.register(paymentsRoutes, { prefix: "/api", payments });
+  await app.register(outreachRoutes, { prefix: "/api", repository: opts.repository });
 
   return app;
 }

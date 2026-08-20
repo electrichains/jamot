@@ -16,6 +16,7 @@ export interface WhatsAppManager {
   get(accountId: string): WhatsAppAdapter | undefined;
   list(): WhatsAppAdapter[];
   remove(accountId: string): Promise<void>;
+  close(): Promise<void>;
 }
 
 function sessionDirFor(base: string, accountId: string): string {
@@ -61,6 +62,13 @@ export function createWhatsAppManager(
       if (!adapter) return;
       adapters.delete(accountId);
       await adapter.disconnect();
+    },
+
+    async close() {
+      await Promise.all(
+        [...adapters.values()].map((adapter) => adapter.disconnect()),
+      );
+      adapters.clear();
     },
   };
 }

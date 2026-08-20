@@ -129,6 +129,14 @@ export function createWhatsAppAdapter(
   let reconnectDelayMs = 5000;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Consecutive loggedOut/badSession closes without an intervening `open`.
+  // A single transient 401/500 (e.g. an unclean restart of the process that
+  // owned the socket) must NOT wipe the saved credentials — only after this
+  // many consecutive failures do we treat the session as genuinely invalid
+  // and re-pair.
+  const MAX_BAD_SESSION_WIPES = 3;
+  let badSessionStreak = 0;
+
   const scheduleReconnect = () => {
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (state.connection === "close") {
@@ -141,8 +149,8 @@ export function createWhatsAppAdapter(
   };
 
   // Wipe the persisted auth state so the next connect starts a fresh pairing
-  // loop. Called after a logout / bad session, where Baileys would otherwise
-  // loop forever without ever emitting a new QR.
+  // loop. Called after a genuine logout / unrecoverable bad session, where
+  // Baileys would otherwise loop forever without ever emitting a new QR.
   const wipeSession = () => {
     try {
       rmSync(sessionDir, { recursive: true, force: true });
@@ -152,6 +160,7 @@ export function createWhatsAppAdapter(
     state.qr = undefined;
     state.connection = "connecting";
     reconnectDelayMs = 5000;
+    badSessionStreak = 0;
   };
 
   const nameFor = (jid: string): string => {
@@ -232,6 +241,7 @@ export function createWhatsAppAdapter(
           state.connection = "open";
           state.qr = undefined;
           reconnectDelayMs = 5000;
+          badSessionStreak = 0;
         }
         if (update.connection === "close") {
           state.connection = "close";
@@ -250,15 +260,32 @@ export function createWhatsAppAdapter(
               statusCode !== undefined ? `, status=${statusCode}` : ""
             }${errorMessage ? ` — ${errorMessage}` : ""}`,
           );
+          if (statusCode === DisconnectReason.restartRequired) {
+            // WhatsApp asked us to restart the socket — no backoff, no wipe.
+            console.log("[whatsapp] restart required — reconnecting immediately");
+            void connect();
+            return;
+          }
           if (
             statusCode === DisconnectReason.loggedOut ||
             statusCode === DisconnectReason.badSession
           ) {
+            badSessionStreak += 1;
+            if (badSessionStreak >= MAX_BAD_SESSION_WIPES) {
+              console.log(
+                `[whatsapp] session invalid after ${badSessionStreak} consecutive failures (${statusCode}) — wiping, will re-pair`,
+              );
+              wipeSession();
+              void connect();
+              return;
+            }
+            // Transient 401/500: keep the saved credentials and reconnect so
+            // the session resumes instead of forcing a fresh scan.
             console.log(
-              `[whatsapp] session invalid (${statusCode}) — wiping, will re-pair`,
+              `[whatsapp] transient invalid session (${statusCode}, streak=${badSessionStreak}/${MAX_BAD_SESSION_WIPES}) — reconnecting with saved creds`,
             );
-            wipeSession();
-            void connect();
+            reconnectDelayMs = Math.min(reconnectDelayMs * 2, 60_000);
+            scheduleReconnect();
             return;
           }
           reconnectDelayMs = Math.min(reconnectDelayMs * 2, 60_000);

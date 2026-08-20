@@ -29,12 +29,17 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(derived, expected);
 }
 
-export function sessionOptions(secret: string): FastifySessionOptions {
+export function sessionOptions(
+  secret: string,
+  store?: FastifySessionOptions["store"],
+): FastifySessionOptions {
   const key = secret.length >= 32 ? secret : createHash("sha256").update(secret).digest("hex");
   return {
     secret: key,
     cookieName: "jamot_session",
+    store,
     saveUninitialized: false,
+    rolling: true,
     cookie: {
       secure: "auto",
       httpOnly: true,
