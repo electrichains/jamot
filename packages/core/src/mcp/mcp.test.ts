@@ -90,6 +90,51 @@ describe("createMcpClient", () => {
     expect(calls[2]?.params).toEqual({ name: "run", arguments: { prompt: "hello" } });
   });
 
+  it("echoes Mcp-Session-Id returned by initialize on subsequent requests", async () => {
+    const seenHeaders: Array<Record<string, string>> = [];
+
+    const stub = (async (_input: unknown, init?: RequestInit): Promise<Response> => {
+      const body = JSON.parse(String(init?.body)) as {
+        id: number;
+        method: string;
+      };
+      seenHeaders.push(
+        Object.fromEntries(
+          Object.entries((init?.headers as Record<string, string>) ?? {}).map(
+            ([k, v]) => [k.toLowerCase(), String(v)],
+          ),
+        ),
+      );
+
+      if (body.method === "initialize") {
+        return new Response(
+          JSON.stringify({ jsonrpc: "2.0", id: body.id, result: {} }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+              "mcp-session-id": "sess-123",
+            },
+          },
+        );
+      }
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: body.id, result: {} }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    globalThis.fetch = stub;
+
+    const client = createMcpClient("https://mcp.example.com/mcp");
+    await client.listTools();
+    await client.callTool("ping", {});
+
+    expect(seenHeaders[0]?.["mcp-session-id"]).toBeUndefined();
+    expect(seenHeaders[1]?.["mcp-session-id"]).toBe("sess-123");
+    expect(seenHeaders[2]?.["mcp-session-id"]).toBe("sess-123");
+  });
+
   it("surfaces JSON-RPC errors", async () => {
     const stub = (async (): Promise<Response> => {
       return new Response(

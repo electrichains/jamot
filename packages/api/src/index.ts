@@ -12,6 +12,9 @@ import {
 } from "@jamot/core/channels";
 import { createWhatsAppPersonProvisioner } from "@jamot/core/ingest";
 import { createPostgresMemoryProvider } from "@jamot/core/memory";
+import { createGraphitiMemoryMirror } from "@jamot/core/memory";
+import { createDualWriteMemoryProvider } from "@jamot/core/memory";
+import { createMcpClient } from "@jamot/core/mcp";
 import { createPostgresKnowledgeStore } from "@jamot/core/knowledge";
 import { createPostgresReputationService } from "@jamot/core/reputation";
 import { createPostgresTreasuryService } from "@jamot/core/treasury";
@@ -41,6 +44,24 @@ if (process.env.DATABASE_URL) {
   knowledgeStore = createPostgresKnowledgeStore(db);
   reputation = createPostgresReputationService(db);
   treasury = createPostgresTreasuryService(db);
+
+  // Temporal knowledge graph projection: Postgres stays the source of truth for
+  // reads; Graphiti (self-hosted MCP server) receives a parallel write that is
+  // soft-failing — a mirror error never breaks the request.
+  if (process.env.GRAPHITI_ENABLED === "true") {
+    const graphitiUrl = process.env.GRAPHITI_MCP_URL;
+    if (graphitiUrl) {
+      const mirror = createGraphitiMemoryMirror({
+        client: createMcpClient(graphitiUrl),
+      });
+      memoryProvider = createDualWriteMemoryProvider(memoryProvider, mirror);
+      console.log(`[graphiti] temporal-graph mirror enabled (${graphitiUrl})`);
+    } else {
+      console.warn(
+        "[graphiti] GRAPHITI_ENABLED=true but GRAPHITI_MCP_URL unset; skipping",
+      );
+    }
+  }
 } else {
   repository = createMemoryRepository();
 }

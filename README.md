@@ -123,6 +123,37 @@ pnpm -r build       # build all packages
 
 See `.env.example`. Key vars: `DATABASE_URL`, `SESSION_SECRET`, `SECRET_ENCRYPTION_KEY`, `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` (LLM), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`/`FRONTEND_URL` (OAuth), `WHATSAPP_SESSION_DIR`/`MATRIX_*` (channels).
 
+## Temporal knowledge graph (Graphiti + FalkorDB)
+
+Jamot keeps Postgres `memories`/`knowledge` tables as the source of truth. When
+enabled, a self-hosted [Graphiti](https://github.com/getzep/graphiti) MCP server
+runs as a **dual-write projection**: every `POST /api/memory` is also sent to
+Graphiti (episode `source="json"`, `group_id = "<scope>:<ownerId>"`, episode
+uuid = memory id), where LLM extraction builds a temporally-aware entity/edge
+graph on top of FalkorDB. Reads always come from Postgres; Graphiti mirror
+failures are logged and never break the request.
+
+Start it locally:
+
+```bash
+docker compose up -d falkordb graphiti-mcp   # http://localhost:8000/mcp/ + /health
+```
+
+Enable with:
+
+```
+GRAPHITI_ENABLED=true
+GRAPHITI_MCP_URL=http://localhost:8000/mcp/
+OPENAI_API_KEY=...      # used by Graphiti for extraction + embeddings
+SEMAPHORE_LIMIT=2       # LLM concurrency; each store() triggers multiple LLM calls
+```
+
+Notes: Graphiti is not provisioned on Render's free tier (needs a host the API
+can reach over HTTP + an LLM key). Telemetry is off by default
+(`GRAPHITI_TELEMETRY_ENABLED=false`). The `/agents/import-mcp` SSRF guard is
+intentionally NOT applied to `GRAPHITI_MCP_URL` — it is an internal,
+operator-controlled endpoint, never user input.
+
 ## Status
 
 Backend phases P1–P9 and frontend F1–F8 are implemented against the MVP boundary (Personal/Organization spaces, People, Agents, Main Manager routing, WhatsApp/Matrix/MCP, Skills, Connectors, Tasks, Memory, CopilotKit, App SDK, one external-agent import, reputation, treasury, scheduler/heartbeats). Channel + LLM connections require live credentials.

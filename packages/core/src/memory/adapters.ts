@@ -1,5 +1,7 @@
 import type { Db } from "../db.js";
+import type { McpClient } from "../mcp/client.js";
 import { createInMemoryMemoryProvider } from "./memory-in-memory.js";
+import { createGraphitiMemoryProvider } from "./graphiti.js";
 import type { MemoryProvider } from "./memory.js";
 import { createPostgresMemoryProvider } from "./postgres.js";
 
@@ -7,6 +9,7 @@ export type MemoryProviderKind = "postgres" | "letta" | "honcho" | "graphiti";
 
 export interface MemoryProviderOptions {
   db?: Db;
+  mcpClient?: McpClient;
 }
 
 function notWired(kind: string): MemoryProvider {
@@ -35,8 +38,13 @@ export function createMemoryProvider(
     }
     case "letta":
     case "honcho":
-    case "graphiti":
       return notWired(kind);
+    case "graphiti": {
+      if (!opts?.mcpClient) {
+        throw new Error("graphiti memory provider requires opts.mcpClient");
+      }
+      return createGraphitiMemoryProvider({ client: opts.mcpClient });
+    }
     default:
       throw new Error(`unknown memory provider: ${kind}`);
   }

@@ -42,6 +42,7 @@ export function createMcpClient(
 ): McpClient {
   let nextId = 1;
   let initialized = false;
+  let sessionId: string | null = null;
 
   async function request(method: string, params?: unknown): Promise<unknown> {
     const id = nextId++;
@@ -57,11 +58,14 @@ export function createMcpClient(
         accept: "application/json, text/event-stream",
         "mcp-protocol-version": PROTOCOL_VERSION,
         ...extraHeaders,
+        ...(sessionId ? { "mcp-session-id": sessionId } : {}),
       },
       body: JSON.stringify(body),
     });
 
     const text = await res.text();
+    const session = res.headers.get("mcp-session-id");
+    if (session) sessionId = session;
     if (!res.ok) {
       throw new Error(`MCP request failed (${res.status}): ${text.slice(0, 200)}`);
     }
