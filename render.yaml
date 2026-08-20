@@ -57,6 +57,10 @@ projects:
                 value: /data/whatsapp
               - key: WHATSAPP_PROXY_URL
                 value: ""
+              # Self-hosted org logo uploads (served from /uploads/*). Reuses the
+              # wa-session disk mounted at /data.
+              - key: UPLOADS_DIR
+                value: /data/uploads
               - key: NODE_ENV
                 value: production
               # Grant-only super admins; comma-separated emails. Leave empty unless you
@@ -80,7 +84,10 @@ projects:
                 - pnpm-workspace.yaml
             envVars:
               - key: NEXT_PUBLIC_API_URL
-                value: https://jamot-api.onrender.com
+                value: https://api.jamot.pro
+              # Root domain used to detect per-org subdomains (e.g. org.jamot.pro).
+              - key: NEXT_PUBLIC_ROOT_DOMAIN
+                value: jamot.pro
 
           - type: worker
             name: jamot-scheduler

@@ -18,16 +18,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/components/auth/auth-context";
+import { useActiveOrgBranding } from "@/components/settings/use-org-branding";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChatHistory } from "@/components/chat/ChatHistory";
 import { useAppShell } from "./app-shell-context";
 
 export function LeftSidebar() {
+  const { name } = useActiveOrgBranding();
   return (
     <aside className="flex h-full flex-col border-r border-border bg-sidebar text-sidebar-foreground">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
         <BrandLogo className="size-6" />
-        <span className="font-display text-sm font-semibold tracking-tight">Jamot</span>
+        <span className="min-w-0 truncate font-display text-sm font-semibold tracking-tight">
+          {name || "Jamot"}
+        </span>
       </div>
 
       <div className="flex flex-col gap-2 p-3">

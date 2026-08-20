@@ -1,10 +1,12 @@
 import Fastify from "fastify";
+import fastifyStatic from "@fastify/static";
 import cookie from "@fastify/cookie";
 import session from "@fastify/session";
 import helmet from "@fastify/helmet";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { createHash } from "node:crypto";
+import { join } from "node:path";
 import type { JamotRepository } from "./repository.js";
 import { sessionOptions } from "./auth.js";
 import { createSecretStore } from "@jamot/core/secrets/secret-store";
@@ -120,6 +122,13 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(helmet, { global: true });
   await app.register(cors, { origin: true, credentials: true });
   await app.register(rateLimit, { max: 1000, timeWindow: "1 minute" });
+
+  const uploadsRoot = process.env.UPLOADS_DIR ?? join(process.cwd(), "uploads");
+  await app.register(fastifyStatic, {
+    root: uploadsRoot,
+    prefix: "/uploads/",
+    decorateReply: false,
+  });
 
   // Tolerate `Content-Type: application/json` requests with an empty body
   // (body-less POSTs like /wa/accounts/:id/reset) instead of 400ing.

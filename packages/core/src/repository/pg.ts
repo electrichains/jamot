@@ -160,6 +160,8 @@ function toOrganization(row: OrganizationRow): Organization {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     spaceId: row.spaceId as Id,
+    slug: row.slug,
+    logoUrl: row.logoUrl,
     dream: row.dream,
     blueprint: row.blueprint,
     enabledAppIds: row.enabledAppIds,
@@ -176,6 +178,7 @@ function toWorkspace(row: WorkspaceRow): Workspace {
     organizationId: row.organizationId as Id,
     spaceId: row.spaceId as Id,
     name: row.name,
+    config: row.config,
   };
 }
 
@@ -690,11 +693,22 @@ export function createPgRepository(db: Db): JamotRepository {
       return rows.map(toSpace);
     },
 
+    async updateSpace(id, patch) {
+      const [row] = await q
+        .update(spaces)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(spaces.id, id))
+        .returning();
+      return row ? toSpace(row) : null;
+    },
+
     async createOrganization(input: NewOrganization) {
       const [row] = await q
         .insert(organizations)
         .values({
           spaceId: input.spaceId,
+          slug: input.slug ?? null,
+          logoUrl: input.logoUrl ?? null,
           dream: input.dream ?? "",
           blueprint: input.blueprint ?? {},
           enabledAppIds: input.enabledAppIds ?? [],
@@ -715,6 +729,15 @@ export function createPgRepository(db: Db): JamotRepository {
       return row ? toOrganization(row) : null;
     },
 
+    async getOrganizationBySlug(slug) {
+      const [row] = await q
+        .select()
+        .from(organizations)
+        .where(eq(organizations.slug, slug))
+        .limit(1);
+      return row ? toOrganization(row) : null;
+    },
+
     async listOrganizations() {
       const rows = await q.select().from(organizations);
       return rows.map(toOrganization);
@@ -727,6 +750,7 @@ export function createPgRepository(db: Db): JamotRepository {
           organizationId: input.organizationId,
           spaceId: input.spaceId,
           name: input.name,
+          config: input.config ?? {},
         })
         .returning();
       if (!row) throw new Error("failed to create workspace");
@@ -750,8 +774,226 @@ export function createPgRepository(db: Db): JamotRepository {
       return rows.map(toWorkspace);
     },
 
+    async updateWorkspace(id, patch) {
+      const [row] = await q
+        .update(workspaces)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(workspaces.id, id))
+        .returning();
+      return row ? toWorkspace(row) : null;
+    },
+
     async deleteWorkspace(id) {
       await q.delete(workspaces).where(eq(workspaces.id, id));
+    },
+
+    async deleteOrganizationCascade(id) {
+      const client = await db.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const orgRows = await client.query(
+          `SELECT id, space_id FROM organizations WHERE id = $1::uuid`,
+          [id],
+        );
+        if ((orgRows.rowCount ?? 0) === 0) {
+          await client.query("ROLLBACK");
+          return;
+        }
+        const primarySpaceId = orgRows.rows[0]!.space_id as string;
+        const wsRows = await client.query(
+          `SELECT space_id FROM workspaces WHERE organization_id = $1::uuid`,
+          [id],
+        );
+        const spaceIds = [
+          primarySpaceId,
+          ...wsRows.rows.map((r) => r.space_id as string),
+        ];
+
+        const $1 = id;
+        const $2 = spaceIds;
+
+        await client.query(
+          `DELETE FROM task_attachments WHERE task_id IN (SELECT id FROM tasks WHERE space_id = ANY($2::uuid[]))`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE space_id = ANY($2::uuid[]))`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM payment_records WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM payment_intents WHERE space_id = ANY($2::uuid[]) OR buyer_organization_id = $1::uuid OR seller_organization_id = $1::uuid`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM purchase_orders WHERE space_id = ANY($2::uuid[]) OR buyer_organization_id = $1::uuid OR seller_organization_id = $1::uuid`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM quotes WHERE space_id = ANY($2::uuid[]) OR seller_organization_id = $1::uuid`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM quote_requests WHERE space_id = ANY($2::uuid[]) OR buyer_organization_id = $1::uuid`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM buyer_agreements WHERE buyer_organization_id = $1::uuid OR catalog_offer_id IN (SELECT id FROM catalog_offers WHERE seller_organization_id = $1::uuid OR space_id = ANY($2::uuid[]))`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM catalog_offers WHERE seller_organization_id = $1::uuid OR space_id = ANY($2::uuid[]) OR catalog_id IN (SELECT id FROM catalogs WHERE owner_organization_id = $1::uuid)`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM catalogs WHERE owner_organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM product_variants WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM product_base WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM conversations WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM channels WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM wa_accounts WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM knowledge_edges WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM knowledge_entities WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM tasks WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM task_lists WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM projects WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM goals WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM capabilities WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM policies WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM events WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM audit_log WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM memories WHERE owner_id = $1::uuid OR owner_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM secrets WHERE owner_organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM skills WHERE owner_organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM connectors WHERE owner_organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `UPDATE agents SET organization_ids = array_remove(organization_ids, $1::uuid), updated_at = now() WHERE $1::uuid = ANY(organization_ids)`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM agents WHERE organization_ids = '{}'::uuid[]`,
+        );
+        await client.query(
+          `DELETE FROM positions WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM organic_charts WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM suppliers WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM treasury_ledger WHERE account_id IN (SELECT id FROM treasury_accounts WHERE organization_id = $1::uuid)`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM treasury_accounts WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM treasury_proposals WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM contribution_credits WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM distribution_rules WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM roles WHERE space_id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `UPDATE people SET membership_space_ids = ARRAY(SELECT x FROM unnest(membership_space_ids) AS x WHERE NOT (x = ANY($2::uuid[]))) WHERE membership_space_ids && $2::uuid[]`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM workspaces WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
+          `DELETE FROM spaces WHERE id = ANY($2::uuid[])`,
+          [$1, $2],
+        );
+        await client.query(
+          `DELETE FROM organizations WHERE id = $1::uuid`,
+          [$1],
+        );
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
     },
 
     async updateOrganization(id, patch) {

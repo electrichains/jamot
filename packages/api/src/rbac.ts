@@ -121,5 +121,13 @@ export function createRbac(repo: JamotRepository) {
       }
     };
 
-  return { requireRole, requireSpaceAccess, requireOrgAccess, requireOrgAdmin };
+  const requireSuperAdmin = () =>
+    async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply | void> => {
+      const actorId = request.session.actorId;
+      if (!actorId) return deny(reply, "Unauthenticated", 401);
+      const user = await loadUser(repo, actorId);
+      if (!isSuperAdminUser(user)) return deny(reply, "Requires super admin", 403);
+    };
+
+  return { requireRole, requireSpaceAccess, requireOrgAccess, requireOrgAdmin, requireSuperAdmin };
 }

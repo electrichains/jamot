@@ -75,6 +75,8 @@ export interface NewSpace {
 
 export interface NewOrganization {
   spaceId: string;
+  slug?: string | null;
+  logoUrl?: string | null;
   dream?: string;
   blueprint?: Record<string, unknown>;
   enabledAppIds?: string[];
@@ -335,21 +337,33 @@ export interface JamotRepository {
   createSpace(input: NewSpace): Promise<Space>;
   getSpace(id: string): Promise<Space | null>;
   listSpaces(): Promise<Space[]>;
+  updateSpace(id: string, patch: Partial<Pick<Space, "name">>): Promise<Space | null>;
   createOrganization(input: NewOrganization): Promise<Organization>;
   getOrganization(id: string): Promise<Organization | null>;
+  getOrganizationBySlug(slug: string): Promise<Organization | null>;
   listOrganizations(): Promise<Organization[]>;
   updateOrganization(
     id: string,
-    patch: Partial<Pick<Organization, "dream" | "blueprint" | "enabledAppIds">>,
+    patch: Partial<
+      Pick<Organization, "dream" | "blueprint" | "enabledAppIds" | "slug" | "logoUrl">
+    >,
   ): Promise<Organization | null>;
   createWorkspace(input: {
     organizationId: string;
     spaceId: string;
     name: string;
+    config?: Record<string, unknown>;
   }): Promise<Workspace>;
   getWorkspace(id: string): Promise<Workspace | null>;
   listWorkspaces(organizationId: string): Promise<Workspace[]>;
+  updateWorkspace(
+    id: string,
+    patch: Partial<Pick<Workspace, "name" | "config">>,
+  ): Promise<Workspace | null>;
   deleteWorkspace(id: string): Promise<void>;
+  /** Permanently delete an organization and all its data (workspaces, spaces,
+   * roles, memberships, and every space-/org-scoped record). Runs in a transaction. */
+  deleteOrganizationCascade(id: string): Promise<void>;
 
   // roles
   createRole(input: NewRole): Promise<Role>;

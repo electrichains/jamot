@@ -15,6 +15,10 @@ export type Space = z.infer<typeof Space>;
 
 export const Organization = EntityBase.extend({
   spaceId: Id,
+  /** Subdomain slug: <slug>.jamot.pro resolves to this organization. */
+  slug: z.string().nullable().default(null),
+  /** Self-hosted upload path (/uploads/...) or absolute URL for the org logo. */
+  logoUrl: z.string().nullable().default(null),
   dream: z.string().default(""),
   blueprint: z.record(z.string(), z.unknown()).default({}),
   /** Ids of apps in the App Registry that are enabled/allocated for this org. */
@@ -30,6 +34,8 @@ export const Workspace = EntityBase.extend({
   organizationId: Id,
   spaceId: Id,
   name: z.string().min(1),
+  /** Workspace-level configuration (isolated per workspace). */
+  config: z.record(z.string(), z.unknown()).default({}),
 });
 export type Workspace = z.infer<typeof Workspace>;
 
@@ -81,3 +87,34 @@ export const UpdateOrganizationApps = z.object({
   enabledAppIds: z.array(z.string()),
 });
 export type UpdateOrganizationApps = z.infer<typeof UpdateOrganizationApps>;
+
+/** Super-admin-only org settings patch. */
+export const UpdateOrganizationSettings = z.object({
+  name: z.string().min(1).optional(),
+  slug: z.string().min(1).optional(),
+  logoUrl: z.string().min(1).optional(),
+  dream: z.string().optional(),
+});
+export type UpdateOrganizationSettings = z.infer<typeof UpdateOrganizationSettings>;
+
+/** Body for the super-admin org delete (confirm-by-name). */
+export const DeleteOrganizationBody = z.object({
+  confirmName: z.string().min(1),
+});
+export type DeleteOrganizationBody = z.infer<typeof DeleteOrganizationBody>;
+
+/** Body for org-admin workspace settings (name + isolated config). */
+export const UpdateWorkspaceBody = z.object({
+  name: z.string().min(1).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+});
+export type UpdateWorkspaceBody = z.infer<typeof UpdateWorkspaceBody>;
+
+/** Result of resolving an org by its subdomain slug. */
+export const SubdomainResolution = z.object({
+  organization: Organization,
+  space: Space,
+  workspaces: z.array(Workspace),
+  role: z.enum(["owner", "admin", "member", "agent", "external"]).nullable(),
+});
+export type SubdomainResolution = z.infer<typeof SubdomainResolution>;

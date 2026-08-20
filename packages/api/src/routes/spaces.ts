@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { Id } from "@jamot/contracts";
 import type { JamotRepository } from "../repository.js";
-import { requireAuth } from "../rbac.js";
+import { createRbac, requireAuth } from "../rbac.js";
 import { fail, parse } from "../util.js";
 
 const CreateSpaceBody = z.object({
@@ -12,6 +12,7 @@ const CreateSpaceBody = z.object({
 
 export function spacesRoutes(repo: JamotRepository) {
   return async function (app: FastifyInstance): Promise<void> {
+    const rbac = createRbac(repo);
     app.post("/spaces", { preHandler: requireAuth }, async (request, reply) => {
       const body = parse(CreateSpaceBody, request.body, reply);
       if (!body) return;
@@ -39,13 +40,17 @@ export function spacesRoutes(repo: JamotRepository) {
       return { items: [...unique.values()] };
     });
 
-    app.get("/spaces/:id", { preHandler: requireAuth }, async (request, reply) => {
-      const params = request.params as { id?: string };
-      const id = parse(Id, params.id, reply);
-      if (!id) return;
-      const space = await repo.getSpace(id);
-      if (!space) return fail(reply, 404, "space not found");
-      return space;
-    });
+    app.get(
+      "/spaces/:id",
+      { preHandler: rbac.requireSpaceAccess("id") },
+      async (request, reply) => {
+        const params = request.params as { id?: string };
+        const id = parse(Id, params.id, reply);
+        if (!id) return;
+        const space = await repo.getSpace(id);
+        if (!space) return fail(reply, 404, "space not found");
+        return space;
+      },
+    );
   };
 }

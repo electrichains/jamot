@@ -12,9 +12,22 @@ import {
 
 import {
   getOrganizations,
+  resolveOrganizationBySubdomain,
   type OrganizationListItem,
   type OrgRole,
 } from "@/lib/api-client";
+
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+
+function currentSubdomain(): string | null {
+  if (!ROOT_DOMAIN || typeof window === "undefined") return null;
+  const host = window.location.hostname;
+  const suffix = `.${ROOT_DOMAIN}`;
+  if (!host.endsWith(suffix)) return null;
+  const sub = host.slice(0, -suffix.length);
+  if (!sub || ["www", "app", "api", "mvp", "mail"].includes(sub)) return null;
+  return sub;
+}
 
 export interface Space {
   id: string;
@@ -206,6 +219,38 @@ export function AppShellProvider({
     },
     [spaces],
   );
+
+  // Subdomain auto-activation: visiting <org>.jamot.pro activates that org's
+  // default workspace once the org list is ready.
+  useEffect(() => {
+    const sub = currentSubdomain();
+    if (!sub || organizationsLoading) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const resolved = await resolveOrganizationBySubdomain(sub);
+        if (cancelled) return;
+        const defaultWorkspace =
+          resolved.workspaces.find((w) => w.spaceId === resolved.organization.spaceId) ??
+          resolved.workspaces[0];
+        if (defaultWorkspace) setSpace(defaultWorkspace.spaceId);
+      } catch {
+        // no access / not found — behave like root
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationsLoading]);
+
+  // Real-time (instant) refresh: whenever the active space changes, reload the
+  // org list so names, logos and workspaces reflect the current tenant.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional refresh on tenant switch
+    void reloadOrganizations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spaceId]);
 
   const value = useMemo<AppShellState>(() => {
     const space =

@@ -1,13 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "@/components/brand-logo";
 import { API_URL, useAuth } from "./auth-context";
+import { resolveLogoUrl } from "@/components/settings/use-org-branding";
 
 type Mode = "login" | "register";
+
+const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+
+interface SubdomainBrand {
+  name: string;
+  logoUrl: string | null;
+}
+
+async function fetchSubdomainBrand(): Promise<SubdomainBrand | null> {
+  if (!ROOT_DOMAIN || typeof window === "undefined") return null;
+  const host = window.location.hostname;
+  const suffix = `.${ROOT_DOMAIN}`;
+  if (!host.endsWith(suffix)) return null;
+  const sub = host.slice(0, -suffix.length);
+  if (!sub || ["www", "app", "api", "mvp", "mail"].includes(sub)) return null;
+  try {
+    const res = await fetch(
+      `${API_URL}/api/organizations/resolve?subdomain=${encodeURIComponent(sub)}`,
+      { credentials: "include" },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      organization: { logoUrl: string | null };
+      space: { name: string };
+    };
+    return { name: data.space.name, logoUrl: data.organization.logoUrl ?? null };
+  } catch {
+    return null;
+  }
+}
 
 export function LoginScreen() {
   const { refresh } = useAuth();
@@ -17,6 +48,19 @@ export function LoginScreen() {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [brand, setBrand] = useState<SubdomainBrand | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSubdomainBrand().then((b) => {
+      if (!cancelled) setBrand(b);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const brandLogo = brand ? resolveLogoUrl(brand.logoUrl) : null;
 
   async function submit() {
     setError(null);
@@ -53,8 +97,15 @@ export function LoginScreen() {
     <div className="flex min-h-full items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-2">
-          <BrandLogo className="size-8" />
-          <span className="font-display text-lg font-semibold">Jamot</span>
+          {brandLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={brandLogo} alt={brand?.name ?? "Organization"} className="size-8 object-contain" />
+          ) : (
+            <BrandLogo className="size-8" />
+          )}
+          <span className="font-display text-lg font-semibold">
+            {brand?.name || "Jamot"}
+          </span>
         </div>
 
         <h1 className="mb-1 text-xl font-semibold">

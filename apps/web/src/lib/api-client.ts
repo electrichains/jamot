@@ -9,6 +9,8 @@ export interface Organization {
   createdAt: string;
   updatedAt: string;
   spaceId: string;
+  slug: string | null;
+  logoUrl: string | null;
   dream: string;
   blueprint: Record<string, unknown>;
   enabledAppIds: string[];
@@ -30,8 +32,16 @@ export interface Workspace {
   organizationId: string;
   spaceId: string;
   name: string;
+  config: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SubdomainResolution {
+  organization: Organization;
+  space: Space;
+  workspaces: Workspace[];
+  role: OrgRole;
 }
 
 export interface OrganizationListItem {
@@ -131,10 +141,22 @@ export async function listWorkspaces(organizationId: string): Promise<Workspace[
 export async function createWorkspace(
   organizationId: string,
   name: string,
+  config?: Record<string, unknown>,
 ): Promise<Workspace> {
   return api<Workspace>(
     `/api/organizations/${encodeURIComponent(organizationId)}/workspaces`,
-    { method: "POST", body: JSON.stringify({ name }) },
+    { method: "POST", body: JSON.stringify({ name, config }) },
+  );
+}
+
+export async function updateWorkspace(
+  organizationId: string,
+  workspaceId: string,
+  patch: { name?: string; config?: Record<string, unknown> },
+): Promise<Workspace> {
+  return api<Workspace>(
+    `/api/organizations/${encodeURIComponent(organizationId)}/workspaces/${encodeURIComponent(workspaceId)}`,
+    { method: "PATCH", body: JSON.stringify(patch) },
   );
 }
 
@@ -151,11 +173,58 @@ export async function deleteWorkspace(
 export async function createOrganization(input: {
   name: string;
   dream?: string;
+  slug?: string;
 }): Promise<{ organization: Organization; space: Space }> {
   return api<{ organization: Organization; space: Space }>("/api/organizations", {
     method: "POST",
-    body: JSON.stringify({ name: input.name, dream: input.dream }),
+    body: JSON.stringify({
+      name: input.name,
+      dream: input.dream,
+      slug: input.slug,
+    }),
   });
+}
+
+export async function updateOrganization(
+  organizationId: string,
+  patch: { name?: string; slug?: string | null; logoUrl?: string | null; dream?: string },
+): Promise<Organization> {
+  const data = await api<{ organization: Organization }>(
+    `/api/organizations/${organizationId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    },
+  );
+  return data.organization;
+}
+
+export async function deleteOrganization(
+  organizationId: string,
+  confirmName: string,
+): Promise<void> {
+  await api<void>(`/api/organizations/${organizationId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ confirmName }),
+  });
+}
+
+export async function uploadOrganizationLogo(
+  organizationId: string,
+  dataUri: string,
+): Promise<{ logoUrl: string }> {
+  return api<{ logoUrl: string }>(`/api/organizations/${organizationId}/logo`, {
+    method: "PUT",
+    body: JSON.stringify({ dataUri }),
+  });
+}
+
+export async function resolveOrganizationBySubdomain(
+  subdomain: string,
+): Promise<SubdomainResolution> {
+  return api<SubdomainResolution>(
+    `/api/organizations/resolve?subdomain=${encodeURIComponent(subdomain)}`,
+  );
 }
 
 export async function updateOrganizationDream(

@@ -211,6 +211,8 @@ export const agents = pgTable("agents", {
 export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   spaceId: uuid("space_id").references(() => spaces.id),
+  slug: text("slug"),
+  logoUrl: text("logo_url"),
   dream: text("dream").notNull().default(""),
   blueprint: jsonb("blueprint")
     .$type<Record<string, unknown>>()
@@ -240,6 +242,10 @@ export const workspaces = pgTable(
       .unique()
       .references(() => spaces.id),
     name: text("name").notNull(),
+    config: jsonb("config")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
     ...timestamps(),
   },
   (table) => [

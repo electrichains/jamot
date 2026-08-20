@@ -1,7 +1,10 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import type { LightMyRequestResponse } from "fastify";
 import { buildApp } from "./app.js";
 import { createMemoryRepository } from "./repository.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 process.env.SUPER_ADMIN_EMAILS = "root@example.com";
 
@@ -253,3 +256,205 @@ describe("org smoke", () => {
     expect(members.statusCode).toBe(200);
   });
 });
+
+describe("org subdomain / settings / delete", () => {
+  let app: Awaited<ReturnType<typeof buildApp>>;
+  let root: string;
+  let boss: string;
+  let orgId: string;
+  let uploadsDir: string;
+
+  beforeAll(async () => {
+    uploadsDir = mkdtempSync(join(tmpdir(), "jamot-uploads-"));
+    process.env.UPLOADS_DIR = uploadsDir;
+    app = await makeApp();
+    root = await registerAndLogin(app, "root@example.com", "password123", "Root");
+    boss = await registerAndLogin(app, "boss@example.com", "password123", "Boss");
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/organizations",
+      headers: { cookie: root },
+      payload: { name: "Widgets Co", slug: "widgets" },
+    });
+    expect(created.statusCode).toBe(201);
+    orgId = created.json().organization.id;
+  });
+
+  afterAll(() => {
+    if (uploadsDir) rmSync(uploadsDir, { recursive: true, force: true });
+  });
+
+  it("rejects duplicate or invalid subdomains", async () => {
+    const dup = await app.inject({
+      method: "POST",
+      url: "/api/organizations",
+      headers: { cookie: root },
+      payload: { name: "Dup", slug: "widgets" },
+    });
+    expect(dup.statusCode).toBe(409);
+
+    const reserved = await app.inject({
+      method: "POST",
+      url: "/api/organizations",
+      headers: { cookie: root },
+      payload: { name: "Api", slug: "api" },
+    });
+    expect(reserved.statusCode).toBe(400);
+  });
+
+  it("resolves an org by subdomain for members and super admins, 403 for strangers", async () => {
+    await app.inject({
+      method: "POST",
+      url: `/api/organizations/${orgId}/members`,
+      headers: { cookie: root },
+      payload: { email: "boss@example.com", role: "admin" },
+    });
+
+    const byBoss = await app.inject({
+      method: "GET",
+      url: "/api/organizations/resolve?subdomain=widgets",
+      headers: { cookie: boss },
+    });
+    expect(byBoss.statusCode).toBe(200);
+    expect(byBoss.json().organization.slug).toBe("widgets");
+    expect(byBoss.json().role).toBe("admin");
+
+    const byRoot = await app.inject({
+      method: "GET",
+      url: "/api/organizations/resolve?subdomain=widgets",
+      headers: { cookie: root },
+    });
+    expect(byRoot.statusCode).toBe(200);
+
+    const eve = await registerAndLogin(app, "eve2@example.com", "password123", "Eve");
+    const byEve = await app.inject({
+      method: "GET",
+      url: "/api/organizations/resolve?subdomain=widgets",
+      headers: { cookie: eve },
+    });
+    expect(byEve.statusCode).toBe(403);
+  });
+
+  it("org settings patch is super-admin only", async () => {
+    const byBoss = await app.inject({
+      method: "PATCH",
+      url: `/api/organizations/${orgId}`,
+      headers: { cookie: boss },
+      payload: { slug: "hijacked" },
+    });
+    expect(byBoss.statusCode).toBe(403);
+
+    const byRoot = await app.inject({
+      method: "PATCH",
+      url: `/api/organizations/${orgId}`,
+      headers: { cookie: root },
+      payload: { slug: "widgets-pro", dream: "build widgets" },
+    });
+    expect(byRoot.statusCode).toBe(200);
+    expect(byRoot.json().organization.slug).toBe("widgets-pro");
+  });
+
+  it("org admin can patch workspace settings (name + config), member cannot", async () => {
+    const ws = await app.inject({
+      method: "GET",
+      url: `/api/organizations/${orgId}/workspaces`,
+      headers: { cookie: root },
+    });
+    const workspace = ws.json().items[0];
+
+    const patched = await app.inject({
+      method: "PATCH",
+      url: `/api/organizations/${orgId}/workspaces/${workspace.id}`,
+      headers: { cookie: boss },
+      payload: { name: "Renamed Workspace", config: { theme: "dark" } },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json().name).toBe("Renamed Workspace");
+    expect(patched.json().config).toEqual({ theme: "dark" });
+
+    const eve = await registerAndLogin(app, "eve3@example.com", "password123", "Eve");
+    await app.inject({
+      method: "POST",
+      url: `/api/organizations/${orgId}/members`,
+      headers: { cookie: root },
+      payload: { email: "eve3@example.com", role: "member" },
+    });
+    const byMember = await app.inject({
+      method: "PATCH",
+      url: `/api/organizations/${orgId}/workspaces/${workspace.id}`,
+      headers: { cookie: eve },
+      payload: { name: "nope" },
+    });
+    expect(byMember.statusCode).toBe(403);
+  });
+
+  it("uploads and serves an org logo", async () => {
+    const pixel =
+      "data:image/png;base64," +
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      ).toString("base64");
+    const up = await app.inject({
+      method: "PUT",
+      url: `/api/organizations/${orgId}/logo`,
+      headers: { cookie: root },
+      payload: { dataUri: pixel },
+    });
+    expect(up.statusCode).toBe(200);
+    expect(up.json().logoUrl).toMatch(/^\/uploads\/orgs\//);
+
+    const byMember = await app.inject({
+      method: "PUT",
+      url: `/api/organizations/${orgId}/logo`,
+      headers: { cookie: boss },
+      payload: { dataUri: pixel },
+    });
+    expect(byMember.statusCode).toBe(403);
+  });
+
+  it("deletes the org only with matching confirmName and as super admin", async () => {
+    const orgDetail = await app.inject({
+      method: "GET",
+      url: `/api/organizations/${orgId}`,
+      headers: { cookie: root },
+    });
+    const space = await app.inject({
+      method: "GET",
+      url: `/api/spaces/${orgDetail.json().spaceId}`,
+      headers: { cookie: root },
+    });
+    const currentName = space.json().name;
+
+    const wrong = await app.inject({
+      method: "DELETE",
+      url: `/api/organizations/${orgId}`,
+      headers: { cookie: root },
+      payload: { confirmName: "nope" },
+    });
+    expect(wrong.statusCode).toBe(400);
+
+    const byBoss = await app.inject({
+      method: "DELETE",
+      url: `/api/organizations/${orgId}`,
+      headers: { cookie: boss },
+      payload: { confirmName: currentName },
+    });
+    expect(byBoss.statusCode).toBe(403);
+
+    const ok = await app.inject({
+      method: "DELETE",
+      url: `/api/organizations/${orgId}`,
+      headers: { cookie: root },
+      payload: { confirmName: currentName },
+    });
+    expect(ok.statusCode).toBe(204);
+
+    const gone = await app.inject({
+      method: "GET",
+      url: `/api/organizations/${orgId}`,
+      headers: { cookie: root },
+    });
+    expect(gone.statusCode).toBe(404);
+  });
+});
+

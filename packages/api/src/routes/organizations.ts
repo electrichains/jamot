@@ -1,10 +1,16 @@
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
+  DeleteOrganizationBody,
   Id,
   OrgMemberRoleKind,
   OrganizationMember,
+  SubdomainResolution,
   UpdateOrganizationApps,
+  UpdateOrganizationSettings,
+  UpdateWorkspaceBody,
 } from "@jamot/contracts";
 import type { OrganizationMember as OrganizationMemberType } from "@jamot/contracts";
 import type { MemoryProvider } from "@jamot/core/memory";
@@ -23,15 +29,15 @@ import { fail, parse } from "../util.js";
 const CreateOrganizationBody = z.object({
   name: z.string().min(1),
   dream: z.string().optional(),
+  slug: z.string().optional(),
 });
 
 const CreateWorkspaceBody = z.object({
   name: z.string().min(1),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
-const UpdateOrganizationBody = z.object({
-  dream: z.string().min(1),
-});
+const UpdateOrganizationBody = UpdateOrganizationSettings;
 
 const AddMemberBody = z.object({
   email: z.string().email(),
@@ -41,6 +47,24 @@ const AddMemberBody = z.object({
 const UpdateMemberRoleBody = z.object({
   role: z.enum(["admin", "member"]),
 });
+
+const LogoUploadBody = z.object({
+  dataUri: z.string().min(1),
+});
+
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const RESERVED_SLUGS = new Set(["www", "api", "mvp", "admin", "app", "mail"]);
+
+function normalizeSlug(slug: string | undefined): string | undefined {
+  if (!slug) return undefined;
+  const s = slug.trim().toLowerCase().replace(/\./g, "");
+  if (!SLUG_RE.test(s) || RESERVED_SLUGS.has(s)) return undefined;
+  return s;
+}
+
+function joinUploadsDir(): string {
+  return join(process.cwd(), "uploads");
+}
 
 function toHumanKind(kind: string): z.infer<typeof OrgMemberRoleKind> | null {
   return kind === "owner" || kind === "admin" || kind === "member" ? kind : null;
@@ -118,6 +142,15 @@ export function organizationsRoutes(
       const body = parse(CreateOrganizationBody, request.body, reply);
       if (!body) return;
 
+      const slug = normalizeSlug(body.slug);
+      if (body.slug && !slug) {
+        return fail(reply, 400, "invalid or reserved subdomain slug");
+      }
+      if (slug) {
+        const existing = await repo.getOrganizationBySlug(slug);
+        if (existing) return fail(reply, 409, "subdomain already in use");
+      }
+
       const actorId = request.session.actorId!;
       const space = await repo.createSpace({
         kind: "organization",
@@ -127,6 +160,7 @@ export function organizationsRoutes(
       const organization = await repo.createOrganization({
         spaceId: space.id,
         dream: body.dream,
+        slug,
       });
       await repo.createWorkspace({
         organizationId: organization.id,
@@ -149,6 +183,7 @@ export function organizationsRoutes(
       await writeOrgMemory(organization.id, {
         type: "organization.created",
         name: body.name,
+        slug,
         byActorId: actorId,
       });
 
@@ -194,6 +229,54 @@ export function organizationsRoutes(
 
       return { items };
     });
+
+    app.get(
+      "/organizations/resolve",
+      { preHandler: requireAuth },
+      async (request, reply) => {
+        const query = request.query as { subdomain?: string };
+        const slug = normalizeSlug(query.subdomain);
+        if (!slug) return fail(reply, 400, "valid subdomain is required");
+        const organization = await repo.getOrganizationBySlug(slug);
+        if (!organization) return fail(reply, 404, "organization not found");
+        const actorId = request.session.actorId!;
+        const user = await loadUser(repo, actorId);
+        const space = await repo.getSpace(organization.spaceId);
+        if (!space) return fail(reply, 404, "organization space not found");
+        const role = await actorRoleInSpace(repo, actorId, organization.spaceId as Id);
+        if (!isSuperAdminUser(user) && !role) {
+          return fail(reply, 403, "No access to this organization");
+        }
+        const workspaces = await repo.listWorkspaces(organization.id);
+        return SubdomainResolution.parse({
+          organization,
+          space,
+          workspaces,
+          role,
+        });
+      },
+    );
+
+    app.delete(
+      "/organizations/:id",
+      { preHandler: rbac.requireSuperAdmin() },
+      async (request, reply) => {
+        const params = request.params as { id?: string };
+        const id = parse(Id, params.id, reply);
+        if (!id) return;
+        const organization = await repo.getOrganization(id);
+        if (!organization) return fail(reply, 404, "organization not found");
+        const space = await repo.getSpace(organization.spaceId);
+        if (!space) return fail(reply, 404, "organization space not found");
+        const body = parse(DeleteOrganizationBody, request.body, reply);
+        if (!body) return;
+        if (body.confirmName !== space.name) {
+          return fail(reply, 400, "confirmName does not match the organization name");
+        }
+        await repo.deleteOrganizationCascade(id);
+        reply.code(204).send();
+      },
+    );
 
     app.get(
       "/organizations/:id",
@@ -243,6 +326,7 @@ export function organizationsRoutes(
           organizationId: id,
           spaceId: space.id,
           name: body.name,
+          config: body.config ?? {},
         });
         await repo.createRole({ actorId, spaceId: space.id, kind: "owner" });
 
@@ -254,6 +338,47 @@ export function organizationsRoutes(
 
         reply.code(201);
         return workspace;
+      },
+    );
+
+    app.patch(
+      "/organizations/:id/workspaces/:workspaceId",
+      { preHandler: rbac.requireOrgAdmin("id") },
+      async (request, reply) => {
+        const params = request.params as { id?: string; workspaceId?: string };
+        const id = parse(Id, params.id, reply);
+        if (!id) return;
+        const workspaceId = parse(Id, params.workspaceId, reply);
+        if (!workspaceId) return;
+        const organization = await repo.getOrganization(id);
+        if (!organization) return fail(reply, 404, "organization not found");
+        const workspace = await repo.getWorkspace(workspaceId);
+        if (!workspace || workspace.organizationId !== id) {
+          return fail(reply, 404, "workspace not found");
+        }
+        const body = parse(UpdateWorkspaceBody, request.body, reply);
+        if (!body) return;
+
+        const patch: { name?: string; config?: Record<string, unknown> } = {};
+        if (typeof body.name === "string" && body.name.trim()) {
+          patch.name = body.name.trim();
+        }
+        if (body.config !== undefined) patch.config = body.config;
+
+        if (patch.name) {
+          await repo.updateSpace(workspace.spaceId, { name: patch.name });
+        }
+
+        const updated = await repo.updateWorkspace(workspaceId, patch);
+        if (!updated) return fail(reply, 404, "workspace not found");
+
+        await writeOrgMemory(id, {
+          type: "workspace.updated",
+          name: updated.name,
+          byActorId: request.session.actorId,
+        });
+
+        return updated;
       },
     );
 
@@ -282,7 +407,7 @@ export function organizationsRoutes(
 
     app.patch(
       "/organizations/:id",
-      { preHandler: rbac.requireOrgAdmin("id") },
+      { preHandler: rbac.requireSuperAdmin() },
       async (request, reply) => {
         const params = request.params as { id?: string };
         const id = parse(Id, params.id, reply);
@@ -292,15 +417,100 @@ export function organizationsRoutes(
         const body = parse(UpdateOrganizationBody, request.body, reply);
         if (!body) return;
 
-        const updated = await repo.updateOrganization(id, { dream: body.dream });
-        if (!updated) return fail(reply, 404, "organization not found");
+        const patch: {
+          slug?: string | null;
+          logoUrl?: string | null;
+          dream?: string;
+        } = {};
 
-        await writeOrgMemory(updated.id, {
-          type: "organization.dream.updated",
+        let name: string | undefined;
+        if (typeof body.name === "string" && body.name.trim()) {
+          name = body.name.trim();
+        }
+
+        if (body.slug !== undefined) {
+          if (body.slug === null || body.slug === "") {
+            patch.slug = null;
+          } else {
+            const slug = normalizeSlug(body.slug);
+            if (!slug) return fail(reply, 400, "invalid or reserved subdomain slug");
+            if (slug !== organization.slug) {
+              const existing = await repo.getOrganizationBySlug(slug);
+              if (existing && existing.id !== organization.id) {
+                return fail(reply, 409, "subdomain already in use");
+              }
+            }
+            patch.slug = slug;
+          }
+        }
+
+        if (body.logoUrl !== undefined) {
+          patch.logoUrl = body.logoUrl === null || body.logoUrl === "" ? null : body.logoUrl;
+        }
+        if (body.dream !== undefined) patch.dream = body.dream;
+
+        let updatedOrg = organization;
+        if (Object.keys(patch).length > 0) {
+          const updated = await repo.updateOrganization(id, patch);
+          if (updated) updatedOrg = updated;
+        }
+        if (name && name !== (await repo.getSpace(organization.spaceId))?.name) {
+          await repo.updateSpace(organization.spaceId, { name });
+        }
+
+        await writeOrgMemory(updatedOrg.id, {
+          type: "organization.updated",
+          name,
+          slug: patch.slug ?? undefined,
           byActorId: request.session.actorId,
         });
 
-        return { organization: updated };
+        return { organization: updatedOrg };
+      },
+    );
+
+    app.put(
+      "/organizations/:id/logo",
+      { preHandler: rbac.requireSuperAdmin() },
+      async (request, reply) => {
+        const params = request.params as { id?: string };
+        const id = parse(Id, params.id, reply);
+        if (!id) return;
+        const organization = await repo.getOrganization(id);
+        if (!organization) return fail(reply, 404, "organization not found");
+        const body = parse(LogoUploadBody, request.body, reply);
+        if (!body) return;
+
+        const match = /^data:(image\/(?:png|jpeg|jpg|gif|webp|svg\+xml));base64,(.+)$/i.exec(
+          body.dataUri,
+        );
+        if (!match) return fail(reply, 400, "expected a base64 image data URI");
+        const mime = match[1]!.toLowerCase();
+        const raw = match[2]!.replace(/\s+/g, "");
+        const buffer = Buffer.from(raw, "base64");
+        if (buffer.byteLength === 0) return fail(reply, 400, "empty image");
+        if (buffer.byteLength > 2 * 1024 * 1024) {
+          return fail(reply, 413, "image exceeds 2 MB limit");
+        }
+
+        const ext = mime === "image/svg+xml" ? "svg" : mime.replace("image/", "");
+        const uploadsDir = process.env.UPLOADS_DIR ?? joinUploadsDir();
+        const orgDir = join(uploadsDir, "orgs", id);
+        await mkdir(orgDir, { recursive: true });
+        const filename = `logo.${ext}`;
+        await writeFile(join(orgDir, filename), buffer);
+
+        const logoUrl = `/uploads/orgs/${id}/${filename}`;
+        const updated = await repo.updateOrganization(id, { logoUrl });
+        if (!updated) return fail(reply, 404, "organization not found");
+
+        await writeOrgMemory(id, {
+          type: "organization.logo.updated",
+          logoUrl,
+          byActorId: request.session.actorId,
+        });
+
+        return { logoUrl };
       },
     );
 

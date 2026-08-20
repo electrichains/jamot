@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   AppWindow,
@@ -9,6 +10,7 @@ import {
   Building2,
   Database,
   FileText,
+  Layers,
   Lock,
   MemoryStick,
   MessageSquare,
@@ -30,6 +32,8 @@ import {
 } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { useAuth } from "@/components/auth/auth-context";
+import { useActiveOrg } from "@/components/settings/use-active-org";
 import { SettingsLayout, type SettingsGroup } from "@/components/settings/settings-layout";
 import {
   AccountSection,
@@ -59,104 +63,126 @@ import {
   RolesOrgSection,
   SharedSkillsSection,
   TreasurySection,
+  WorkspaceSettingsSection,
 } from "@/components/settings/org-sections";
 import { Vault } from "@/components/settings/Vault";
 
-const GROUPS: SettingsGroup[] = [
-  {
-    title: "Personal",
-    sections: [
-      { id: "account", label: "Account", icon: User, body: <AccountSection /> },
-      { id: "profile", label: "Profile", icon: UserRound, body: <ProfileSection /> },
-      { id: "memory", label: "Memory", icon: MemoryStick, body: <MemorySection /> },
-      {
-        id: "privacy",
-        label: "Privacy & Consent",
-        icon: Lock,
-        body: <PrivacyConsentSection />,
-      },
-      { id: "vault", label: "Vault", icon: VaultIcon, body: <Vault /> },
-      { id: "connectors", label: "Connectors", icon: Plug, body: <ConnectorsSection /> },
-      { id: "skills", label: "Skills", icon: Sparkles, body: <SkillsSection /> },
-      {
-        id: "personal-agents",
-        label: "Personal Agents",
-        icon: Bot,
-        body: <PersonalAgentsSection />,
-      },
-      {
-        id: "notifications",
-        label: "Notifications",
-        icon: Bell,
-        body: <NotificationsSection />,
-      },
-      {
-        id: "appearance",
-        label: "Appearance",
-        icon: Palette,
-        body: <AppearanceSection />,
-      },
-      {
-        id: "security",
-        label: "Security",
-        icon: ShieldCheck,
-        body: <SecuritySection />,
-      },
-    ],
-  },
-  {
-    title: "Organization",
-    sections: [
-      { id: "org-general", label: "General", icon: Building2, body: <GeneralOrgSection /> },
-      { id: "org-people", label: "People", icon: Users, body: <PeopleOrgSection /> },
-      { id: "org-roles", label: "Roles", icon: UserCog, body: <RolesOrgSection /> },
-      {
-        id: "org-chart",
-        label: "OrganicChart",
-        icon: Network,
-        body: <OrganicChartSection />,
-      },
-      { id: "org-agents", label: "Agents", icon: Bot, body: <OrgAgentsSection /> },
-      { id: "org-apps", label: "Apps", icon: AppWindow, body: <AppsOrgSection /> },
-      {
-        id: "org-channels",
-        label: "Channels",
-        icon: MessageSquare,
-        body: <ChannelsOrgSection />,
-      },
-      {
-        id: "org-shared-skills",
-        label: "Shared Skills",
-        icon: Wand,
-        body: <SharedSkillsSection />,
-      },
-      {
-        id: "org-capabilities",
-        label: "Capabilities",
-        icon: Zap,
-        body: <CapabilitiesOrgSection />,
-      },
-      {
-        id: "org-knowledge",
-        label: "Knowledge",
-        icon: Database,
-        body: <KnowledgeOrgSection />,
-      },
-      { id: "org-policies", label: "Policies", icon: Scroll, body: <PoliciesSection /> },
-      { id: "org-treasury", label: "Treasury", icon: Wallet, body: <TreasurySection /> },
-      { id: "org-dream", label: "Dream", icon: Moon, body: <DreamSection /> },
-      {
-        id: "org-memory",
-        label: "Memory",
-        icon: Database,
-        body: <OrgMemorySection />,
-      },
-      { id: "org-audit", label: "Audit", icon: FileText, body: <AuditSection /> },
-    ],
-  },
-];
+const PERSONAL_GROUP: SettingsGroup = {
+  title: "Personal",
+  sections: [
+    { id: "account", label: "Account", icon: User, body: <AccountSection /> },
+    { id: "profile", label: "Profile", icon: UserRound, body: <ProfileSection /> },
+    { id: "memory", label: "Memory", icon: MemoryStick, body: <MemorySection /> },
+    {
+      id: "privacy",
+      label: "Privacy & Consent",
+      icon: Lock,
+      body: <PrivacyConsentSection />,
+    },
+    { id: "vault", label: "Vault", icon: VaultIcon, body: <Vault /> },
+    { id: "connectors", label: "Connectors", icon: Plug, body: <ConnectorsSection /> },
+    { id: "skills", label: "Skills", icon: Sparkles, body: <SkillsSection /> },
+    {
+      id: "personal-agents",
+      label: "Personal Agents",
+      icon: Bot,
+      body: <PersonalAgentsSection />,
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      icon: Bell,
+      body: <NotificationsSection />,
+    },
+    {
+      id: "appearance",
+      label: "Appearance",
+      icon: Palette,
+      body: <AppearanceSection />,
+    },
+    {
+      id: "security",
+      label: "Security",
+      icon: ShieldCheck,
+      body: <SecuritySection />,
+    },
+  ],
+};
+
+const ORG_GROUP: SettingsGroup = {
+  title: "Organization",
+  sections: [
+    { id: "org-general", label: "General", icon: Building2, body: <GeneralOrgSection /> },
+    { id: "org-people", label: "People", icon: Users, body: <PeopleOrgSection /> },
+    { id: "org-roles", label: "Roles", icon: UserCog, body: <RolesOrgSection /> },
+    {
+      id: "org-chart",
+      label: "OrganicChart",
+      icon: Network,
+      body: <OrganicChartSection />,
+    },
+    { id: "org-agents", label: "Agents", icon: Bot, body: <OrgAgentsSection /> },
+    { id: "org-apps", label: "Apps", icon: AppWindow, body: <AppsOrgSection /> },
+    {
+      id: "org-channels",
+      label: "Channels",
+      icon: MessageSquare,
+      body: <ChannelsOrgSection />,
+    },
+    {
+      id: "org-shared-skills",
+      label: "Shared Skills",
+      icon: Wand,
+      body: <SharedSkillsSection />,
+    },
+    {
+      id: "org-capabilities",
+      label: "Capabilities",
+      icon: Zap,
+      body: <CapabilitiesOrgSection />,
+    },
+    {
+      id: "org-knowledge",
+      label: "Knowledge",
+      icon: Database,
+      body: <KnowledgeOrgSection />,
+    },
+    { id: "org-policies", label: "Policies", icon: Scroll, body: <PoliciesSection /> },
+    { id: "org-treasury", label: "Treasury", icon: Wallet, body: <TreasurySection /> },
+    { id: "org-dream", label: "Dream", icon: Moon, body: <DreamSection /> },
+    {
+      id: "org-memory",
+      label: "Memory",
+      icon: Database,
+      body: <OrgMemorySection />,
+    },
+    { id: "org-audit", label: "Audit", icon: FileText, body: <AuditSection /> },
+  ],
+};
+
+const WORKSPACE_GROUP: SettingsGroup = {
+  title: "Workspace",
+  sections: [
+    {
+      id: "ws-settings",
+      label: "Workspace settings",
+      icon: Layers,
+      body: <WorkspaceSettingsSection />,
+    },
+  ],
+};
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const { isOrg } = useActiveOrg();
+
+  const groups = useMemo<SettingsGroup[]>(() => {
+    const result: SettingsGroup[] = [PERSONAL_GROUP];
+    if (isOrg) result.push(WORKSPACE_GROUP);
+    if (user?.isSuperAdmin) result.push(ORG_GROUP);
+    return result;
+  }, [user?.isSuperAdmin, isOrg]);
+
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-3">
@@ -170,7 +196,7 @@ export default function SettingsPage() {
         <span className="font-display text-sm font-semibold">Settings</span>
       </header>
       <div className="min-h-0 flex-1">
-        <SettingsLayout groups={GROUPS} />
+        <SettingsLayout groups={groups} />
       </div>
     </div>
   );

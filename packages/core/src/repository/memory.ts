@@ -228,12 +228,22 @@ export function createMemoryRepository(): JamotRepository {
       return [...spaces.values()];
     },
 
+    async updateSpace(id, patch) {
+      const existing = spaces.get(id);
+      if (!existing) return null;
+      const updated = Space.parse({ ...existing, ...patch, updatedAt: now() });
+      spaces.set(id, updated);
+      return updated;
+    },
+
     async createOrganization(input: NewOrganization) {
       const organization = Organization.parse({
         id: uuid(),
         createdAt: now(),
         updatedAt: now(),
         spaceId: input.spaceId,
+        slug: input.slug ?? null,
+        logoUrl: input.logoUrl ?? null,
         dream: input.dream ?? "",
         blueprint: input.blueprint ?? {},
         enabledAppIds: input.enabledAppIds ?? [],
@@ -246,6 +256,13 @@ export function createMemoryRepository(): JamotRepository {
 
     async getOrganization(id) {
       return organizations.get(id) ?? null;
+    },
+
+    async getOrganizationBySlug(slug) {
+      for (const organization of organizations.values()) {
+        if (organization.slug === slug) return organization;
+      }
+      return null;
     },
 
     async listOrganizations() {
@@ -268,6 +285,7 @@ export function createMemoryRepository(): JamotRepository {
         organizationId: input.organizationId,
         spaceId: input.spaceId,
         name: input.name,
+        config: input.config ?? {},
       });
       workspaces.set(workspace.id, workspace);
       return workspace;
@@ -283,8 +301,103 @@ export function createMemoryRepository(): JamotRepository {
       );
     },
 
+    async updateWorkspace(id, patch) {
+      const existing = workspaces.get(id);
+      if (!existing) return null;
+      const updated = Workspace.parse({ ...existing, ...patch, updatedAt: now() });
+      workspaces.set(id, updated);
+      return updated;
+    },
+
     async deleteWorkspace(id) {
       workspaces.delete(id);
+    },
+
+    async deleteOrganizationCascade(id) {
+      const org = organizations.get(id);
+      if (!org) return;
+      const spaceIds = new Set<Id>([org.spaceId]);
+      for (const ws of workspaces.values()) {
+        if (ws.organizationId === id) spaceIds.add(ws.spaceId);
+      }
+      for (const spaceId of spaceIds) {
+        for (const [roleId, role] of roles) {
+          if (role.spaceId === spaceId) roles.delete(roleId);
+        }
+        for (const [taskId, task] of tasks) {
+          if (task.spaceId === spaceId) tasks.delete(taskId);
+        }
+        for (const [listId, list] of taskLists) {
+          if (list.spaceId === spaceId) taskLists.delete(listId);
+        }
+        for (const [capId, cap] of capabilities) {
+          if (cap.spaceId === spaceId) capabilities.delete(capId);
+        }
+        for (const [polId, pol] of policies) {
+          if (pol.spaceId === spaceId) policies.delete(polId);
+        }
+        for (const [prodId, prod] of productStore) {
+          if (prod.spaceId === spaceId) productStore.delete(prodId);
+        }
+        for (const [offerId, offer] of catalogOfferStore) {
+          if (offer.spaceId === spaceId) catalogOfferStore.delete(offerId);
+        }
+        for (const [qrId, qr] of quoteRequestStore) {
+          if (qr.spaceId === spaceId) quoteRequestStore.delete(qrId);
+        }
+        for (const [quoteId, quote] of quoteStore) {
+          if (quote.spaceId === spaceId) quoteStore.delete(quoteId);
+        }
+        for (const [poId, po] of purchaseOrderStore) {
+          if (po.spaceId === spaceId) purchaseOrderStore.delete(poId);
+        }
+        for (const [piId, pi] of paymentIntentStore) {
+          if (pi.spaceId === spaceId) paymentIntentStore.delete(piId);
+        }
+        for (const [prId, pr] of paymentRecordStore) {
+          if (pr.spaceId === spaceId) paymentRecordStore.delete(prId);
+        }
+        for (const [attId, att] of taskAttachments) {
+          const task = [...tasks.values()].find((t) => t.id === att.taskId);
+          if (!task || task.spaceId === spaceId) taskAttachments.delete(attId);
+        }
+        for (const person of people.values()) {
+          if ((person.membershipSpaceIds ?? []).includes(spaceId)) {
+            person.membershipSpaceIds = (person.membershipSpaceIds ?? []).filter(
+              (sid) => sid !== spaceId,
+            );
+          }
+        }
+        spaces.delete(spaceId);
+      }
+      for (const [skillId, skill] of skills) {
+        if (skill.ownerOrganizationId === id) skills.delete(skillId);
+      }
+      for (const [connId, conn] of connectors) {
+        if (conn.ownerOrganizationId === id) connectors.delete(connId);
+      }
+      for (const [secId, sec] of secrets) {
+        if (sec.ownerOrganizationId === id) secrets.delete(secId);
+      }
+      for (const [supId, sup] of supplierStore) {
+        if (sup.organizationId === id) supplierStore.delete(supId);
+      }
+      for (const [catId, cat] of catalogStore) {
+        if (cat.ownerOrganizationId === id) catalogStore.delete(catId);
+      }
+      for (const [agId, ag] of buyerAgreementStore) {
+        if (ag.buyerOrganizationId === id) buyerAgreementStore.delete(agId);
+      }
+      for (const [agentId, agent] of agents) {
+        agent.organizationIds = (agent.organizationIds ?? []).filter(
+          (orgId) => orgId !== id,
+        );
+        if (agent.organizationIds.length === 0) agents.delete(agentId);
+      }
+      for (const ws of [...workspaces.values()]) {
+        if (ws.organizationId === id) workspaces.delete(ws.id);
+      }
+      organizations.delete(id);
     },
 
     async createRole(input: NewRole) {

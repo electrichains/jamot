@@ -13,3 +13,5 @@ coverage/
 .idea/
 *.tsbuildinfo
 opencode.json
+# Self-hosted uploads (org logos) written by the API
+uploads/
