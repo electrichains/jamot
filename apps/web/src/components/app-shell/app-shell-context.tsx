@@ -44,7 +44,7 @@ export interface Space {
 export const PERSONAL_SPACE: Space = {
   id: "personal",
   name: "Personal Space",
-  accent: "#7c3aed",
+  accent: "#e11d48",
   accentForeground: "#ffffff",
   kind: "personal",
 };
@@ -52,14 +52,14 @@ export const PERSONAL_SPACE: Space = {
 export const SPACES: Space[] = [PERSONAL_SPACE];
 
 const ORG_ACCENTS: { accent: string; accentForeground: string }[] = [
+  { accent: "#e11d48", accentForeground: "#ffffff" },
   { accent: "#0ea5e9", accentForeground: "#ffffff" },
   { accent: "#10b981", accentForeground: "#022c22" },
   { accent: "#f59e0b", accentForeground: "#1c1917" },
-  { accent: "#ec4899", accentForeground: "#ffffff" },
   { accent: "#8b5cf6", accentForeground: "#ffffff" },
-  { accent: "#f43f5e", accentForeground: "#ffffff" },
+  { accent: "#ec4899", accentForeground: "#ffffff" },
   { accent: "#14b8a6", accentForeground: "#042f2e" },
-  { accent: "#6366f1", accentForeground: "#ffffff" },
+  { accent: "#f43f5e", accentForeground: "#ffffff" },
 ];
 
 export type SectionId =
@@ -112,7 +112,7 @@ interface AppShellState {
 
 const AppShellContext = createContext<AppShellState | null>(null);
 
-export const DEFAULT_LEFT_SIZE = 240;
+export const DEFAULT_LEFT_SIZE = 200;
 export const DEFAULT_RIGHT_SIZE = 320;
 export const DEFAULT_SECTION_WIDTH = 640;
 

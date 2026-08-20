@@ -218,18 +218,18 @@ export const MentionTextarea = forwardRef<
       />
 
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-2 w-64 overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
+        <div className="glass-card glass-border absolute bottom-full left-0 z-50 mb-2 w-72 overflow-hidden rounded-2xl shadow-2xl">
           {loading && filtered.length === 0 ? (
-            <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" />
               Loading people…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-muted-foreground">
+            <div className="px-3 py-2 text-xs text-muted-foreground">
               No people or agents found
             </div>
           ) : (
-            <ul className="max-h-64 overflow-y-auto py-1">
+            <ul className="max-h-64 overflow-y-auto p-1">
               {filtered.map((actor, i) => (
                 <li key={actor.id}>
                   <button
@@ -238,17 +238,17 @@ export const MentionTextarea = forwardRef<
                     onClick={() => selectActor(actor)}
                     onMouseEnter={() => setActiveIndex(i)}
                     className={cn(
-                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm",
-                      i === activeIndex ? "bg-accent text-accent-foreground" : "text-foreground",
+                      "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-xs transition-colors",
+                      i === activeIndex ? "bg-space-accent/10 text-space-accent font-medium" : "text-foreground hover:bg-muted/70",
                     )}
                   >
                     {actor.type === "agent" ? (
-                      <Bot className="size-4 shrink-0 text-muted-foreground" />
+                      <Bot className="size-3.5 shrink-0 text-space-accent/80" />
                     ) : (
-                      <User className="size-4 shrink-0 text-muted-foreground" />
+                      <User className="size-3.5 shrink-0 text-muted-foreground" />
                     )}
                     <span className="truncate">{actor.displayName}</span>
-                    <span className="ml-auto shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
                       {actor.type === "agent" ? "Agent" : "Person"}
                     </span>
                   </button>
