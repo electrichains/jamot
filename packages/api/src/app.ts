@@ -60,7 +60,6 @@ import suppliersRoutes from "./routes/suppliers.js";
 import catalogRoutes from "./routes/catalog.js";
 import procurementRoutes from "./routes/procurement.js";
 import paymentsRoutes from "./routes/payments.js";
-import outreachRoutes from "./routes/outreach.js";
 
 export interface SecretStoreLike {
   encrypt(plaintext: string): string;
@@ -220,7 +219,6 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(catalogRoutes, { prefix: "/api", commerce });
   await app.register(procurementRoutes, { prefix: "/api", commerce });
   await app.register(paymentsRoutes, { prefix: "/api", payments });
-  await app.register(outreachRoutes, { prefix: "/api", repository: opts.repository });
 
   return app;
 }
