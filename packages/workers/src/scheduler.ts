@@ -3,6 +3,7 @@ import { createDb, getDatabaseUrl } from "@jamot/core";
 import { createPgRepository } from "@jamot/core/repository/pg";
 import {
   createScheduler,
+  createOutreachProcessor,
   isHeartbeatDue,
   withAdvisoryLock,
   DEFAULT_HEARTBEAT_ACTIONS,
@@ -20,6 +21,18 @@ export async function startSchedulerWorker(
   const dbHandle = createDb(databaseUrl);
   const repo = createPgRepository(dbHandle);
   const scheduler = createScheduler();
+  const outreach = createOutreachProcessor(repo);
+
+  scheduler.register({
+    id: "outreach",
+    cron: "* * * * *",
+    async run() {
+      const result = await outreach.processDue(new Date());
+      if (result.created > 0 || result.skipped > 0) {
+        console.log("[outreach]", result);
+      }
+    },
+  });
 
   scheduler.register({
     id: "heartbeats",
