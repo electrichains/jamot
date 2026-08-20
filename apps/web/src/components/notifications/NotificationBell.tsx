@@ -67,15 +67,15 @@ export function NotificationBell() {
       <AnimatePresence>
         {open ? (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            initial={{ opacity: 0, y: -6, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.18 }}
-            className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-2xl"
+            exit={{ opacity: 0, y: -6, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 400, damping: 28 }}
+            className="glass-card glass-border absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-3xl shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
-              <h3 className="font-display text-sm font-semibold">For you</h3>
-              <span className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between border-b border-border/40 px-4 py-2.5">
+              <h3 className="font-display text-xs font-semibold tracking-wide uppercase">Notifications</h3>
+              <span className="text-[11px] text-muted-foreground">
                 {unread > 0 ? `${unread} unread` : "All caught up"}
               </span>
             </div>
@@ -90,19 +90,19 @@ export function NotificationBell() {
                       type="button"
                       onClick={() => markRead(item.id)}
                       className={cn(
-                        "flex w-full items-start gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-muted",
-                        !item.read && "bg-muted/50",
+                        "flex w-full items-start gap-2.5 rounded-2xl px-2.5 py-2 text-left transition-colors hover:bg-muted/70",
+                        !item.read && "bg-muted/40",
                       )}
                     >
                       <Icon className={cn("mt-0.5 size-4 shrink-0", meta.className)} />
                       <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium">{item.title}</span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate text-xs font-medium">{item.title}</span>
                           {!item.read ? (
                             <span className="size-1.5 shrink-0 rounded-full bg-space-accent" />
                           ) : null}
                         </span>
-                        <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+                        <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
                           {item.summary}
                         </span>
                       </span>
@@ -112,12 +112,12 @@ export function NotificationBell() {
               })}
             </ul>
 
-            <div className="border-t border-border p-1.5">
+            <div className="border-t border-border/40 p-1.5">
               <button
                 type="button"
                 onClick={markAllRead}
                 disabled={unread === 0}
-                className="flex w-full items-center justify-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
               >
                 <CheckCheck className="size-3.5" />
                 Mark all read

@@ -23,7 +23,6 @@ import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { LeftSidebar } from "./LeftSidebar";
 import { MainWorkspace } from "./MainWorkspace";
 import { AppDock } from "./AppDock";
-import { AppRail } from "./AppRail";
 import { useBreakpoint } from "./use-breakpoint";
 
 const LAYOUT_KEY = "jamot:shell:layout";
@@ -48,7 +47,7 @@ function AppShellInner() {
     <>
       <div
         style={style}
-        className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground"
+        className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground selection:bg-space-accent/20 selection:text-space-accent"
       >
         {breakpoint === "desktop" ? <DesktopShell /> : null}
         {breakpoint === "tablet" ? <TabletShell /> : null}
@@ -69,7 +68,7 @@ function DesktopShell() {
     try {
       return window.localStorage.getItem(LEFT_KEY) === "1";
     } catch {
-      return true;
+      return false;
     }
   });
   const [dockCollapsed, setDockCollapsed] = useState(true);
@@ -169,128 +168,120 @@ function DesktopShell() {
   return (
     <>
       <Group id="jamot-shell" orientation="horizontal" className="h-full w-full">
-      <Panel
-        id="left"
-        defaultSize={DEFAULT_LEFT_SIZE}
-        minSize={0}
-        maxSize={360}
-        collapsible
-        collapsedSize={0}
-        panelRef={leftRef}
-        onResize={handleLeftResize}
-        className="h-full"
-      >
-        <LeftSidebar />
-      </Panel>
-
-      <Separator
-        id="sep-left"
-        className="w-px bg-border transition-colors hover:bg-ring data-[separator=active]:bg-ring"
-      />
-
-      <Panel
-        id="main"
-        minSize={0}
-        collapsible
-        collapsedSize={0}
-        panelRef={mainRef}
-        onResize={handleMainResize}
-        className="h-full"
-      >
-        {chatCompact ? null : (
-          <MainWorkspace
-            onToggleLeft={toggleLeft}
-            leftOpen={!leftCollapsed}
-            onToggleDock={toggleDock}
-            dockOpen={!dockCollapsed}
-          />
-        )}
-      </Panel>
-
-      <Panel
-        id="rail"
-        minSize={48}
-        maxSize={48}
-        defaultSize={48}
-        className="h-full"
-      >
-        <AppRail />
-      </Panel>
-
-      <Separator
-        id="sep-right"
-        className="w-px bg-border transition-colors hover:bg-ring data-[separator=active]:bg-ring"
-      />
-
-      <Panel
-        id="right"
-        defaultSize={DEFAULT_RIGHT_SIZE}
-        minSize={0}
-        maxSize={2000}
-        collapsible
-        collapsedSize={0}
-        panelRef={rightRef}
-        onResize={handleRightResize}
-        className="h-full"
-      >
-        <AppDock />
-      </Panel>
-    </Group>
-
-    <AnimatePresence>
-      {chatCompact ? (
-        <motion.div
-          key="chat-bubble"
-          initial={{ opacity: 0, y: 16, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 16, scale: 0.9 }}
-          transition={{ duration: 0.18 }}
-          className="fixed bottom-5 right-5 z-50"
+        <Panel
+          id="left"
+          defaultSize={DEFAULT_LEFT_SIZE}
+          minSize={0}
+          maxSize={320}
+          collapsible
+          collapsedSize={0}
+          panelRef={leftRef}
+          onResize={handleLeftResize}
+          className="h-full"
         >
-          <Button
-            size="icon"
-            className="size-12 rounded-full shadow-lg"
-            aria-label={chatPopupOpen ? "Close chat" : "Open chat"}
-            onClick={() => setChatPopupOpen((value) => !value)}
+          <LeftSidebar />
+        </Panel>
+
+        <Separator
+          id="sep-left"
+          className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
+        />
+
+        <Panel
+          id="main"
+          minSize={0}
+          collapsible
+          collapsedSize={0}
+          panelRef={mainRef}
+          onResize={handleMainResize}
+          className="h-full"
+        >
+          {chatCompact ? null : (
+            <MainWorkspace
+              onToggleLeft={toggleLeft}
+              leftOpen={!leftCollapsed}
+              onToggleDock={toggleDock}
+              dockOpen={!dockCollapsed}
+            />
+          )}
+        </Panel>
+
+        <Separator
+          id="sep-right"
+          className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
+        />
+
+        <Panel
+          id="right"
+          defaultSize={DEFAULT_RIGHT_SIZE}
+          minSize={0}
+          maxSize={2000}
+          collapsible
+          collapsedSize={0}
+          panelRef={rightRef}
+          onResize={handleRightResize}
+          className="h-full"
+        >
+          <AppDock />
+        </Panel>
+      </Group>
+
+      <AnimatePresence>
+        {chatCompact ? (
+          <motion.div
+            key="chat-bubble"
+            initial={{ opacity: 0, y: 16, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className="fixed bottom-5 right-5 z-50"
           >
-            {chatPopupOpen ? (
-              <X className="size-5" />
-            ) : (
-              <MessageCircle className="size-5" />
-            )}
-          </Button>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
-
-    <AnimatePresence>
-      {chatCompact && chatPopupOpen ? (
-        <motion.div
-          key="chat-popup"
-          initial={{ opacity: 0, y: 24, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 24, scale: 0.96 }}
-          transition={{ duration: 0.2 }}
-          className="fixed bottom-24 right-5 z-50 flex h-[520px] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
-        >
-          <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
-            <span className="text-sm font-medium">Chat</span>
             <Button
-              variant="ghost"
               size="icon"
-              className="size-7"
-              aria-label="Minimize chat"
-              onClick={() => setChatPopupOpen(false)}
+              className="size-12 rounded-full bg-space-accent text-space-accent-foreground shadow-xl shadow-space-accent/25 hover:opacity-95"
+              aria-label={chatPopupOpen ? "Close chat" : "Open chat"}
+              onClick={() => setChatPopupOpen((value) => !value)}
             >
-              <ChevronDown className="size-4" />
+              {chatPopupOpen ? (
+                <X className="size-5" />
+              ) : (
+                <MessageCircle className="size-5" />
+              )}
             </Button>
-          </div>
-          <div className="min-h-0 flex-1">
-            <ChatWorkspace />
-          </div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {chatCompact && chatPopupOpen ? (
+          <motion.div
+            key="chat-popup"
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="glass-card glass-border fixed bottom-24 right-5 z-50 flex h-[520px] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-3xl shadow-2xl"
+          >
+            <div className="flex h-11 shrink-0 items-center justify-between border-b border-border/40 px-4">
+              <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Assistant
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 rounded-lg"
+                aria-label="Minimize chat"
+                onClick={() => setChatPopupOpen(false)}
+              >
+                <ChevronDown className="size-4" />
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ChatWorkspace />
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </>
   );
 }
@@ -300,7 +291,7 @@ function TabletShell() {
 
   return (
     <div className="flex h-full w-full">
-      <div className="w-60 shrink-0">
+      <div className="w-56 shrink-0 border-r border-border/40">
         <LeftSidebar />
       </div>
       <div className="relative flex-1 overflow-hidden">
@@ -312,18 +303,18 @@ function TabletShell() {
           {dockOpen ? (
             <>
               <motion.div
-                className="absolute inset-0 z-20 bg-black/30"
+                className="absolute inset-0 z-20 bg-black/20 backdrop-blur-xs"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setDockOpen(false)}
               />
               <motion.div
-                className="absolute inset-y-0 right-0 z-30 w-80 max-w-[85vw]"
+                className="glass-card absolute inset-y-0 right-0 z-30 w-84 max-w-[85vw] rounded-l-3xl shadow-2xl"
                 initial={{ x: "100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}
-                transition={{ type: "tween", duration: 0.2 }}
+                transition={{ type: "spring", stiffness: 350, damping: 30 }}
               >
                 <AppDock />
               </motion.div>
@@ -346,11 +337,11 @@ function MobileShell() {
         <MainWorkspace />
       </div>
 
-      <nav className="flex shrink-0 items-center gap-1 border-t border-border bg-sidebar px-2 py-2">
+      <nav className="glass border-t border-border/40 flex shrink-0 items-center gap-1 px-3 py-2">
         <Button
           variant="ghost"
           size="sm"
-          className="flex-1"
+          className="flex-1 rounded-xl text-xs font-medium"
           onClick={() => setSheet((value) => (value === "nav" ? null : "nav"))}
         >
           <House className="size-4" />
@@ -361,7 +352,7 @@ function MobileShell() {
             key={section}
             variant="ghost"
             size="sm"
-            className="flex-1"
+            className="flex-1 rounded-xl text-xs font-medium"
             onClick={() => setSheet((value) => (value === section ? null : section))}
           >
             {section}
@@ -375,25 +366,25 @@ function MobileShell() {
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
-            transition={{ type: "tween", duration: 0.2 }}
-            className="shrink-0 border-t border-border bg-card p-4"
+            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+            className="glass-card fixed inset-x-0 bottom-0 z-50 shrink-0 rounded-t-3xl border-t border-border/40 p-5 shadow-2xl"
           >
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
               <h3 className="font-display text-base font-semibold">
                 {sheet === "nav" ? "Navigation" : sheet}
               </h3>
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7"
+                className="size-7 rounded-lg"
                 aria-label="Close"
                 onClick={() => setSheet(null)}
               >
                 <X className="size-4" />
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground">
-              This panel will appear in a later phase.
+            <p className="text-xs text-muted-foreground">
+              Press ⌘K to quickly search and switch between all sections.
             </p>
           </motion.div>
         ) : null}

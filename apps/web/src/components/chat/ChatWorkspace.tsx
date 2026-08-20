@@ -13,18 +13,18 @@ import { MentionTextarea } from "./MentionTextarea";
 
 function Hint() {
   return (
-    <div className="flex shrink-0 items-center justify-center gap-2 px-6 py-2 text-xs text-muted-foreground">
-      <span className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1">
-        <Plus className="size-3" />
-        <Paperclip className="size-3" />
+    <div className="flex shrink-0 items-center justify-center gap-2 px-6 py-2.5 text-xs text-muted-foreground">
+      <span className="glass-border inline-flex items-center gap-1.5 rounded-full bg-card/60 px-3 py-1 text-[11px] backdrop-blur-xs shadow-2xs">
+        <Plus className="size-3 text-space-accent" />
+        <Paperclip className="size-3 text-muted-foreground" />
         Attach
       </span>
-      <span className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1">
-        <AtSign className="size-3" />
+      <span className="glass-border inline-flex items-center gap-1.5 rounded-full bg-card/60 px-3 py-1 text-[11px] backdrop-blur-xs shadow-2xs">
+        <AtSign className="size-3 text-space-accent" />
         Person
       </span>
-      <span className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1">
-        <AtSign className="size-3" />
+      <span className="glass-border inline-flex items-center gap-1.5 rounded-full bg-card/60 px-3 py-1 text-[11px] backdrop-blur-xs shadow-2xs">
+        <AtSign className="size-3 text-space-accent" />
         Agent
       </span>
     </div>

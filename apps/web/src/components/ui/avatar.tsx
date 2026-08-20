@@ -29,7 +29,7 @@ const Avatar = React.forwardRef<HTMLSpanElement, AvatarProps>(
       <span
         ref={ref}
         className={cn(
-          "inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-muted font-medium text-muted-foreground",
+          "inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-space-accent/10 font-semibold text-space-accent shadow-2xs",
           avatarSizes[size],
           className,
         )}
