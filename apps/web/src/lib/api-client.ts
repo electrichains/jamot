@@ -408,6 +408,39 @@ export async function getAgentActivity(id: string): Promise<ApiEvent[]> {
   return data.items;
 }
 
+export interface ApiNotification {
+  id: string;
+  type: string;
+  title: string;
+  summary: string;
+  read: boolean;
+  createdAt?: string;
+}
+
+export async function listNotifications(
+  spaceId?: string,
+): Promise<ApiNotification[]> {
+  const query = spaceId
+    ? `?spaceId=${encodeURIComponent(spaceId)}`
+    : "";
+  const data = await api<{ items: ApiNotification[] }>(
+    `/api/notifications${query}`,
+  );
+  return data.items;
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await api(`/api/notifications/${encodeURIComponent(id)}/read`, {
+    method: "PUT",
+  });
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await api(`/api/notifications/read-all`, {
+    method: "PUT",
+  });
+}
+
 export async function listAgentRelationships(
   id: string,
 ): Promise<ApiAgentRelationship[]> {

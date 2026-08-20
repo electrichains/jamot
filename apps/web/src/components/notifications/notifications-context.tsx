@@ -4,10 +4,20 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+
+import { useAppShell } from "@/components/app-shell/app-shell-context";
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type ApiNotification,
+} from "@/lib/api-client";
 
 export type NotificationType =
   | "approval"
@@ -27,11 +37,22 @@ export interface NotificationItem {
 interface NotificationsState {
   items: NotificationItem[];
   unread: number;
+  loading: boolean;
   markRead: (id: string) => void;
   markAllRead: () => void;
 }
 
 const NotificationsContext = createContext<NotificationsState | null>(null);
+
+const KNOWN_TYPES: NotificationType[] = [
+  "approval",
+  "completed",
+  "warning",
+  "opportunity",
+  "proposal",
+];
+
+const POLL_INTERVAL_MS = 30_000;
 
 const SEED: NotificationItem[] = [
   {
@@ -71,25 +92,71 @@ const SEED: NotificationItem[] = [
   },
 ];
 
+function toItem(api: ApiNotification): NotificationItem {
+  const type = KNOWN_TYPES.includes(api.type as NotificationType)
+    ? (api.type as NotificationType)
+    : "completed";
+  return {
+    id: api.id,
+    type,
+    title: api.title,
+    summary: api.summary,
+    read: api.read,
+  };
+}
+
 export function NotificationsProvider({ children }: { children: ReactNode }) {
+  const { space } = useAppShell();
+  const spaceId =
+    space.kind === "organization" ? (space.spaceId ?? null) : null;
   const [items, setItems] = useState<NotificationItem[]>(SEED);
+  const [loading, setLoading] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const refresh = useCallback(async () => {
+    try {
+      const apiItems = await listNotifications(spaceId ?? undefined);
+      if (!mountedRef.current) return;
+      setItems(apiItems.map(toItem));
+    } catch {
+      // Backend notifications are not reachable yet — keep the current items.
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }, [spaceId]);
+
+  useEffect(() => {
+    setLoading(true);
+    void refresh();
+    const timer = setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [refresh]);
 
   const markRead = useCallback((id: string) => {
     setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, read: true } : item)),
+      current.map((item) =>
+        item.id === id ? { ...item, read: true } : item,
+      ),
     );
+    void markNotificationRead(id).catch(() => {});
   }, []);
 
   const markAllRead = useCallback(() => {
-    setItems((current) =>
-      current.map((item) => ({ ...item, read: true })),
-    );
+    setItems((current) => current.map((item) => ({ ...item, read: true })));
+    void markAllNotificationsRead().catch(() => {});
   }, []);
 
   const value = useMemo<NotificationsState>(() => {
     const unread = items.filter((item) => !item.read).length;
-    return { items, unread, markRead, markAllRead };
-  }, [items, markRead, markAllRead]);
+    return { items, unread, loading, markRead, markAllRead };
+  }, [items, loading, markRead, markAllRead]);
 
   return (
     <NotificationsContext.Provider value={value}>

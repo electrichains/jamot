@@ -9,7 +9,7 @@ import {
   type PanelSize,
 } from "react-resizable-panels";
 import { AnimatePresence, motion } from "framer-motion";
-import { House, X } from "lucide-react";
+import { ChevronDown, House, MessageCircle, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/command-palette";
@@ -19,6 +19,7 @@ import {
   DEFAULT_SECTION_WIDTH,
   useAppShell,
 } from "./app-shell-context";
+import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { LeftSidebar } from "./LeftSidebar";
 import { MainWorkspace } from "./MainWorkspace";
 import { AppDock } from "./AppDock";
@@ -27,6 +28,8 @@ import { useBreakpoint } from "./use-breakpoint";
 
 const LAYOUT_KEY = "jamot:shell:layout";
 const LEFT_KEY = "jamot:left-collapsed";
+/** When the center (chat) panel is narrower than this, collapse it into a floating bubble. */
+const CHAT_COMPACT_WIDTH = 340;
 
 export function AppShell() {
   return <AppShellInner />;
@@ -60,6 +63,7 @@ function DesktopShell() {
   const { setLeftSize, setRightSize, activeSection } = useAppShell();
   const leftRef = usePanelRef();
   const rightRef = usePanelRef();
+  const mainRef = usePanelRef();
   const restoredRef = useRef(false);
   const [leftCollapsed, setLeftCollapsed] = useState(() => {
     try {
@@ -69,6 +73,8 @@ function DesktopShell() {
     }
   });
   const [dockCollapsed, setDockCollapsed] = useState(true);
+  const [chatCompact, setChatCompact] = useState(false);
+  const [chatPopupOpen, setChatPopupOpen] = useState(false);
 
   useEffect(() => {
     if (!rightRef.current) return;
@@ -142,6 +148,10 @@ function DesktopShell() {
     persistSize("right", size.inPixels);
   };
 
+  const handleMainResize = (size: PanelSize) => {
+    setChatCompact(size.inPixels < CHAT_COMPACT_WIDTH);
+  };
+
   const toggleLeft = () => {
     const panel = leftRef.current;
     if (!panel) return;
@@ -157,7 +167,8 @@ function DesktopShell() {
   };
 
   return (
-    <Group id="jamot-shell" orientation="horizontal" className="h-full w-full">
+    <>
+      <Group id="jamot-shell" orientation="horizontal" className="h-full w-full">
       <Panel
         id="left"
         defaultSize={DEFAULT_LEFT_SIZE}
@@ -177,13 +188,23 @@ function DesktopShell() {
         className="w-px bg-border transition-colors hover:bg-ring data-[separator=active]:bg-ring"
       />
 
-      <Panel id="main" minSize={280} className="h-full">
-        <MainWorkspace
-          onToggleLeft={toggleLeft}
-          leftOpen={!leftCollapsed}
-          onToggleDock={toggleDock}
-          dockOpen={!dockCollapsed}
-        />
+      <Panel
+        id="main"
+        minSize={0}
+        collapsible
+        collapsedSize={0}
+        panelRef={mainRef}
+        onResize={handleMainResize}
+        className="h-full"
+      >
+        {chatCompact ? null : (
+          <MainWorkspace
+            onToggleLeft={toggleLeft}
+            leftOpen={!leftCollapsed}
+            onToggleDock={toggleDock}
+            dockOpen={!dockCollapsed}
+          />
+        )}
       </Panel>
 
       <Panel
@@ -205,7 +226,7 @@ function DesktopShell() {
         id="right"
         defaultSize={DEFAULT_RIGHT_SIZE}
         minSize={0}
-        maxSize={700}
+        maxSize={2000}
         collapsible
         collapsedSize={0}
         panelRef={rightRef}
@@ -215,6 +236,62 @@ function DesktopShell() {
         <AppDock />
       </Panel>
     </Group>
+
+    <AnimatePresence>
+      {chatCompact ? (
+        <motion.div
+          key="chat-bubble"
+          initial={{ opacity: 0, y: 16, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 16, scale: 0.9 }}
+          transition={{ duration: 0.18 }}
+          className="fixed bottom-5 right-5 z-50"
+        >
+          <Button
+            size="icon"
+            className="size-12 rounded-full shadow-lg"
+            aria-label={chatPopupOpen ? "Close chat" : "Open chat"}
+            onClick={() => setChatPopupOpen((value) => !value)}
+          >
+            {chatPopupOpen ? (
+              <X className="size-5" />
+            ) : (
+              <MessageCircle className="size-5" />
+            )}
+          </Button>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+
+    <AnimatePresence>
+      {chatCompact && chatPopupOpen ? (
+        <motion.div
+          key="chat-popup"
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 24, scale: 0.96 }}
+          transition={{ duration: 0.2 }}
+          className="fixed bottom-24 right-5 z-50 flex h-[520px] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        >
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
+            <span className="text-sm font-medium">Chat</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              aria-label="Minimize chat"
+              onClick={() => setChatPopupOpen(false)}
+            >
+              <ChevronDown className="size-4" />
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <ChatWorkspace />
+          </div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+    </>
   );
 }
 
