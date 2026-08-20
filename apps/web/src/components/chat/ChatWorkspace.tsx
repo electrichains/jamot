@@ -8,6 +8,7 @@ import { CopilotChat, useAgentContext } from "@copilotkit/react-core/v2";
 import "@copilotkit/react-core/v2/styles.css";
 import { CommerceToolBridge } from "@/components/commerce/use-commerce-tools";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
+import { MentionTextarea } from "./MentionTextarea";
 
 function Hint() {
   return (
@@ -58,6 +59,7 @@ function ChatContent() {
         <CopilotChat
           className="h-full"
           welcomeScreen={false}
+          input={{ textArea: MentionTextarea }}
           labels={{
             chatInputPlaceholder: agentId
               ? "Message the agent…"
