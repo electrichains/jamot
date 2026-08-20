@@ -68,7 +68,7 @@ function DesktopShell() {
       return true;
     }
   });
-  const [dockCollapsed, setDockCollapsed] = useState(false);
+  const [dockCollapsed, setDockCollapsed] = useState(true);
 
   useEffect(() => {
     if (!rightRef.current) return;
@@ -92,9 +92,6 @@ function DesktopShell() {
         const saved = JSON.parse(raw) as { left?: number; right?: number };
         if (typeof saved.left === "number" && saved.left >= 1) {
           leftRef.current?.resize(saved.left);
-        }
-        if (typeof saved.right === "number" && saved.right >= 1) {
-          rightRef.current?.resize(saved.right);
         }
       }
     } catch {
