@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Layers, Pencil } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Loader2, Layers, Pencil } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { SectionHeading, Card } from "./section-primitives";
 import { ChannelsSection } from "./channels-section";
 import { ComposioConnectors } from "./composio-connectors";
@@ -16,7 +19,12 @@ import {
   SharedSkillsSection as SharedSkillsDataSection,
 } from "./org-data-sections";
 import { useActiveOrg } from "./use-active-org";
-import { getOrganizations, listWorkspaces, updateWorkspace } from "@/lib/api-client";
+import {
+  getAgents,
+  getOrganizations,
+  listWorkspaces,
+  updateWorkspace,
+} from "@/lib/api-client";
 
 function OrgStub({
   title,
@@ -58,7 +66,78 @@ export function OrganicChartSection() {
 }
 
 export function OrgAgentsSection() {
-  return <OrgStub title="Agents" description="Shared organization agents." />;
+  const { organizationId } = useActiveOrg();
+  const [agents, setAgents] = useState<Awaited<ReturnType<typeof getAgents>>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAgents()
+      .then((items) => {
+        if (cancelled) return;
+        setAgents(
+          organizationId
+            ? items.filter((agent) => agent.organizationIds.includes(organizationId))
+            : [],
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setAgents([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
+  return (
+    <div>
+      <SectionHeading
+        title="Agents"
+        description="Shared organization agents. Open one to configure it."
+      />
+      <Card className="max-w-xl">
+        {loading ? (
+          <p className="py-2 text-sm text-muted-foreground">Loading…</p>
+        ) : agents.length === 0 ? (
+          <p className="py-2 text-sm text-muted-foreground">
+            No agents deployed to this organization yet.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {agents.map((agent) => (
+              <li key={agent.id}>
+                <Link
+                  href={`/agents/${agent.id}`}
+                  className="flex items-center justify-between rounded-md border border-border px-3 py-2 transition-colors hover:bg-muted"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <span
+                      className={cn(
+                        "size-2 rounded-full",
+                        agent.availability === "available"
+                          ? "bg-emerald-500"
+                          : agent.availability === "busy"
+                            ? "bg-amber-500"
+                            : "bg-zinc-400",
+                      )}
+                    />
+                    {agent.role ?? agent.id}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Badge variant="secondary">{agent.availability}</Badge>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
 }
 
 export function ChannelsOrgSection() {

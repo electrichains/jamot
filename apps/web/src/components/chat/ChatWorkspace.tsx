@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { AtSign, Paperclip, Plus } from "lucide-react";
 
 import { CopilotChat, useAgentContext } from "@copilotkit/react-core/v2";
@@ -28,8 +29,10 @@ function Hint() {
   );
 }
 
-export function ChatWorkspace() {
+function ChatContent() {
   const { space } = useAppShell();
+  const searchParams = useSearchParams();
+  const agentId = searchParams.get("agent");
   const orgContext = useMemo(
     () => ({
       spaceId: space.spaceId ?? null,
@@ -37,8 +40,11 @@ export function ChatWorkspace() {
       workspaceId: space.workspaceId ?? null,
       spaceName: space.name,
       kind: space.kind ?? "personal",
+      ...(agentId
+        ? { agentId, agentMode: true as const, agentIdParam: agentId }
+        : {}),
     }),
-    [space.spaceId, space.organizationId, space.workspaceId, space.name, space.kind],
+    [space.spaceId, space.organizationId, space.workspaceId, space.name, space.kind, agentId],
   );
   useAgentContext({
     description: "active Jamot workspace/organization the user is operating in",
@@ -52,10 +58,22 @@ export function ChatWorkspace() {
         <CopilotChat
           className="h-full"
           welcomeScreen={false}
-          labels={{ chatInputPlaceholder: "Message Jamot…" }}
+          labels={{
+            chatInputPlaceholder: agentId
+              ? "Message the agent…"
+              : "Message Jamot…",
+          }}
         />
       </div>
       <Hint />
     </div>
+  );
+}
+
+export function ChatWorkspace() {
+  return (
+    <Suspense>
+      <ChatContent />
+    </Suspense>
   );
 }

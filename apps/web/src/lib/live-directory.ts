@@ -50,7 +50,7 @@ export function agentToAgentProfile(agent: ApiAgent): AgentProfile {
   return {
     id: agent.id,
     actorId: agent.actorId,
-    name: agent.role ?? "Agent",
+    name: agent.role ?? agent.purpose ?? "Agent",
     role: agent.role ?? "Digital worker",
     availability: agent.availability,
     autonomy: agent.autonomy,

@@ -7,7 +7,14 @@ import { createScheduler } from "./scheduler.js";
 function heartbeat(
   partial: Partial<Agent["heartbeat"]> = {},
 ): Agent["heartbeat"] {
-  return { enabled: false, cron: null, quietHours: null, ...partial };
+  return {
+    enabled: false,
+    cron: null,
+    quietHours: null,
+    check: [],
+    onAction: "ask",
+    ...partial,
+  };
 }
 
 describe("cronMatches", () => {

@@ -7,6 +7,7 @@ import {
   Catalog,
   CatalogOffer,
   Connector,
+  Event,
   Organization,
   PaymentIntent,
   PaymentRecord,
@@ -16,6 +17,7 @@ import {
   PurchaseOrder,
   Quote,
   QuoteRequest,
+  Relationship,
   Role,
   Skill,
   Space,
@@ -74,6 +76,8 @@ export function createMemoryRepository(): JamotRepository {
   const composioOAuthStates = new Map<string, ComposioOAuthStateRecord>();
   const capabilities = new Map<string, Capability>();
   const policies = new Map<string, Policy>();
+  const relationships = new Map<string, Relationship>();
+  const events: Event[] = [];
   const secrets = new Map<string, SecretRecord>();
   const supplierStore = new Map<string, Supplier>();
   const productStore = new Map<string, Product>();
@@ -183,14 +187,28 @@ export function createMemoryRepository(): JamotRepository {
         ownerId: input.ownerId,
         organizationIds: input.organizationIds ?? [],
         role: input.role ?? null,
+        purpose: input.purpose ?? null,
+        description: input.description ?? null,
         harness: input.harness,
         skillIds: input.skillIds ?? [],
         capabilityIds: input.capabilityIds ?? [],
+        connectorIds: input.connectorIds ?? [],
         permissions: input.permissions ?? [],
         autonomy: input.autonomy ?? "approve",
         budget: input.budget ?? null,
-        heartbeat: input.heartbeat ?? { enabled: false, cron: null, quietHours: null },
+        heartbeat: input.heartbeat ?? {
+          enabled: false,
+          cron: null,
+          quietHours: null,
+          check: [],
+          onAction: "ask",
+        },
         availability: input.availability ?? "offline",
+        memoryScopes: input.memoryScopes ?? [],
+        subscribedEvents: input.subscribedEvents ?? [],
+        schedules: input.schedules ?? [],
+        actionPermissions: input.actionPermissions ?? {},
+        systemPrompt: input.systemPrompt ?? null,
         performance: input.performance ?? {},
       });
       agents.set(agent.id, agent);
@@ -207,6 +225,65 @@ export function createMemoryRepository(): JamotRepository {
       return all.filter((a) =>
         a.organizationIds.includes(filter.organizationId as Id),
       );
+    },
+
+    async updateAgent(id, patch) {
+      const existing = agents.get(id);
+      if (!existing) return null;
+      const updated = Agent.parse({ ...existing, ...patch });
+      agents.set(id, updated);
+      return updated;
+    },
+
+    async deleteAgent(id) {
+      agents.delete(id);
+    },
+
+    async createRelationship(input) {
+      const relationship = Relationship.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        fromActorId: input.fromActorId,
+        toActorId: input.toActorId,
+        kind: input.kind,
+      });
+      relationships.set(relationship.id, relationship);
+      return relationship;
+    },
+
+    async listRelationshipsForActor(actorId) {
+      return [...relationships.values()].filter(
+        (r) => r.fromActorId === actorId || r.toActorId === actorId,
+      );
+    },
+
+    async deleteRelationship(id) {
+      relationships.delete(id);
+    },
+
+    async recordEvent(input) {
+      const event = Event.parse({
+        id: uuid(),
+        type: input.type,
+        spaceId: input.spaceId ?? null,
+        actorId: input.actorId ?? null,
+        idempotencyKey: uuid(),
+        payload: input.payload ?? {},
+        occurredAt: now(),
+        delivered: false,
+      });
+      events.push(event);
+      return event;
+    },
+
+    async listEvents(filter) {
+      const all = filter?.actorId
+        ? events.filter((e) => e.actorId === filter.actorId)
+        : [...events];
+      return all
+        .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+        .slice(0, filter?.limit ?? 50);
     },
 
     async createSpace(input: NewSpace) {

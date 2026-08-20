@@ -30,6 +30,12 @@ export type Event = z.infer<typeof Event>;
 export const KNOWN_EVENT_TYPES = [
   "actor.created",
   "actor.updated",
+  "agent.created",
+  "agent.updated",
+  "agent.disabled",
+  "agent.deleted",
+  "relationship.created",
+  "relationship.deleted",
   "organization.created",
   "member.joined",
   "member.left",
@@ -58,4 +64,9 @@ export const KNOWN_EVENT_TYPES = [
   "blueprint.proposed",
   "blueprint.approved",
   "blueprint.changed",
+  "lead.created",
+  "invoice.overdue",
+  "supplier.updated",
+  "project.updated",
+  "calendar.approaching",
 ] as const;

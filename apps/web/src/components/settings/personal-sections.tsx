@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -446,20 +447,29 @@ export function PersonalAgentsSection() {
         ) : (
           <ul className="flex flex-col gap-2">
             {agents.map((agent) => (
-              <li
-                key={agent.id}
-                className="flex items-center justify-between rounded-md border border-border px-3 py-2"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <span
-                    className={cn(
-                      "size-2 rounded-full",
-                      agent.availability === "available" ? "bg-emerald-500" : "bg-amber-500",
-                    )}
-                  />
-                  {agent.role ?? agent.id}
-                </span>
-                <Badge variant="secondary">{agent.availability}</Badge>
+              <li key={agent.id}>
+                <Link
+                  href={`/agents/${agent.id}`}
+                  className="flex items-center justify-between rounded-md border border-border px-3 py-2 transition-colors hover:bg-muted"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <span
+                      className={cn(
+                        "size-2 rounded-full",
+                        agent.availability === "available"
+                          ? "bg-emerald-500"
+                          : agent.availability === "busy"
+                            ? "bg-amber-500"
+                            : "bg-zinc-400",
+                      )}
+                    />
+                    {agent.role ?? agent.id}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Badge variant="secondary">{agent.availability}</Badge>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

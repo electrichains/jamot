@@ -13,6 +13,8 @@ import {
 } from "drizzle-orm/pg-core";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type {
+  ActionPermission,
+  AgentSchedule,
   ExternalIdentity,
   Harness,
   PersonProfile,
@@ -185,9 +187,15 @@ export const agents = pgTable("agents", {
     .notNull()
     .default(sql`'{}'::uuid[]`),
   role: text("role"),
+  purpose: text("purpose"),
+  description: text("description"),
   harness: jsonb("harness").$type<Harness>().notNull(),
   skillIds: uuid("skill_ids").array().notNull().default(sql`'{}'::uuid[]`),
   capabilityIds: uuid("capability_ids")
+    .array()
+    .notNull()
+    .default(sql`'{}'::uuid[]`),
+  connectorIds: uuid("connector_ids")
     .array()
     .notNull()
     .default(sql`'{}'::uuid[]`),
@@ -198,10 +206,35 @@ export const agents = pgTable("agents", {
   autonomy: autonomyEnum("autonomy").notNull().default("approve"),
   budget: numeric("budget"),
   heartbeat: jsonb("heartbeat")
-    .$type<{ enabled: boolean; cron: string | null; quietHours: string | null }>()
+    .$type<{
+      enabled: boolean;
+      cron: string | null;
+      quietHours: string | null;
+      check: string[];
+      onAction: "act" | "ask" | "notify";
+    }>()
     .notNull()
-    .default(sql`'{"enabled":false,"cron":null,"quietHours":null}'::jsonb`),
+    .default(
+      sql`'{"enabled":false,"cron":null,"quietHours":null,"check":[],"onAction":"ask"}'::jsonb`,
+    ),
+  memoryScopes: text("memory_scopes")
+    .array()
+    .notNull()
+    .default(sql`'{}'::text[]`),
+  subscribedEvents: text("subscribed_events")
+    .array()
+    .notNull()
+    .default(sql`'{}'::text[]`),
+  schedules: jsonb("schedules")
+    .$type<AgentSchedule[]>()
+    .notNull()
+    .default(sql`'[]'::jsonb`),
+  actionPermissions: jsonb("action_permissions")
+    .$type<Record<string, ActionPermission>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   availability: availabilityEnum("availability").notNull().default("offline"),
+  systemPrompt: text("system_prompt"),
   performance: jsonb("performance")
     .$type<Record<string, number>>()
     .notNull()
@@ -271,6 +304,25 @@ export const roles = pgTable(
   (table) => [
     index("roles_actor_id_idx").on(table.actorId),
     index("roles_space_id_idx").on(table.spaceId),
+  ],
+);
+
+export const relationships = pgTable(
+  "relationships",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    fromActorId: uuid("from_actor_id")
+      .notNull()
+      .references(() => actors.id, { onDelete: "cascade" }),
+    toActorId: uuid("to_actor_id")
+      .notNull()
+      .references(() => actors.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    ...timestamps(),
+  },
+  (table) => [
+    index("relationships_from_actor_idx").on(table.fromActorId),
+    index("relationships_to_actor_idx").on(table.toActorId),
   ],
 );
 
@@ -900,6 +952,7 @@ export const schema = {
   organizations,
   workspaces,
   roles,
+  relationships,
   organicCharts,
   positions,
   goals,

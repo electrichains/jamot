@@ -67,9 +67,17 @@ export function tasksRoutes(repo: JamotRepository) {
     });
 
     app.get("/tasks", { preHandler: requireAuth }, async (request, reply) => {
-      const query = request.query as { spaceId?: string; listId?: string };
-      if (query.spaceId || query.listId) {
-        const filter: { spaceId?: string; listId?: string } = {};
+      const query = request.query as {
+        spaceId?: string;
+        listId?: string;
+        assigneeActorId?: string;
+      };
+      if (query.spaceId || query.listId || query.assigneeActorId) {
+        const filter: {
+          spaceId?: string;
+          listId?: string;
+          assigneeActorId?: string;
+        } = {};
         if (query.spaceId) {
           const spaceId = parse(Id, query.spaceId, reply);
           if (!spaceId) return;
@@ -79,6 +87,11 @@ export function tasksRoutes(repo: JamotRepository) {
           const listId = parse(Id, query.listId, reply);
           if (!listId) return;
           filter.listId = listId;
+        }
+        if (query.assigneeActorId) {
+          const assigneeActorId = parse(Id, query.assigneeActorId, reply);
+          if (!assigneeActorId) return;
+          filter.assigneeActorId = assigneeActorId;
         }
         return { items: await repo.listTasks(filter) };
       }

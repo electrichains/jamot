@@ -2,7 +2,8 @@
 
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, ListChecks, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, ListChecks, Settings2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export function NodeDrawer({ node, onClose }: { node: OrgNode; onClose: () => void }) {
+  const router = useRouter();
+  const agentId = node.kind === "agent" ? node.id.split("-agent-")[1] : undefined;
+  const openAgentConfig = () => {
+    if (!agentId) return;
+    router.push(`/agents/${agentId}`);
+  };
   return (
     <>
       <motion.div
@@ -111,8 +118,16 @@ export function NodeDrawer({ node, onClose }: { node: OrgNode; onClose: () => vo
           </Section>
         </div>
 
-        <footer className="border-t border-border p-4">
-          <Button className="w-full">Assign task</Button>
+        <footer className="flex flex-col gap-2 border-t border-border p-4">
+          {agentId ? (
+            <Button className="w-full" onClick={openAgentConfig}>
+              <Settings2 className="size-4" />
+              Configure agent
+            </Button>
+          ) : null}
+          <Button variant="outline" className="w-full">
+            Assign task
+          </Button>
         </footer>
       </motion.div>
     </>

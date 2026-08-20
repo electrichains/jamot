@@ -9,5 +9,6 @@ export * from "./connector.js";
 export * from "./capability.js";
 export * from "./policy.js";
 export * from "./event.js";
+export * from "./relationship.js";
 export * from "./commerce.js";
 export * from "./payments.js";

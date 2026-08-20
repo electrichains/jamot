@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Bot, Loader2, Plus } from "lucide-react";
+import { Bot, Loader2, Plus } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import { useAppShell } from "@/components/app-shell/app-shell-context";
 import { getAgents } from "@/lib/api-client";
 import { agentToAgentProfile } from "@/lib/live-directory";
 import { cn } from "@/lib/utils";
-import { AgentProfile } from "./AgentProfile";
+import { AgentConfigurator } from "./config/agent-configurator";
 import { CreateAgent } from "./CreateAgent";
 import { AUTONOMY_LABEL, type AgentProfile as Agent } from "./agents-data";
 
@@ -121,22 +121,8 @@ function AgentsDirectory({
 }) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-
-  const reload = async () => {
-    try {
-      const items = await getAgents();
-      const visible = orgId
-        ? items.filter((agent) => agent.organizationIds.includes(orgId))
-        : items;
-      setAgents(visible.map(agentToAgentProfile));
-    } catch {
-      setAgents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,7 +148,6 @@ function AgentsDirectory({
   const search = useDirectorySearch({ kind: "agents", people: [], agents });
 
   const byId = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
-  const selected = selectedId ? (byId.get(selectedId) ?? null) : null;
 
   const visible = useMemo(() => {
     const trimmed = search.query.trim();
@@ -177,120 +162,117 @@ function AgentsDirectory({
 
   const showSearchResult = search.query.trim() !== "" && search.hasSearched;
 
+  const openAgent = (id: string) => setSelectedId(id);
+
   return (
     <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-      <DirectoryToolbar
-        placeholder="Search agents… try “reconciliation”, “quiet hours”, “telegram”"
-        query={search.query}
-        loading={search.searching}
-        onQueryChange={search.updateQuery}
-        onSubmit={search.submit}
-        onClear={search.clear}
-        actionLabel="Add an agent"
-        actionIcon={<Plus className="size-3.5" />}
-        onAction={() => setCreating(true)}
-      />
-
-      {selected ? (
-        <section className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-2xl flex-col px-6 pb-0 pt-4">
-            <button
-              type="button"
-              onClick={() => setSelectedId(null)}
-              className="flex w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" />
-              Back to directory
-            </button>
-          </div>
-          <AgentProfile agent={selected} />
-        </section>
+      {selectedId ? (
+        <AgentConfigurator
+          key={selectedId}
+          agentId={selectedId}
+          onBack={() => setSelectedId(null)}
+          onDeleted={() => setSelectedId(null)}
+        />
       ) : (
-        <section className="min-w-0 flex-1 overflow-y-auto">
-          <AnimatePresence mode="wait">
-            {showSearchResult && search.searching ? (
-              <motion.div
-                key="thinking"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="border-b border-border px-4 py-2 text-sm text-muted-foreground"
-              >
-                Asking Main Manager to interpret the matches…
-              </motion.div>
-            ) : null}
+        <>
+          <DirectoryToolbar
+            placeholder="Search agents… try “reconciliation”, “quiet hours”, “telegram”"
+            query={search.query}
+            loading={search.searching}
+            onQueryChange={search.updateQuery}
+            onSubmit={search.submit}
+            onClear={search.clear}
+            actionLabel="Add an agent"
+            actionIcon={<Plus className="size-3.5" />}
+            onAction={() => setCreating(true)}
+          />
 
-            {search.interpretation && showSearchResult ? (
-              <motion.div
-                key="interpretation"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="border-b border-border bg-muted/40 px-4 py-2 text-sm"
-              >
-                {search.interpretation}
-              </motion.div>
-            ) : null}
+          <section className="min-w-0 flex-1 overflow-y-auto">
+            <AnimatePresence mode="wait">
+              {showSearchResult && search.searching ? (
+                <motion.div
+                  key="thinking"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="border-b border-border px-4 py-2 text-sm text-muted-foreground"
+                >
+                  Asking Main Manager to interpret the matches…
+                </motion.div>
+              ) : null}
 
-            {showSearchResult && visible && visible.length === 0 ? (
-              <motion.div
-                key="empty-search"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center"
-              >
-                <Bot className="size-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  No agents match “{search.query}”.
-                </p>
-              </motion.div>
-            ) : (
-              <motion.div
-                key={showSearchResult ? search.query : "all"}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.15 }}
-                className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3"
-              >
-                {showSearchResult && visible
-                  ? visible.map(({ agent, match }) => (
-                      <AgentCard
-                        key={agent.id}
-                        agent={agent}
-                        match={match}
-                        onOpen={setSelectedId}
-                      />
-                    ))
-                  : loading ? (
-                      <EmptyList
-                        icon={Loader2}
-                        title="Loading agents…"
-                        description="Fetching agents for this space."
-                      />
-                    ) : agents.length === 0 ? (
-                      <EmptyList
-                        icon={Bot}
-                        title="No agents here yet"
-                        description={
-                          isOrganization
-                            ? "No agents are deployed to this organization yet."
-                            : "This is your personal space. Switch to an organization to see its agents."
-                        }
-                      />
-                    ) : (
-                      agents.map((agent) => (
+              {search.interpretation && showSearchResult ? (
+                <motion.div
+                  key="interpretation"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="border-b border-border bg-muted/40 px-4 py-2 text-sm"
+                >
+                  {search.interpretation}
+                </motion.div>
+              ) : null}
+
+              {showSearchResult && visible && visible.length === 0 ? (
+                <motion.div
+                  key="empty-search"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center"
+                >
+                  <Bot className="size-8 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    No agents match “{search.query}”.
+                  </p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={showSearchResult ? search.query : "all"}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 xl:grid-cols-3"
+                >
+                  {showSearchResult && visible
+                    ? visible.map(({ agent, match }) => (
                         <AgentCard
                           key={agent.id}
                           agent={agent}
-                          onOpen={setSelectedId}
+                          match={match}
+                          onOpen={openAgent}
                         />
                       ))
-                    )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
+                    : loading ? (
+                        <EmptyList
+                          icon={Loader2}
+                          title="Loading agents…"
+                          description="Fetching agents for this space."
+                        />
+                      ) : agents.length === 0 ? (
+                        <EmptyList
+                          icon={Bot}
+                          title="No agents here yet"
+                          description={
+                            isOrganization
+                              ? "No agents are deployed to this organization yet."
+                              : "This is your personal space. Switch to an organization to see its agents."
+                          }
+                        />
+                      ) : (
+                        agents.map((agent) => (
+                          <AgentCard
+                            key={agent.id}
+                            agent={agent}
+                            onOpen={openAgent}
+                          />
+                        ))
+                      )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+        </>
       )}
 
       <AnimatePresence>
@@ -312,7 +294,7 @@ function AgentsDirectory({
                 transition={{ type: "tween", duration: 0.15 }}
               >
                 <CreateAgent
-                  onAdd={() => void reload()}
+                  onCreated={(id) => setSelectedId(id)}
                   onDone={() => setCreating(false)}
                 />
               </motion.div>

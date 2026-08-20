@@ -29,8 +29,14 @@ export async function startSchedulerWorker(
       const agents = await repo.listAgents();
       for (const agent of agents) {
         if (!isHeartbeatDue(agent.heartbeat, now)) continue;
-        for (const action of DEFAULT_HEARTBEAT_ACTIONS) {
-          console.log("[heartbeat]", agent.id, action);
+        const scopes =
+          agent.heartbeat.check.length > 0
+            ? agent.heartbeat.check
+            : DEFAULT_HEARTBEAT_ACTIONS;
+        for (const scope of scopes) {
+          console.log("[heartbeat]", agent.id, scope, {
+            onAction: agent.heartbeat.onAction,
+          });
         }
       }
     },

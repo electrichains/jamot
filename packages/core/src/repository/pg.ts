@@ -1,4 +1,5 @@
-import { and, arrayContains, asc, eq, inArray, or, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, arrayContains, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import type {
   Actor,
   Agent,
@@ -7,6 +8,7 @@ import type {
   Catalog,
   CatalogOffer,
   Connector,
+  Event,
   Organization,
   PaymentIntent,
   PaymentRecord,
@@ -16,6 +18,7 @@ import type {
   PurchaseOrder,
   Quote,
   QuoteRequest,
+  Relationship,
   Role,
   Skill,
   Space,
@@ -36,6 +39,7 @@ import {
   catalogOffers,
   composioOauthStates,
   connectors,
+  events,
   organizations,
   workspaces,
   paymentIntents,
@@ -46,6 +50,7 @@ import {
   purchaseOrders,
   quotes,
   quoteRequests,
+  relationships,
   roles,
   secrets,
   skills,
@@ -134,15 +139,56 @@ function toAgent(row: AgentRow): Agent {
     ownerId: row.ownerId as Id,
     organizationIds: row.organizationIds as Id[],
     role: row.role,
+    purpose: row.purpose,
+    description: row.description,
     harness: row.harness,
     skillIds: row.skillIds as Id[],
     capabilityIds: row.capabilityIds as Id[],
+    connectorIds: row.connectorIds as Id[],
     permissions: row.permissions as Id[],
     autonomy: row.autonomy,
     budget: row.budget === null ? null : Number(row.budget),
-    heartbeat: row.heartbeat,
+    heartbeat: {
+      enabled: row.heartbeat?.enabled ?? false,
+      cron: row.heartbeat?.cron ?? null,
+      quietHours: row.heartbeat?.quietHours ?? null,
+      check: row.heartbeat?.check ?? [],
+      onAction: row.heartbeat?.onAction ?? "ask",
+    },
+    memoryScopes: row.memoryScopes,
+    subscribedEvents: row.subscribedEvents,
+    schedules: row.schedules,
+    actionPermissions: row.actionPermissions,
     availability: row.availability,
+    systemPrompt: row.systemPrompt,
     performance: row.performance,
+  };
+}
+
+type RelationshipRow = typeof relationships.$inferSelect;
+type EventRow = typeof events.$inferSelect;
+
+function toRelationship(row: RelationshipRow): Relationship {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    fromActorId: row.fromActorId as Id,
+    toActorId: row.toActorId as Id,
+    kind: row.kind as Relationship["kind"],
+  };
+}
+
+function toEvent(row: EventRow): Event {
+  return {
+    id: row.id as Id,
+    type: row.type,
+    spaceId: (row.spaceId as Id | null) ?? null,
+    actorId: (row.actorId as Id | null) ?? null,
+    idempotencyKey: row.idempotencyKey,
+    payload: row.payload,
+    occurredAt: row.occurredAt,
+    delivered: row.delivered,
   };
 }
 
@@ -647,9 +693,12 @@ export function createPgRepository(db: Db): JamotRepository {
           ownerId: input.ownerId,
           organizationIds: input.organizationIds ?? [],
           role: input.role ?? null,
+          purpose: input.purpose ?? null,
+          description: input.description ?? null,
           harness: input.harness,
           skillIds: input.skillIds ?? [],
           capabilityIds: input.capabilityIds ?? [],
+          connectorIds: input.connectorIds ?? [],
           permissions: input.permissions ?? [],
           autonomy: input.autonomy ?? "approve",
           budget: input.budget == null ? null : String(input.budget),
@@ -657,8 +706,15 @@ export function createPgRepository(db: Db): JamotRepository {
             enabled: false,
             cron: null,
             quietHours: null,
+            check: [],
+            onAction: "ask",
           },
           availability: input.availability ?? "offline",
+          memoryScopes: input.memoryScopes ?? [],
+          subscribedEvents: input.subscribedEvents ?? [],
+          schedules: input.schedules ?? [],
+          actionPermissions: input.actionPermissions ?? {},
+          systemPrompt: input.systemPrompt ?? null,
           performance: input.performance ?? {},
         })
         .returning();
@@ -685,6 +741,77 @@ export function createPgRepository(db: Db): JamotRepository {
             : undefined,
         );
       return rows.map(toAgent);
+    },
+
+    async updateAgent(id, patch) {
+      const { budget, ...rest } = patch;
+      const [row] = await q
+        .update(agents)
+        .set({
+          ...rest,
+          ...(budget === undefined ? {} : { budget: budget === null ? null : String(budget) }),
+          updatedAt: nowIso(),
+        })
+        .where(eq(agents.id, id))
+        .returning();
+      return row ? toAgent(row) : null;
+    },
+
+    async deleteAgent(id) {
+      await q.delete(agents).where(eq(agents.id, id));
+    },
+
+    async createRelationship(input) {
+      const [row] = await q
+        .insert(relationships)
+        .values({
+          fromActorId: input.fromActorId,
+          toActorId: input.toActorId,
+          kind: input.kind,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create relationship");
+      return toRelationship(row);
+    },
+
+    async listRelationshipsForActor(actorId) {
+      const rows = await q
+        .select()
+        .from(relationships)
+        .where(or(eq(relationships.fromActorId, actorId), eq(relationships.toActorId, actorId)));
+      return rows.map(toRelationship);
+    },
+
+    async deleteRelationship(id) {
+      await q.delete(relationships).where(eq(relationships.id, id));
+    },
+
+    async recordEvent(input) {
+      const [row] = await q
+        .insert(events)
+        .values({
+          id: randomUUID(),
+          type: input.type,
+          spaceId: input.spaceId ?? null,
+          actorId: input.actorId ?? null,
+          idempotencyKey: randomUUID(),
+          payload: input.payload ?? {},
+          occurredAt: nowIso(),
+          delivered: false,
+        })
+        .returning();
+      if (!row) throw new Error("failed to record event");
+      return toEvent(row);
+    },
+
+    async listEvents(filter) {
+      const rows = await q
+        .select()
+        .from(events)
+        .where(filter?.actorId ? eq(events.actorId, filter.actorId) : undefined)
+        .orderBy(desc(events.occurredAt))
+        .limit(filter?.limit ?? 50);
+      return rows.map(toEvent);
     },
 
     async createSpace(input: NewSpace) {

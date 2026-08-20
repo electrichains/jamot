@@ -89,6 +89,22 @@ export interface MeResponse {
 }
 
 export type AgentAutonomy = "suggest" | "approve" | "autonomous";
+export type AgentActionPermission = "automatic" | "approval" | "never";
+
+export interface ApiAgentSchedule {
+  id: string;
+  enabled: boolean;
+  cron: string;
+  prompt: string;
+}
+
+export interface ApiAgentHeartbeat {
+  enabled: boolean;
+  cron: string | null;
+  quietHours: string | null;
+  check: string[];
+  onAction: "act" | "ask" | "notify";
+}
 
 export interface ApiAgent {
   id: string;
@@ -96,10 +112,68 @@ export interface ApiAgent {
   ownerId: string;
   organizationIds: string[];
   role: string | null;
+  purpose: string | null;
+  description: string | null;
+  harness: {
+    kind: string;
+    endpoint: string | null;
+    config: Record<string, unknown>;
+  };
+  skillIds: string[];
+  capabilityIds: string[];
+  connectorIds: string[];
+  permissions: string[];
   autonomy: AgentAutonomy;
+  budget: number | null;
+  heartbeat: ApiAgentHeartbeat;
+  memoryScopes: string[];
+  subscribedEvents: string[];
+  schedules: ApiAgentSchedule[];
+  actionPermissions: Record<string, AgentActionPermission>;
   availability: "available" | "busy" | "offline";
+  systemPrompt: string | null;
   performance: Record<string, number>;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export interface ApiAgentRelationship {
+  id: string;
+  fromActorId: string;
+  toActorId: string;
+  kind: string;
+  from: { id: string; displayName: string; type: "human" | "agent" } | null;
+  to: { id: string; displayName: string; type: "human" | "agent" } | null;
+}
+
+export interface ApiEvent {
+  id: string;
+  type: string;
+  actorId: string | null;
+  spaceId: string | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export type UpdateAgentBody = {
+  role?: string | null;
+  purpose?: string | null;
+  description?: string | null;
+  organizationIds?: string[];
+  skillIds?: string[];
+  capabilityIds?: string[];
+  connectorIds?: string[];
+  permissions?: string[];
+  autonomy?: AgentAutonomy;
+  budget?: number | null;
+  heartbeat?: ApiAgentHeartbeat;
+  memoryScopes?: string[];
+  subscribedEvents?: string[];
+  schedules?: ApiAgentSchedule[];
+  actionPermissions?: Record<string, AgentActionPermission>;
+  availability?: "available" | "busy" | "offline";
+  systemPrompt?: string | null;
+};
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -307,6 +381,69 @@ export async function getApps(): Promise<AppManifest[]> {
 export async function getAgents(): Promise<ApiAgent[]> {
   const data = await api<{ items: ApiAgent[] }>("/api/agents");
   return data.items;
+}
+
+export async function getAgent(id: string): Promise<ApiAgent> {
+  return api<ApiAgent>(`/api/agents/${encodeURIComponent(id)}`);
+}
+
+export async function updateAgent(
+  id: string,
+  body: UpdateAgentBody,
+): Promise<ApiAgent> {
+  return api<ApiAgent>(`/api/agents/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteAgent(id: string): Promise<void> {
+  await api<void>(`/api/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function getAgentActivity(id: string): Promise<ApiEvent[]> {
+  const data = await api<{ items: ApiEvent[] }>(
+    `/api/agents/${encodeURIComponent(id)}/activity`,
+  );
+  return data.items;
+}
+
+export async function listAgentRelationships(
+  id: string,
+): Promise<ApiAgentRelationship[]> {
+  const data = await api<{ items: ApiAgentRelationship[] }>(
+    `/api/agents/${encodeURIComponent(id)}/relationships`,
+  );
+  return data.items;
+}
+
+export async function addAgentRelationship(input: {
+  agentId: string;
+  fromActorId: string;
+  toActorId: string;
+  kind: string;
+}): Promise<ApiAgentRelationship> {
+  return api<ApiAgentRelationship>(
+    `/api/agents/${encodeURIComponent(input.agentId)}/relationships`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        fromActorId: input.fromActorId,
+        toActorId: input.toActorId,
+        kind: input.kind,
+      }),
+    },
+  );
+}
+
+export async function removeAgentRelationship(
+  agentId: string,
+  relationshipId: string,
+): Promise<void> {
+  await api<void>(
+    `/api/agents/${encodeURIComponent(agentId)}/relationships/${encodeURIComponent(relationshipId)}`,
+    { method: "DELETE" },
+  );
 }
 
 export type AgentAutonomyValue = "suggest" | "approve" | "autonomous";

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryRepository } from "./memory.js";
+import type { Id } from "@jamot/contracts";
 
 const UUID = "00000000-0000-4000-8000-000000000001";
 
@@ -114,5 +115,81 @@ describe("memory repository", () => {
 
     await repo.deleteSecret("stripe-key");
     expect(await repo.getSecret("stripe-key")).toBeNull();
+  });
+
+  it("creates, updates and deletes agents with config fields", async () => {
+    const repo = createMemoryRepository();
+    const actor = await repo.createActor({ type: "agent", source: "internal", displayName: "Maria" });
+
+    const created = await repo.createAgent({
+      actorId: actor.id,
+      ownerId: actor.id,
+      harness: { kind: "mcp", endpoint: null, config: {} },
+      role: "Sales Assistant",
+      purpose: "Help the sales team convert conversations into opportunities.",
+      skillIds: [UUID],
+      heartbeat: { enabled: true, cron: "*/15 * * * *", quietHours: "22:00-07:00", check: ["assigned_tasks", "new_messages"], onAction: "ask" },
+    });
+
+    expect(created.purpose).toContain("sales");
+    expect(created.heartbeat.check).toEqual(["assigned_tasks", "new_messages"]);
+    expect(created.heartbeat.onAction).toBe("ask");
+    expect(created.memoryScopes).toEqual([]);
+
+    const updated = await repo.updateAgent(created.id, {
+      autonomy: "autonomous",
+      memoryScopes: ["organization", "department"],
+      subscribedEvents: ["task.assigned", "message.received"],
+      schedules: [{ id: UUID as Id, enabled: true, cron: "0 8 * * *", prompt: "Prepare today's briefing" }],
+      actionPermissions: { send_message: "approval", delete_records: "never" },
+    });
+    expect(updated?.autonomy).toBe("autonomous");
+    expect(updated?.memoryScopes).toContain("department");
+    expect(updated?.schedules[0]?.prompt).toContain("briefing");
+    expect(updated?.actionPermissions).toEqual({ send_message: "approval", delete_records: "never" });
+
+    expect(await repo.getAgent(created.id)).toEqual(updated);
+
+    await repo.deleteAgent(created.id);
+    expect(await repo.getAgent(created.id)).toBeNull();
+  });
+
+  it("manages actor relationships", async () => {
+    const repo = createMemoryRepository();
+    const fromActor = await repo.createActor({ type: "agent", source: "internal", displayName: "Maria" });
+    const toActor = await repo.createActor({ type: "human", source: "internal", displayName: "Andrea" });
+
+    const rel = await repo.createRelationship({
+      fromActorId: fromActor.id,
+      toActorId: toActor.id,
+      kind: "reports_to",
+    });
+    expect(rel.kind).toBe("reports_to");
+
+    const listed = await repo.listRelationshipsForActor(fromActor.id);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.toActorId).toBe(toActor.id);
+
+    const listedBoth = await repo.listRelationshipsForActor(toActor.id);
+    expect(listedBoth).toHaveLength(1);
+
+    await repo.deleteRelationship(rel.id);
+    expect(await repo.listRelationshipsForActor(fromActor.id)).toHaveLength(0);
+  });
+
+  it("records and lists events filtered by actor", async () => {
+    const repo = createMemoryRepository();
+    const actor = await repo.createActor({ type: "agent", source: "internal", displayName: "Maria" });
+
+    await repo.recordEvent({ type: "agent.created", actorId: actor.id, payload: { agentId: "x" } });
+    await repo.recordEvent({ type: "memory.created", actorId: actor.id });
+    await repo.recordEvent({ type: "task.created", actorId: "00000000-0000-4000-8000-0000000000aa" });
+
+    const mine = await repo.listEvents({ actorId: actor.id });
+    expect(mine).toHaveLength(2);
+    expect(mine.map((e) => e.type).sort()).toEqual(["agent.created", "memory.created"]);
+
+    const limited = await repo.listEvents({ actorId: actor.id, limit: 1 });
+    expect(limited).toHaveLength(1);
   });
 });

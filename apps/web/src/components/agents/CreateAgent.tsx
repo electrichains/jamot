@@ -24,9 +24,11 @@ const CHANNELS = ["WhatsApp", "Telegram", "Email", "Slack"] as const;
 
 export function CreateAgent({
   onAdd,
+  onCreated,
   onDone,
 }: {
   onAdd?: (agent: AgentProfile) => void;
+  onCreated?: (id: string) => void;
   onDone?: () => void;
 }) {
   const { user } = useAuth();
@@ -65,7 +67,7 @@ export function CreateAgent({
     setError(null);
     setSubmitting(true);
     try {
-      await createAgent({
+      const created = await createAgent({
         name: trimmed,
         ownerId: user.actor.id,
         role: purpose.trim() || "New agent",
@@ -75,6 +77,10 @@ export function CreateAgent({
             : [],
         autonomy,
       });
+      if (onCreated) {
+        onCreated(created.id);
+        return;
+      }
       onAdd?.({
         id: `agent-${Date.now()}`,
         name: trimmed,

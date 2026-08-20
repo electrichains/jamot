@@ -6,6 +6,7 @@ import type {
   Catalog,
   CatalogOffer,
   Connector,
+  Event,
   Organization,
   PaymentIntent,
   PaymentRecord,
@@ -15,6 +16,7 @@ import type {
   PurchaseOrder,
   Quote,
   QuoteRequest,
+  Relationship,
   Role,
   Skill,
   Space,
@@ -56,14 +58,22 @@ export interface NewAgent {
   ownerId: string;
   organizationIds?: string[];
   role?: string | null;
+  purpose?: string | null;
+  description?: string | null;
   harness: Agent["harness"];
   skillIds?: string[];
   capabilityIds?: string[];
+  connectorIds?: string[];
   permissions?: string[];
   autonomy?: Agent["autonomy"];
   budget?: number | null;
   heartbeat?: Agent["heartbeat"];
   availability?: Agent["availability"];
+  memoryScopes?: string[];
+  subscribedEvents?: string[];
+  schedules?: Agent["schedules"];
+  actionPermissions?: Agent["actionPermissions"];
+  systemPrompt?: string | null;
   performance?: Record<string, number>;
 }
 
@@ -350,6 +360,50 @@ export interface JamotRepository {
   createAgent(input: NewAgent): Promise<Agent>;
   getAgent(id: string): Promise<Agent | null>;
   listAgents(filter?: { organizationId?: string }): Promise<Agent[]>;
+  updateAgent(
+    id: string,
+    patch: Partial<
+      Pick<
+        Agent,
+        | "role"
+        | "purpose"
+        | "description"
+        | "organizationIds"
+        | "skillIds"
+        | "capabilityIds"
+        | "connectorIds"
+        | "permissions"
+        | "autonomy"
+        | "budget"
+        | "heartbeat"
+        | "availability"
+        | "systemPrompt"
+        | "memoryScopes"
+        | "subscribedEvents"
+        | "schedules"
+        | "actionPermissions"
+      >
+    >,
+  ): Promise<Agent | null>;
+  deleteAgent(id: string): Promise<void>;
+
+  // actor relationships
+  createRelationship(input: {
+    fromActorId: string;
+    toActorId: string;
+    kind: Relationship["kind"];
+  }): Promise<Relationship>;
+  listRelationshipsForActor(actorId: string): Promise<Relationship[]>;
+  deleteRelationship(id: string): Promise<void>;
+
+  // events / activity
+  recordEvent(input: {
+    type: string;
+    spaceId?: string | null;
+    actorId?: string | null;
+    payload?: Record<string, unknown>;
+  }): Promise<Event>;
+  listEvents(filter?: { actorId?: string; limit?: number }): Promise<Event[]>;
 
   // spaces, organizations & workspaces
   createSpace(input: NewSpace): Promise<Space>;
