@@ -12,6 +12,7 @@ export const ConnectorProvider = z.enum([
   "matrix",
   "discord",
   "custom",
+  "composio",
 ]);
 export type ConnectorProvider = z.infer<typeof ConnectorProvider>;
 
@@ -23,6 +24,27 @@ export const ConnectorType = z.enum([
   "data",
 ]);
 export type ConnectorType = z.infer<typeof ConnectorType>;
+
+/** Where a connection is shared. `user` = only the owning user (personal
+ * space or user-private within an org); `organization` = shared to every
+ * member of the owning organization. */
+export const ConnectorSharing = z.enum(["user", "organization"]);
+export type ConnectorSharing = z.infer<typeof ConnectorSharing>;
+
+/**
+ * Configuration stored on a `provider: "composio"` connector row. Mirrors a
+ * single Composio connected account, keyed by a tenant-scoped Composio
+ * `user_id` so connected accounts are isolated per Jamot scope.
+ */
+export const ComposioConnectionConfig = z.object({
+  toolkit: z.string(),
+  connectedAccountId: z.string(),
+  composioUserId: z.string(),
+  accountStatus: z.string().optional(),
+  mcpUrl: z.string().optional(),
+  mcpHeaders: z.record(z.string(), z.string()).optional(),
+});
+export type ComposioConnectionConfig = z.infer<typeof ComposioConnectionConfig>;
 
 /**
  * Credential reference — never the secret itself. Resolution order:
@@ -41,6 +63,7 @@ export const Connector = EntityBase.extend({
   type: ConnectorType.default("channel"),
   ownerActorId: Id.nullable(),
   ownerOrganizationId: Id.nullable(),
+  sharing: ConnectorSharing.default("user"),
   capabilities: z.array(z.string()).default([]),
   credentialRef: SecretRef,
   scopes: z.array(z.string()).default([]),

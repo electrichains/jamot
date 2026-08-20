@@ -51,6 +51,7 @@ import type {
   NewTask,
   NewTaskAttachment,
   NewTaskList,
+  ComposioOAuthStateRecord,
   SecretRecord,
 } from "./repository.js";
 
@@ -70,6 +71,7 @@ export function createMemoryRepository(): JamotRepository {
   const taskAttachments = new Map<string, TaskAttachment>();
   const skills = new Map<string, Skill>();
   const connectors = new Map<string, Connector>();
+  const composioOAuthStates = new Map<string, ComposioOAuthStateRecord>();
   const capabilities = new Map<string, Capability>();
   const policies = new Map<string, Policy>();
   const secrets = new Map<string, SecretRecord>();
@@ -595,6 +597,7 @@ export function createMemoryRepository(): JamotRepository {
         type: input.type ?? "channel",
         ownerActorId: input.ownerActorId ?? null,
         ownerOrganizationId: input.ownerOrganizationId ?? null,
+        sharing: input.sharing ?? "user",
         capabilities: input.capabilities ?? [],
         credentialRef: input.credentialRef,
         scopes: input.scopes ?? [],
@@ -620,6 +623,44 @@ export function createMemoryRepository(): JamotRepository {
       if (!existing) return null;
       const updated = Connector.parse({ ...existing, status, updatedAt: now() });
       connectors.set(id, updated);
+      return updated;
+    },
+
+    async updateConnector(id, patch) {
+      const existing = connectors.get(id);
+      if (!existing) return null;
+      const updated = Connector.parse({ ...existing, ...patch, updatedAt: now() });
+      connectors.set(id, updated);
+      return updated;
+    },
+
+    async deleteConnector(id) {
+      connectors.delete(id);
+    },
+
+    async putComposioOAuthState(input) {
+      const record: ComposioOAuthStateRecord = {
+        ...input,
+        createdAt: now(),
+        updatedAt: now(),
+      };
+      composioOAuthStates.set(record.state, record);
+      return record;
+    },
+
+    async getComposioOAuthState(state) {
+      return composioOAuthStates.get(state) ?? null;
+    },
+
+    async consumeComposioOAuthState(state) {
+      const existing = composioOAuthStates.get(state);
+      if (!existing) return null;
+      const updated: ComposioOAuthStateRecord = {
+        ...existing,
+        consumed: true,
+        updatedAt: now(),
+      };
+      composioOAuthStates.set(state, updated);
       return updated;
     },
 

@@ -16,6 +16,7 @@
     "./secrets/credential-resolution": "./src/secrets/credential-resolution.ts",
     "./services/connectors": "./src/services/connectors.ts",
     "./services/capabilities": "./src/services/capabilities.ts",
+    "./composio": "./src/composio/index.ts",
     "./harness": "./src/harness/index.ts",
     "./mcp": "./src/mcp/index.ts",
     "./channels": "./src/channels/index.ts",

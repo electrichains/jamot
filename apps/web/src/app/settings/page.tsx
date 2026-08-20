@@ -52,6 +52,7 @@ import {
   AuditSection,
   CapabilitiesOrgSection,
   ChannelsOrgSection,
+  ConnectorsOrgSection,
   DreamSection,
   GeneralOrgSection,
   KnowledgeOrgSection,
@@ -123,6 +124,12 @@ const ORG_GROUP: SettingsGroup = {
     },
     { id: "org-agents", label: "Agents", icon: Bot, body: <OrgAgentsSection /> },
     { id: "org-apps", label: "Apps", icon: AppWindow, body: <AppsOrgSection /> },
+    {
+      id: "org-connectors",
+      label: "Connectors",
+      icon: Plug,
+      body: <ConnectorsOrgSection />,
+    },
     {
       id: "org-channels",
       label: "Channels",

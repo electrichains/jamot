@@ -72,8 +72,32 @@ export function FinanceWorkspace() {
   }, [space.spaceId]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh, space.id]);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [allIntents, allOrders, products] = await Promise.all([
+          listPaymentIntents(space.spaceId),
+          listPurchaseOrders(space.spaceId),
+          listProducts(space.spaceId).catch(() => []),
+        ]);
+        if (cancelled) return;
+        setIntents(allIntents);
+        setPurchaseOrders(allOrders);
+        setProductNames(
+          Object.fromEntries(products.map((p) => [p.id, p.name])),
+        );
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        const reason = err instanceof Error ? err.message : "failed to load";
+        setError(reason);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [space.spaceId]);
 
   useEffect(() => {
     if (!selected) return;

@@ -140,6 +140,7 @@ export interface NewConnector {
   type?: Connector["type"];
   ownerActorId?: string | null;
   ownerOrganizationId?: string | null;
+  sharing?: Connector["sharing"];
   capabilities?: string[];
   credentialRef: Connector["credentialRef"];
   scopes?: string[];
@@ -302,6 +303,23 @@ export type SecretRecordScope =
   | "system"
   | "environment";
 
+/** Pending Composio OAuth handshake, persisted so the callback can be bound to
+ * the acting session/scope and validated against the one-time `state` token. */
+export interface ComposioOAuthStateRecord {
+  state: string;
+  actorId: string;
+  organizationId?: string | null;
+  sharing: Connector["sharing"];
+  toolkit: string;
+  composioUserId: string;
+  apiKeyScope: SecretRecordScope;
+  redirectUri: string;
+  consumed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
 // --- Update inputs (partial) ---
 
 export type TaskStatusUpdate = Pick<Task, "status">;
@@ -419,6 +437,18 @@ export interface JamotRepository {
   getConnector(id: string): Promise<Connector | null>;
   listConnectors(filter?: { ownerOrganizationId?: string }): Promise<Connector[]>;
   updateConnectorStatus(id: string, status: Connector["status"]): Promise<Connector | null>;
+  updateConnector(
+    id: string,
+    patch: Partial<Pick<Connector, "status" | "configuration" | "sharing">>,
+  ): Promise<Connector | null>;
+  deleteConnector(id: string): Promise<void>;
+
+  // composio oauth states
+  putComposioOAuthState(
+    input: Omit<ComposioOAuthStateRecord, "createdAt" | "updatedAt">,
+  ): Promise<ComposioOAuthStateRecord>;
+  getComposioOAuthState(state: string): Promise<ComposioOAuthStateRecord | null>;
+  consumeComposioOAuthState(state: string): Promise<ComposioOAuthStateRecord | null>;
 
   // capabilities
   createCapability(input: NewCapability): Promise<Capability>;

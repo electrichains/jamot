@@ -22,6 +22,9 @@ import { rolesRoutes } from "./routes/roles.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { authRoutes } from "./routes/auth.js";
 import connectorsRoutes from "./routes/connectors.js";
+import composioRoutes from "./routes/composio.js";
+import { createComposioService } from "@jamot/core/composio";
+import type { ComposioService } from "@jamot/core/composio";
 import capabilitiesRoutes from "./routes/capabilities.js";
 import skillsRoutes from "./routes/skills.js";
 import vaultRoutes from "./routes/vault.js";
@@ -76,6 +79,7 @@ export interface BuildAppOptions {
   commerce?: CommerceService;
   payments?: PaymentService;
   whatsAppManager?: import("@jamot/core/channels").WhatsAppManager;
+  composioService?: ComposioService;
 }
 
 const deriveKey = (secret: string): string =>
@@ -172,6 +176,14 @@ export async function buildApp(opts: BuildAppOptions) {
     credentialResolver: credentialResolver.resolveCredential,
   };
 
+  const composioService =
+    opts.composioService ??
+    createComposioService({
+      repo: opts.repository,
+      store: secretStore,
+      baseUrl: process.env.COMPOSIO_BASE_URL,
+    });
+
   await app.register(healthRoutes);
   await app.register(actorsRoutes(opts.repository), { prefix: "/api" });
   await app.register(peopleRoutes(opts.repository), { prefix: "/api" });
@@ -181,6 +193,11 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(tasksRoutes(opts.repository), { prefix: "/api" });
   await app.register(authRoutes(opts.repository), { prefix: "/api" });
   await app.register(connectorsRoutes, { prefix: "/api", ...routeOpts });
+  await app.register(composioRoutes, {
+    prefix: "/api",
+    repository: opts.repository,
+    composioService,
+  });
   await app.register(capabilitiesRoutes, { prefix: "/api", ...routeOpts });
   await app.register(skillsRoutes, { prefix: "/api", ...routeOpts });
   await app.register(vaultRoutes, { prefix: "/api", ...routeOpts });

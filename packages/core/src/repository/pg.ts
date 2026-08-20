@@ -34,6 +34,7 @@ import {
   capabilities,
   catalogs,
   catalogOffers,
+  composioOauthStates,
   connectors,
   organizations,
   workspaces,
@@ -79,6 +80,7 @@ import type {
   NewTask,
   NewTaskAttachment,
   NewTaskList,
+  ComposioOAuthStateRecord,
   SecretRecord,
 } from "./repository.js";
 
@@ -96,6 +98,7 @@ type ConnectorRow = typeof connectors.$inferSelect;
 type CapabilityRow = typeof capabilities.$inferSelect;
 type PolicyRow = typeof policies.$inferSelect;
 type SecretRow = typeof secrets.$inferSelect;
+type ComposioOAuthStateRow = typeof composioOauthStates.$inferSelect;
 
 function toActor(row: ActorRow): Actor {
   return {
@@ -267,6 +270,7 @@ function toConnector(row: ConnectorRow): Connector {
     type: row.type,
     ownerActorId: (row.ownerActorId as Id | null) ?? null,
     ownerOrganizationId: (row.ownerOrganizationId as Id | null) ?? null,
+    sharing: (row.sharing as Connector["sharing"]) ?? "user",
     capabilities: row.capabilities,
     credentialRef: row.credentialRef,
     scopes: row.scopes,
@@ -309,6 +313,23 @@ function toSecret(row: SecretRow): SecretRecord {
     ownerActorId: (row.ownerActorId as Id | null) ?? null,
     ownerOrganizationId: (row.ownerOrganizationId as Id | null) ?? null,
     ciphertext: row.ciphertext,
+  };
+}
+
+function toComposioOAuthState(row: ComposioOAuthStateRow): ComposioOAuthStateRecord {
+  return {
+    state: row.state,
+    actorId: row.actorId as Id,
+    organizationId: (row.organizationId as Id | null) ?? null,
+    sharing: (row.sharing as Connector["sharing"]) ?? "user",
+    toolkit: row.toolkit,
+    composioUserId: row.composioUserId,
+    apiKeyScope: row.apiKeyScope,
+    redirectUri: row.redirectUri,
+    consumed: row.consumed,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    expiresAt: row.expiresAt,
   };
 }
 
@@ -929,6 +950,10 @@ export function createPgRepository(db: Db): JamotRepository {
           [$1],
         );
         await client.query(
+          `DELETE FROM composio_oauth_states WHERE organization_id = $1::uuid`,
+          [$1],
+        );
+        await client.query(
           `UPDATE agents SET organization_ids = array_remove(organization_ids, $1::uuid), updated_at = now() WHERE $1::uuid = ANY(organization_ids)`,
           [$1],
         );
@@ -1244,6 +1269,7 @@ export function createPgRepository(db: Db): JamotRepository {
           type: input.type ?? "channel",
           ownerActorId: input.ownerActorId ?? null,
           ownerOrganizationId: input.ownerOrganizationId ?? null,
+          sharing: input.sharing ?? "user",
           capabilities: input.capabilities ?? [],
           credentialRef: input.credentialRef,
           scopes: input.scopes ?? [],
@@ -1283,6 +1309,62 @@ export function createPgRepository(db: Db): JamotRepository {
         .where(eq(connectors.id, id))
         .returning();
       return row ? toConnector(row) : null;
+    },
+
+    async updateConnector(id, patch) {
+      const [row] = await q
+        .update(connectors)
+        .set({
+          ...(patch.status !== undefined ? { status: patch.status } : {}),
+          ...(patch.configuration !== undefined ? { configuration: patch.configuration } : {}),
+          ...(patch.sharing !== undefined ? { sharing: patch.sharing } : {}),
+          updatedAt: nowIso(),
+        })
+        .where(eq(connectors.id, id))
+        .returning();
+      return row ? toConnector(row) : null;
+    },
+
+    async deleteConnector(id) {
+      await q.delete(connectors).where(eq(connectors.id, id));
+    },
+
+    async putComposioOAuthState(input) {
+      const [row] = await q
+        .insert(composioOauthStates)
+        .values({
+          state: input.state,
+          actorId: input.actorId,
+          organizationId: input.organizationId ?? null,
+          sharing: input.sharing,
+          toolkit: input.toolkit,
+          composioUserId: input.composioUserId,
+          apiKeyScope: input.apiKeyScope,
+          redirectUri: input.redirectUri,
+          consumed: input.consumed,
+          expiresAt: input.expiresAt,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create composio oauth state");
+      return toComposioOAuthState(row);
+    },
+
+    async getComposioOAuthState(state) {
+      const [row] = await q
+        .select()
+        .from(composioOauthStates)
+        .where(eq(composioOauthStates.state, state))
+        .limit(1);
+      return row ? toComposioOAuthState(row) : null;
+    },
+
+    async consumeComposioOAuthState(state) {
+      const [row] = await q
+        .update(composioOauthStates)
+        .set({ consumed: true, updatedAt: nowIso() })
+        .where(eq(composioOauthStates.state, state))
+        .returning();
+      return row ? toComposioOAuthState(row) : null;
     },
 
     async createCapability(input: NewCapability) {

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading, Card } from "./section-primitives";
 import { ChannelsSection } from "./channels-section";
+import { ComposioConnectors } from "./composio-connectors";
 import { WorkspacesSection } from "./workspaces-section";
 import {
   CapabilitiesSection as CapabilitiesDataSection,
@@ -62,6 +63,10 @@ export function OrgAgentsSection() {
 
 export function ChannelsOrgSection() {
   return <ChannelsSection />;
+}
+
+export function ConnectorsOrgSection() {
+  return <ComposioConnectors mode="org" />;
 }
 
 export function SharedSkillsSection() {

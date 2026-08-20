@@ -369,6 +369,7 @@ export interface ApiConnector {
   scopes: string[];
   configuration: Record<string, unknown>;
   status: string;
+  sharing?: "user" | "organization";
   createdAt: string;
 }
 
@@ -427,6 +428,100 @@ export async function createConnector(input: {
   return api<ApiConnector>("/api/connectors", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+export interface ComposioToolkit {
+  key: string;
+  name: string;
+  description?: string;
+  icon?: string;
+}
+
+export interface ComposioTool {
+  slug: string;
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+export interface ComposioConnection {
+  id: string;
+  toolkit: string;
+  sharing: "user" | "organization";
+  organizationId: string | null;
+  accountStatus?: string;
+  status: string;
+  mcpUrl?: string | null;
+  mcpHeaders?: Record<string, string> | null;
+}
+
+export interface ComposioExecuteResult {
+  data?: unknown;
+  successful?: boolean;
+  executionDetails?: unknown;
+}
+
+export async function listComposioToolkits(): Promise<ComposioToolkit[]> {
+  const data = await api<{ items: ComposioToolkit[] }>("/api/composio/toolkits");
+  return data.items;
+}
+
+export async function listComposioConnections(
+  organizationId?: string,
+): Promise<ComposioConnection[]> {
+  const path = organizationId
+    ? `/api/composio/connections?organizationId=${encodeURIComponent(organizationId)}`
+    : "/api/composio/connections";
+  const data = await api<{ items: ComposioConnection[] }>(path);
+  return data.items;
+}
+
+export async function createComposioConnection(input: {
+  toolkit: string;
+  sharing: "user" | "organization";
+  organizationId?: string | null;
+}): Promise<{ redirectUrl: string; state: string }> {
+  return api("/api/composio/connections", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listConnectionTools(
+  connectorId: string,
+): Promise<ComposioTool[]> {
+  const data = await api<{ items: ComposioTool[] }>(
+    `/api/composio/connections/${encodeURIComponent(connectorId)}/tools`,
+  );
+  return data.items;
+}
+
+export async function executeComposioTool(input: {
+  connectorId: string;
+  tool: string;
+  arguments?: Record<string, unknown>;
+}): Promise<ComposioExecuteResult> {
+  return api<ComposioExecuteResult>("/api/composio/execute", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteComposioConnection(
+  connectorId: string,
+): Promise<{ status: string }> {
+  return api(`/api/composio/connections/${encodeURIComponent(connectorId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function ensureConnectionMcp(connectorId: string): Promise<{
+  url: string;
+  headers: Record<string, string>;
+}> {
+  return api(`/api/composio/connections/${encodeURIComponent(connectorId)}/mcp`, {
+    method: "POST",
   });
 }
 

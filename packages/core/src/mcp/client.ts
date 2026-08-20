@@ -36,7 +36,10 @@ function parsePayload(text: string): unknown {
   return JSON.parse(last as string);
 }
 
-export function createMcpClient(url: string): McpClient {
+export function createMcpClient(
+  url: string,
+  extraHeaders?: Record<string, string>,
+): McpClient {
   let nextId = 1;
   let initialized = false;
 
@@ -53,6 +56,7 @@ export function createMcpClient(url: string): McpClient {
         "content-type": "application/json",
         accept: "application/json, text/event-stream",
         "mcp-protocol-version": PROTOCOL_VERSION,
+        ...extraHeaders,
       },
       body: JSON.stringify(body),
     });

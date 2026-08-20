@@ -28,8 +28,11 @@ function toOutput(result: unknown): string {
   return JSON.stringify(result);
 }
 
-export function createMcpHarness(endpoint: string): HarnessClient {
-  const client = createMcpClient(endpoint);
+export function createMcpHarness(
+  endpoint: string,
+  headers?: Record<string, string>,
+): HarnessClient {
+  const client = createMcpClient(endpoint, headers);
   let cachedToolName: string | null = null;
 
   return {

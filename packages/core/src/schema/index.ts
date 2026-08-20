@@ -70,6 +70,7 @@ export const connectorProviderEnum = pgEnum("connector_provider", [
   "matrix",
   "discord",
   "custom",
+  "composio",
 ]);
 export const connectorTypeEnum = pgEnum("connector_type", [
   "channel",
@@ -412,6 +413,7 @@ export const connectors = pgTable("connectors", {
   ownerOrganizationId: uuid("owner_organization_id").references(
     () => organizations.id,
   ),
+  sharing: text("sharing").notNull().default("user"),
   capabilities: jsonb("capabilities")
     .$type<string[]>()
     .notNull()
@@ -503,6 +505,26 @@ export const secrets = pgTable("secrets", {
   ciphertext: text("ciphertext").notNull(),
   ...timestamps(),
 });
+
+export const composioOauthStates = pgTable(
+  "composio_oauth_states",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    state: text("state").notNull().unique(),
+    actorId: uuid("actor_id").notNull().references(() => actors.id),
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    sharing: text("sharing").notNull().default("user"),
+    toolkit: text("toolkit").notNull(),
+    composioUserId: text("composio_user_id").notNull(),
+    apiKeyScope: secretScopeEnum("api_key_scope").notNull(),
+    redirectUri: text("redirect_uri").notNull(),
+    consumed: boolean("consumed").notNull().default(false),
+    expiresAt: timestamp("expires_at", { mode: "string", withTimezone: true })
+      .notNull(),
+    ...timestamps(),
+  },
+  (table) => [index("composio_oauth_states_state_idx").on(table.state)],
+);
 
 export const channels = pgTable("channels", {
   id: uuid("id").defaultRandom().primaryKey(),

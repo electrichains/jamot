@@ -8,14 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-context";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { ComposioConnectors } from "@/components/settings/composio-connectors";
 import { cn } from "@/lib/utils";
 import { CreateAgent } from "@/components/agents/CreateAgent";
 import {
-  createConnector,
   createSkill,
   forgetMemory,
   getAgents,
-  listConnectors,
   listMemory,
   listSkills,
   storeMemory,
@@ -311,158 +310,7 @@ export function PrivacyConsentSection() {
 /* ------------------------------ Connectors ------------------------------ */
 
 export function ConnectorsSection() {
-  const [connectors, setConnectors] = useState<Awaited<ReturnType<typeof listConnectors>>>([]);
-  const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [provider, setProvider] = useState("custom");
-  const [ref, setRef] = useState("");
-  const [secret, setSecret] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const reload = async () => {
-    try {
-      setConnectors(await listConnectors());
-    } catch {
-      setConnectors([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    listConnectors()
-      .then((items) => {
-        if (!cancelled) setConnectors(items);
-      })
-      .catch(() => {
-        if (!cancelled) setConnectors([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const save = async () => {
-    if (!ref.trim() || !secret.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await createConnector({
-        provider,
-        type: "channel",
-        credentialRef: { ref: ref.trim(), scope: "user" },
-        secretPlaintext: secret,
-      });
-      setAdding(false);
-      setRef("");
-      setSecret("");
-      await reload();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not connect.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div>
-      <SectionHeading
-        title="Connectors"
-        description="Services you have connected to Jamot."
-      />
-      <Card className="max-w-xl">
-        {loading ? (
-          <p className="py-2 text-sm text-muted-foreground">Loading…</p>
-        ) : connectors.length === 0 ? (
-          <p className="py-2 text-sm text-muted-foreground">
-            No connectors yet. Add one below.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {connectors.map((connector) => (
-              <li
-                key={connector.id}
-                className="flex items-center justify-between rounded-md border border-border px-3 py-2"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <span
-                    className={cn(
-                      "size-2 rounded-full",
-                      connector.status === "connected" ? "bg-emerald-500" : "bg-border",
-                    )}
-                  />
-                  {connector.provider}
-                  <span className="text-xs text-muted-foreground">
-                    {connector.credentialRef.ref}
-                  </span>
-                </span>
-                <Badge variant="secondary">{connector.status}</Badge>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {adding ? (
-          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border p-3">
-            <Field label="Provider">
-              <select
-                value={provider}
-                onChange={(event) => setProvider(event.target.value)}
-                className="flex h-9 w-full rounded-lg border border-border bg-card px-3 py-1 text-sm"
-              >
-                {["whatsapp", "telegram", "google_calendar", "github", "stripe", "matrix", "custom"].map(
-                  (option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ),
-                )}
-              </select>
-            </Field>
-            <Field label="Reference">
-              <TextInput
-                placeholder="e.g. connectors/whatsapp"
-                value={ref}
-                onChange={(event) => setRef(event.target.value)}
-              />
-            </Field>
-            <Field label="Secret" hint="Stored in the vault; never shown again.">
-              <TextInput
-                type="password"
-                value={secret}
-                onChange={(event) => setSecret(event.target.value)}
-              />
-            </Field>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" disabled={!ref.trim() || !secret.trim() || busy} onClick={() => void save()}>
-                {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-                Connect
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-4">
-            <Button size="sm" onClick={() => setAdding(true)}>
-              <Plus className="size-4" />
-              Add connector
-            </Button>
-          </div>
-        )}
-        <p className="mt-3 text-xs text-muted-foreground">
-          Secrets for these services live in the Vault.
-        </p>
-      </Card>
-    </div>
-  );
+  return <ComposioConnectors mode="personal" />;
 }
 
 /* ------------------------------ Skills ------------------------------ */
