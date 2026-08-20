@@ -86,7 +86,7 @@ export function CreateAgentWizard({
         onCreated(created.id);
         return {
           id: created.id,
-          name: created.name,
+          name: created.role ?? created.purpose ?? "Agent",
           role: created.role,
         };
       },

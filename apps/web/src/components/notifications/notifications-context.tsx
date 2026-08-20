@@ -133,6 +133,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [spaceId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- show loading while notifications refresh
     setLoading(true);
     void refresh();
     const timer = setInterval(() => void refresh(), POLL_INTERVAL_MS);

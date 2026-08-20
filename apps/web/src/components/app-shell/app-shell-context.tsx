@@ -73,6 +73,8 @@ export type SectionId =
   | "inventory"
   | "suppliers"
   | "crm"
+  | "leads"
+  | "outreach"
   | "finance";
 
 export const SECTION_TITLES: Record<SectionId, string> = {
@@ -86,6 +88,8 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   suppliers: "Suppliers",
   inventory: "Inventory",
   crm: "CRM",
+  leads: "Leads",
+  outreach: "Outreach",
   finance: "Finance",
 };
 

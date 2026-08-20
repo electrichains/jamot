@@ -9,11 +9,14 @@ import { DirectoryToolbar } from "@/components/directory/DirectoryToolbar";
 import { useDirectorySearch } from "@/components/directory/use-directory-search";
 import type { DirectoryMatch } from "@/components/directory/search";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
+import { useAuth } from "@/components/auth/auth-context";
 import { addOrganizationMember, getOrganizationMembers } from "@/lib/api-client";
 import { memberToPersonProfile } from "@/lib/live-directory";
+import { cn } from "@/lib/utils";
 import { PersonDrawer } from "./PersonDrawer";
 import { PeopleTable } from "./PeopleTable";
 import { QuickAddPerson } from "./QuickAddPerson";
+import { PeopleLists } from "./PeopleLists";
 import type { PersonProfile as Person } from "./people-data";
 import {
   consumeAddPerson,
@@ -58,12 +61,14 @@ function localPersonFromEmail(email: string): Person {
 
 export function PeopleWorkspace() {
   const { space } = useAppShell();
+  const { user } = useAuth();
   const orgId = space.kind === "organization" ? space.organizationId : undefined;
   return (
     <PeopleDirectory
       key={space.id}
       orgId={orgId}
       spaceName={space.name}
+      spaceId={space.spaceId ?? user?.person?.membershipSpaceIds[0] ?? null}
       isOrganization={space.kind === "organization"}
     />
   );
@@ -72,16 +77,19 @@ export function PeopleWorkspace() {
 function PeopleDirectory({
   orgId,
   spaceName,
+  spaceId,
   isOrganization,
 }: {
   orgId: string | undefined;
   spaceName: string;
+  spaceId: string | null;
   isOrganization: boolean;
 }) {
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(orgId ? true : false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(() => isAddPersonPending());
+  const [tab, setTab] = useState<"directory" | "lists">("directory");
 
   useEffect(() => {
     if (!orgId) return;
@@ -159,7 +167,38 @@ function PeopleDirectory({
 
   return (
     <div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-      <DirectoryToolbar
+      <div className="flex shrink-0 items-center gap-1 border-b border-border px-2 pt-1.5">
+        <button
+          type="button"
+          onClick={() => setTab("directory")}
+          className={cn(
+            "rounded-t-md px-3 py-1.5 text-sm font-medium transition-colors",
+            tab === "directory"
+              ? "border-b-2 border-space-accent text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Directory
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("lists")}
+          className={cn(
+            "rounded-t-md px-3 py-1.5 text-sm font-medium transition-colors",
+            tab === "lists"
+              ? "border-b-2 border-space-accent text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Lists
+        </button>
+      </div>
+
+      {tab === "lists" ? (
+        <PeopleLists spaceId={spaceId} orgId={orgId} />
+      ) : (
+        <>
+          <DirectoryToolbar
         placeholder="Search people… try “Lisbon”, “quiet hours”, “runbook”"
         query={search.query}
         loading={search.searching}
@@ -223,6 +262,8 @@ function PeopleDirectory({
           </div>
         )}
       </section>
+        </>
+      )}
 
       <AnimatePresence>
         {selected ? (

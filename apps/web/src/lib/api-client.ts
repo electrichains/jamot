@@ -1162,3 +1162,451 @@ export async function listPaymentRecords(
   );
   return data.items;
 }
+
+// --- Outreach ---------------------------------------------------------------
+
+export type OutreachChannel = "whatsapp" | "email" | "matrix" | "web";
+export type OutreachCampaignStatus =
+  | "draft"
+  | "active"
+  | "paused"
+  | "completed"
+  | "archived";
+export type OutreachSendStatus =
+  | "queued"
+  | "delegated"
+  | "sent"
+  | "replied"
+  | "completed"
+  | "failed";
+
+export interface OutreachList {
+  id: string;
+  spaceId: string;
+  name: string;
+  description: string;
+  memberPersonIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutreachListMember {
+  personId: string;
+  actorId: string;
+  email: string | null;
+  displayName: string;
+  addedAt: string;
+}
+
+export interface OutreachCampaign {
+  id: string;
+  spaceId: string;
+  name: string;
+  description: string;
+  listId: string;
+  agentId: string;
+  goal: string;
+  status: OutreachCampaignStatus;
+  startedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutreachStep {
+  id: string;
+  campaignId: string;
+  position: number;
+  sendAfterDays: number;
+  channel: OutreachChannel;
+  subject: string;
+  template: string;
+  instructions: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutreachSend {
+  id: string;
+  campaignId: string;
+  stepId: string;
+  personId: string;
+  status: OutreachSendStatus;
+  scheduledAt: string;
+  taskId: string | null;
+  sentAt: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutreachCampaignDetail {
+  campaign: OutreachCampaign;
+  steps: OutreachStep[];
+  sends: OutreachSend[];
+  list: { id: string; name: string; memberCount: number } | null;
+  agent: {
+    id: string;
+    actorId: string;
+    displayName: string;
+    role: string | null;
+  } | null;
+}
+
+export async function listOutreachLists(spaceId: string): Promise<OutreachList[]> {
+  const data = await api<{ items: OutreachList[] }>(
+    `/api/outreach/lists?spaceId=${encodeURIComponent(spaceId)}`,
+  );
+  return data.items;
+}
+
+export async function createOutreachList(input: {
+  spaceId: string;
+  name: string;
+  description?: string;
+  memberPersonIds?: string[];
+}): Promise<OutreachList> {
+  return api<OutreachList>("/api/outreach/lists", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateOutreachList(
+  id: string,
+  input: { name?: string; description?: string },
+): Promise<OutreachList> {
+  return api<OutreachList>(`/api/outreach/lists/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteOutreachList(id: string): Promise<void> {
+  await api<void>(`/api/outreach/lists/${id}`, { method: "DELETE" });
+}
+
+export async function getOutreachListMembers(
+  id: string,
+): Promise<OutreachListMember[]> {
+  const data = await api<{ items: OutreachListMember[] }>(
+    `/api/outreach/lists/${id}/members`,
+  );
+  return data.items;
+}
+
+export async function addOutreachListMembers(
+  id: string,
+  personIds: string[],
+): Promise<string[]> {
+  const data = await api<{ items: string[] }>(`/api/outreach/lists/${id}/members`, {
+    method: "POST",
+    body: JSON.stringify({ personIds }),
+  });
+  return data.items;
+}
+
+export async function removeOutreachListMembers(
+  id: string,
+  personIds: string[],
+): Promise<string[]> {
+  const data = await api<{ items: string[] }>(`/api/outreach/lists/${id}/members`, {
+    method: "DELETE",
+    body: JSON.stringify({ personIds }),
+  });
+  return data.items;
+}
+
+export async function listOutreachCampaigns(
+  spaceId: string,
+): Promise<OutreachCampaign[]> {
+  const data = await api<{ items: OutreachCampaign[] }>(
+    `/api/outreach/campaigns?spaceId=${encodeURIComponent(spaceId)}`,
+  );
+  return data.items;
+}
+
+export interface CreateOutreachCampaignInput {
+  spaceId: string;
+  name: string;
+  description?: string;
+  listId: string;
+  agentId: string;
+  goal: string;
+  steps?: Array<{
+    position?: number;
+    sendAfterDays?: number;
+    channel?: OutreachChannel;
+    subject?: string;
+    template?: string;
+    instructions?: string;
+  }>;
+}
+
+export async function createOutreachCampaign(
+  input: CreateOutreachCampaignInput,
+): Promise<OutreachCampaign> {
+  return api<OutreachCampaign>("/api/outreach/campaigns", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getOutreachCampaignDetail(
+  id: string,
+): Promise<OutreachCampaignDetail> {
+  return api<OutreachCampaignDetail>(`/api/outreach/campaigns/${id}`);
+}
+
+export async function updateOutreachCampaign(
+  id: string,
+  input: Partial<{
+    name: string;
+    description: string;
+    listId: string;
+    agentId: string;
+    goal: string;
+    status: OutreachCampaignStatus;
+  }>,
+): Promise<OutreachCampaign> {
+  return api<OutreachCampaign>(`/api/outreach/campaigns/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteOutreachCampaign(id: string): Promise<void> {
+  await api<void>(`/api/outreach/campaigns/${id}`, { method: "DELETE" });
+}
+
+export async function activateOutreachCampaign(id: string): Promise<OutreachCampaign> {
+  return api<OutreachCampaign>(`/api/outreach/campaigns/${id}/activate`, {
+    method: "POST",
+  });
+}
+
+export async function pauseOutreachCampaign(id: string): Promise<OutreachCampaign> {
+  return api<OutreachCampaign>(`/api/outreach/campaigns/${id}/pause`, {
+    method: "POST",
+  });
+}
+
+export async function completeOutreachCampaign(id: string): Promise<OutreachCampaign> {
+  return api<OutreachCampaign>(`/api/outreach/campaigns/${id}/complete`, {
+    method: "POST",
+  });
+}
+
+export async function addOutreachStep(
+  campaignId: string,
+  input: {
+    position?: number;
+    sendAfterDays?: number;
+    channel?: OutreachChannel;
+    subject?: string;
+    template?: string;
+    instructions?: string;
+  },
+): Promise<OutreachStep> {
+  return api<OutreachStep>(`/api/outreach/campaigns/${campaignId}/steps`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateOutreachStep(
+  campaignId: string,
+  stepId: string,
+  input: Partial<{
+    position: number;
+    sendAfterDays: number;
+    channel: OutreachChannel;
+    subject: string;
+    template: string;
+    instructions: string;
+  }>,
+): Promise<OutreachStep> {
+  return api<OutreachStep>(
+    `/api/outreach/campaigns/${campaignId}/steps/${stepId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function deleteOutreachStep(
+  campaignId: string,
+  stepId: string,
+): Promise<void> {
+  await api<void>(`/api/outreach/campaigns/${campaignId}/steps/${stepId}`, {
+    method: "DELETE",
+  });
+}
+
+// --- Lead generation & enrichment --------------------------------------------
+
+export type LeadProviderKind = "api" | "composio" | "mcp";
+
+export interface LeadProviderView {
+  id: string;
+  label: string;
+  kind: LeadProviderKind;
+  configured: boolean;
+  detail: string;
+}
+
+export interface LeadArea {
+  place: string;
+  center?: { lat: number; lng: number };
+  radiusKm?: number;
+  polygon?: Array<{ lat: number; lng: number }>;
+}
+
+export interface LeadPersona {
+  titles: string[];
+  seniority: string[];
+  functions: string[];
+  industries: string[];
+  companySizes: string[];
+  keywords: string[];
+  excludeEmails: string[];
+  summary: string;
+}
+
+export type LeadListStatus = "draft" | "queued" | "running" | "complete" | "failed";
+
+export interface LeadList {
+  id: string;
+  organizationId: string | null;
+  spaceId: string;
+  createdBy: string | null;
+  name: string;
+  description: string;
+  persona: LeadPersona;
+  area: LeadArea | null;
+  providerId: string;
+  providerConfig: Record<string, unknown>;
+  status: LeadListStatus;
+  error: string | null;
+  leadCount: number;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeadView {
+  id: string;
+  leadListId: string;
+  personId: string;
+  providerId: string;
+  status: "new" | "contacted" | "qualified" | "converted";
+  person: {
+    id: string;
+    actorId: string;
+    displayName: string;
+    email: string | null;
+    title: string;
+    seniority: string;
+    company: string;
+    industry: string;
+    companySize: string;
+    location: string;
+    linkedinUrl: string | null;
+  } | null;
+}
+
+export interface LeadRunResult {
+  listId: string;
+  status: LeadListStatus;
+  totalFound: number;
+  added: number;
+  skipped: number;
+  error: string | null;
+}
+
+export interface CreateLeadListInput {
+  spaceId: string;
+  organizationId?: string | null;
+  name: string;
+  description?: string;
+  persona?: Partial<LeadPersona>;
+  area?: LeadArea | null;
+  providerId: string;
+  providerConfig?: Record<string, unknown>;
+}
+
+export async function createLeadList(input: CreateLeadListInput): Promise<LeadList> {
+  return api<LeadList>("/api/lead-lists", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listLeadLists(
+  spaceId: string,
+  organizationId?: string | null,
+): Promise<LeadList[]> {
+  const params = new URLSearchParams({ spaceId });
+  if (organizationId) params.set("organizationId", organizationId);
+  const data = await api<{ items: LeadList[] }>(`/api/lead-lists?${params.toString()}`);
+  return data.items;
+}
+
+export async function getLeadList(id: string): Promise<LeadList> {
+  return api<LeadList>(`/api/lead-lists/${id}`);
+}
+
+export async function updateLeadList(
+  id: string,
+  patch: Partial<{
+    name: string;
+    description: string;
+    persona: LeadPersona;
+    area: LeadArea | null;
+    providerId: string;
+    providerConfig: Record<string, unknown>;
+  }>,
+): Promise<LeadList> {
+  return api<LeadList>(`/api/lead-lists/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function deleteLeadList(id: string): Promise<void> {
+  await api<void>(`/api/lead-lists/${id}`, { method: "DELETE" });
+}
+
+export async function listLeadProviders(
+  spaceId: string,
+  organizationId?: string | null,
+): Promise<LeadProviderView[]> {
+  const params = new URLSearchParams({ spaceId });
+  if (organizationId) params.set("organizationId", organizationId);
+  const data = await api<{ items: LeadProviderView[] }>(
+    `/api/lead-providers?${params.toString()}`,
+  );
+  return data.items;
+}
+
+export async function runLeadList(id: string, limit?: number): Promise<LeadRunResult> {
+  return api<LeadRunResult>(`/api/lead-lists/${id}/run`, {
+    method: "POST",
+    body: JSON.stringify({ limit }),
+  });
+}
+
+export async function listLeadListLeads(id: string): Promise<LeadView[]> {
+  const data = await api<{ items: LeadView[] }>(`/api/lead-lists/${id}/leads`);
+  return data.items;
+}
+
+export async function enrichLead(
+  listId: string,
+  personId: string,
+): Promise<{ id: string }> {
+  return api<{ id: string }>(
+    `/api/lead-lists/${listId}/leads/${personId}/enrich`,
+    { method: "POST" },
+  );
+}

@@ -26,8 +26,10 @@ import {
   Landmark,
   LayoutGrid,
   ListTodo,
+  Megaphone,
   MessageCircle,
   Plus,
+  Radar,
   Server,
   Trash2,
   Truck,
@@ -58,6 +60,8 @@ const SECTION_ITEMS: RailItem[] = [
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "suppliers", label: "Suppliers", icon: Truck },
   { id: "crm", label: "CRM", icon: Briefcase },
+  { id: "leads", label: "Leads", icon: Radar },
+  { id: "outreach", label: "Outreach", icon: Megaphone },
   { id: "finance", label: "Finance", icon: Landmark },
 ];
 
@@ -86,8 +90,12 @@ function loadPrefs(): RailPrefs {
     if (raw) {
       const parsed = JSON.parse(raw) as RailPrefs;
       if (Array.isArray(parsed.order) && Array.isArray(parsed.hidden)) {
+        // Merge with defaults so sections shipped after the user saved their
+        // rail still appear (appended at the end), and stale ids are dropped.
+        const saved = parsed.order.filter(isSectionId);
+        const missing = DEFAULT_ORDER.filter((id) => !saved.includes(id));
         return {
-          order: parsed.order.filter(isSectionId),
+          order: [...saved, ...missing],
           hidden: parsed.hidden.filter(isSectionId),
         };
       }

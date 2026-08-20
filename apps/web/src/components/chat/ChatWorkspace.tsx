@@ -7,6 +7,7 @@ import { AtSign, Paperclip, Plus } from "lucide-react";
 import { CopilotChat, useAgentContext } from "@copilotkit/react-core/v2";
 import "@copilotkit/react-core/v2/styles.css";
 import { CommerceToolBridge } from "@/components/commerce/use-commerce-tools";
+import { LeadToolBridge } from "@/components/leads/LeadToolBridge";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
 import { MentionTextarea } from "./MentionTextarea";
 
@@ -55,6 +56,7 @@ function ChatContent() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <CommerceToolBridge />
+      <LeadToolBridge />
       <div className="min-h-0 flex-1 overflow-hidden">
         <CopilotChat
           className="h-full"

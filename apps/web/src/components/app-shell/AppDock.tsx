@@ -11,6 +11,8 @@ import { CanvasWorkspace } from "@/components/canvas/CanvasWorkspace";
 import { WhatsAppApp } from "@/components/whatsapp/WhatsAppApp";
 import { FinanceWorkspace } from "@/components/finance/FinanceWorkspace";
 import { SuppliersWorkspace } from "@/components/suppliers/SuppliersWorkspace";
+import { LeadsWorkspace } from "@/components/leads/LeadsWorkspace";
+import { OutreachWorkspace } from "@/components/outreach/OutreachWorkspace";
 
 import { SECTION_TITLES, useAppShell, type SectionId } from "./app-shell-context";
 
@@ -53,6 +55,12 @@ export function AppDock() {
       break;
     case "suppliers":
       content = <SuppliersWorkspace />;
+      break;
+    case "leads":
+      content = <LeadsWorkspace />;
+      break;
+    case "outreach":
+      content = <OutreachWorkspace />;
       break;
     case "finance":
       content = <FinanceWorkspace />;
