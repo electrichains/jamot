@@ -1,7 +1,7 @@
 "use client";
 
 import { API_URL } from "@/components/auth/auth-context";
-import { useAppShell } from "@/components/app-shell/app-shell-context";
+import { useOptionalAppShell } from "@/components/app-shell/app-shell-context";
 
 export interface OrgBranding {
   name: string;
@@ -16,9 +16,14 @@ export function resolveLogoUrl(logoUrl: string | null | undefined): string | nul
   return logoUrl;
 }
 
-/** Branding (logo + name) for the currently active organization space, if any. */
+/** Branding (logo + name) for the currently active organization space, if any.
+ * Returns no branding when rendered outside the app shell (e.g. the login screen). */
 export function useActiveOrgBranding(): OrgBranding {
-  const { space, organizations } = useAppShell();
+  const shell = useOptionalAppShell();
+  if (!shell) {
+    return { name: "", logoUrl: null, resolvedLogoUrl: null };
+  }
+  const { space, organizations } = shell;
   if (space.kind !== "organization" || !space.organizationId) {
     return { name: "", logoUrl: null, resolvedLogoUrl: null };
   }

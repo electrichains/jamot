@@ -291,3 +291,9 @@ export function useAppShell(): AppShellState {
   }
   return context;
 }
+
+/** Like useAppShell, but returns null when rendered outside AppShellProvider.
+ * Use for components that can appear on auth/login surfaces (e.g. brand logos). */
+export function useOptionalAppShell(): AppShellState | null {
+  return useContext(AppShellContext);
+}
