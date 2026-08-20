@@ -9,7 +9,13 @@ import type {
   CatalogOffer,
   Connector,
   Event,
+  LeadList,
+  LeadListMember,
   Organization,
+  OutreachCampaign,
+  OutreachList,
+  OutreachSend,
+  OutreachStep,
   PaymentIntent,
   PaymentRecord,
   Person,
@@ -42,6 +48,10 @@ import {
   events,
   organizations,
   workspaces,
+  outreachCampaigns,
+  outreachLists,
+  outreachSends,
+  outreachSteps,
   paymentIntents,
   paymentRecords,
   people,
@@ -59,6 +69,8 @@ import {
   taskAttachments,
   taskLists,
   tasks,
+  leadLists,
+  leadListMembers,
 } from "../schema/index.js";
 import type {
   JamotRepository,
@@ -69,7 +81,14 @@ import type {
   NewCatalog,
   NewCatalogOffer,
   NewConnector,
+  NewLeadList,
+  NewLeadListMember,
+  NewLeadPerson,
   NewOrganization,
+  NewOutreachCampaign,
+  NewOutreachList,
+  NewOutreachSend,
+  NewOutreachStep,
   NewPaymentIntent,
   NewPaymentRecord,
   NewPerson,
@@ -104,6 +123,12 @@ type CapabilityRow = typeof capabilities.$inferSelect;
 type PolicyRow = typeof policies.$inferSelect;
 type SecretRow = typeof secrets.$inferSelect;
 type ComposioOAuthStateRow = typeof composioOauthStates.$inferSelect;
+type LeadListRow = typeof leadLists.$inferSelect;
+type LeadListMemberRow = typeof leadListMembers.$inferSelect;
+type OutreachListRow = typeof outreachLists.$inferSelect;
+type OutreachCampaignRow = typeof outreachCampaigns.$inferSelect;
+type OutreachStepRow = typeof outreachSteps.$inferSelect;
+type OutreachSendRow = typeof outreachSends.$inferSelect;
 
 function toActor(row: ActorRow): Actor {
   return {
@@ -553,6 +578,100 @@ function toPaymentRecord(row: typeof paymentRecords.$inferSelect): PaymentRecord
   };
 }
 
+function toLeadList(row: LeadListRow): LeadList {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    organizationId: (row.organizationId as Id | null) ?? null,
+    spaceId: row.spaceId as Id,
+    createdBy: (row.createdBy as Id | null) ?? null,
+    name: row.name,
+    description: row.description,
+    persona: row.persona,
+    area: (row.area as LeadList["area"]) ?? null,
+    providerId: row.providerId,
+    providerConfig: row.providerConfig,
+    status: row.status as LeadList["status"],
+    error: row.error,
+    leadCount: row.leadCount,
+    lastRunAt: row.lastRunAt,
+  };
+}
+
+function toLeadListMember(row: LeadListMemberRow): LeadListMember {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    leadListId: row.leadListId as Id,
+    personId: row.personId as Id,
+    providerId: row.providerId,
+    status: row.status as LeadListMember["status"],
+    raw: row.raw,
+    provenance: row.provenance,
+  };
+}
+
+function toOutreachList(row: OutreachListRow): OutreachList {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    spaceId: row.spaceId as Id,
+    name: row.name,
+    description: row.description,
+    memberPersonIds: row.memberPersonIds as Id[],
+  };
+}
+
+function toOutreachCampaign(row: OutreachCampaignRow): OutreachCampaign {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    spaceId: row.spaceId as Id,
+    name: row.name,
+    description: row.description,
+    listId: row.listId as Id,
+    agentId: row.agentId as Id,
+    goal: row.goal,
+    status: row.status as OutreachCampaign["status"],
+    startedAt: row.startedAt,
+  };
+}
+
+function toOutreachStep(row: OutreachStepRow): OutreachStep {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    campaignId: row.campaignId as Id,
+    position: row.position,
+    sendAfterDays: row.sendAfterDays,
+    channel: row.channel as OutreachStep["channel"],
+    subject: row.subject,
+    template: row.template,
+    instructions: row.instructions,
+  };
+}
+
+function toOutreachSend(row: OutreachSendRow): OutreachSend {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    campaignId: row.campaignId as Id,
+    stepId: row.stepId as Id,
+    personId: row.personId as Id,
+    status: row.status as OutreachSend["status"],
+    scheduledAt: row.scheduledAt,
+    taskId: (row.taskId as Id | null) ?? null,
+    sentAt: row.sentAt,
+    error: row.error,
+  };
+}
+
 const nowIso = () => new Date().toISOString();
 
 export function createPgRepository(db: Db): JamotRepository {
@@ -683,6 +802,151 @@ export function createPgRepository(db: Db): JamotRepository {
         .where(eq(people.id, id))
         .returning();
       return row ? toPerson(row) : null;
+    },
+
+    async findPersonByEmail(email) {
+      const [row] = await q
+        .select()
+        .from(people)
+        .where(eq(people.email, email))
+        .limit(1);
+      return row ? toPerson(row) : null;
+    },
+
+    async createLeadPerson(input: NewLeadPerson) {
+      const [actorRow] = await q
+        .insert(actors)
+        .values({
+          type: "human",
+          source: "external",
+          displayName: input.displayName,
+          status: "active",
+          externalIdentities: [],
+          personalSpaceId: null,
+        })
+        .returning();
+      if (!actorRow) throw new Error("failed to create lead actor");
+
+      const [personRow] = await q
+        .insert(people)
+        .values({
+          actorId: actorRow.id,
+          email: input.email ?? null,
+          profile:
+            input.profile ?? {
+              selfDescribed: {},
+              integral: {},
+              skills: [],
+              preferences: {},
+              goals: [],
+            },
+          membershipSpaceIds: input.membershipSpaceIds ?? [],
+          reputation: {},
+        })
+        .returning();
+      if (!personRow) throw new Error("failed to create lead person");
+      return toPerson(personRow);
+    },
+
+    async createLeadList(input: NewLeadList) {
+      const [row] = await q
+        .insert(leadLists)
+        .values({
+          organizationId: input.organizationId ?? null,
+          spaceId: input.spaceId,
+          createdBy: input.createdBy ?? null,
+          name: input.name,
+          description: input.description ?? "",
+          persona: input.persona ?? { titles: [], seniority: [], functions: [], industries: [], companySizes: [], keywords: [], excludeEmails: [], summary: "" },
+          area: input.area ?? null,
+          providerId: input.providerId,
+          providerConfig: input.providerConfig ?? {},
+          status: input.status ?? "draft",
+          error: input.error ?? null,
+          leadCount: input.leadCount ?? 0,
+          lastRunAt: input.lastRunAt ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create lead list");
+      return toLeadList(row);
+    },
+
+    async getLeadList(id) {
+      const [row] = await q
+        .select()
+        .from(leadLists)
+        .where(eq(leadLists.id, id))
+        .limit(1);
+      return row ? toLeadList(row) : null;
+    },
+
+    async listLeadLists(filter) {
+      const rows = await q
+        .select()
+        .from(leadLists)
+        .where(
+          and(
+            filter?.spaceId ? eq(leadLists.spaceId, filter.spaceId) : undefined,
+            filter?.organizationId
+              ? eq(leadLists.organizationId, filter.organizationId)
+              : undefined,
+          ),
+        )
+        .orderBy(desc(leadLists.createdAt));
+      return rows.map(toLeadList);
+    },
+
+    async updateLeadList(id, patch) {
+      const [row] = await q
+        .update(leadLists)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(leadLists.id, id))
+        .returning();
+      return row ? toLeadList(row) : null;
+    },
+
+    async deleteLeadList(id) {
+      await q.delete(leadLists).where(eq(leadLists.id, id));
+    },
+
+    async addLeadListMember(input: NewLeadListMember) {
+      const [row] = await q
+        .insert(leadListMembers)
+        .values({
+          leadListId: input.leadListId,
+          personId: input.personId,
+          providerId: input.providerId,
+          status: input.status ?? "new",
+          raw: input.raw ?? {},
+          provenance: input.provenance ?? {},
+        })
+        .returning();
+      if (!row) throw new Error("failed to add lead list member");
+      return toLeadListMember(row);
+    },
+
+    async updateLeadListMember(id, patch) {
+      const [row] = await q
+        .update(leadListMembers)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(leadListMembers.id, id))
+        .returning();
+      return row ? toLeadListMember(row) : null;
+    },
+
+    async listLeadListMembers(leadListId) {
+      const rows = await q
+        .select()
+        .from(leadListMembers)
+        .where(eq(leadListMembers.leadListId, leadListId))
+        .orderBy(asc(leadListMembers.createdAt));
+      return rows.map(toLeadListMember);
+    },
+
+    async deleteLeadListMembers(leadListId) {
+      await q
+        .delete(leadListMembers)
+        .where(eq(leadListMembers.leadListId, leadListId));
     },
 
     async createAgent(input: NewAgent) {
@@ -2076,6 +2340,217 @@ export function createPgRepository(db: Db): JamotRepository {
         .where(eq(paymentRecords.paymentIntentId, paymentIntentId))
         .orderBy(asc(paymentRecords.createdAt));
       return rows.map(toPaymentRecord);
+    },
+
+    async createOutreachList(input: NewOutreachList) {
+      const [row] = await q
+        .insert(outreachLists)
+        .values({
+          spaceId: input.spaceId,
+          name: input.name,
+          description: input.description ?? "",
+          memberPersonIds: input.memberPersonIds ?? [],
+        })
+        .returning();
+      if (!row) throw new Error("failed to create outreach list");
+      return toOutreachList(row);
+    },
+
+    async getOutreachList(id) {
+      const [row] = await q
+        .select()
+        .from(outreachLists)
+        .where(eq(outreachLists.id, id))
+        .limit(1);
+      return row ? toOutreachList(row) : null;
+    },
+
+    async listOutreachLists(spaceId) {
+      const rows = await q
+        .select()
+        .from(outreachLists)
+        .where(eq(outreachLists.spaceId, spaceId))
+        .orderBy(asc(outreachLists.createdAt));
+      return rows.map(toOutreachList);
+    },
+
+    async updateOutreachList(id, patch) {
+      const [row] = await q
+        .update(outreachLists)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(outreachLists.id, id))
+        .returning();
+      return row ? toOutreachList(row) : null;
+    },
+
+    async deleteOutreachList(id) {
+      await q.delete(outreachLists).where(eq(outreachLists.id, id));
+    },
+
+    async createOutreachCampaign(input: NewOutreachCampaign) {
+      const [row] = await q
+        .insert(outreachCampaigns)
+        .values({
+          spaceId: input.spaceId,
+          name: input.name,
+          description: input.description ?? "",
+          listId: input.listId,
+          agentId: input.agentId,
+          goal: input.goal,
+          status: input.status ?? "draft",
+          startedAt: input.startedAt ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create outreach campaign");
+      return toOutreachCampaign(row);
+    },
+
+    async getOutreachCampaign(id) {
+      const [row] = await q
+        .select()
+        .from(outreachCampaigns)
+        .where(eq(outreachCampaigns.id, id))
+        .limit(1);
+      return row ? toOutreachCampaign(row) : null;
+    },
+
+    async listOutreachCampaigns(filter) {
+      const rows = await q
+        .select()
+        .from(outreachCampaigns)
+        .where(
+          and(
+            filter?.spaceId
+              ? eq(outreachCampaigns.spaceId, filter.spaceId)
+              : undefined,
+            filter?.status
+              ? eq(outreachCampaigns.status, filter.status)
+              : undefined,
+          ),
+        )
+        .orderBy(desc(outreachCampaigns.createdAt));
+      return rows.map(toOutreachCampaign);
+    },
+
+    async updateOutreachCampaign(id, patch) {
+      const [row] = await q
+        .update(outreachCampaigns)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(outreachCampaigns.id, id))
+        .returning();
+      return row ? toOutreachCampaign(row) : null;
+    },
+
+    async deleteOutreachCampaign(id) {
+      await q.delete(outreachCampaigns).where(eq(outreachCampaigns.id, id));
+    },
+
+    async createOutreachStep(input: NewOutreachStep) {
+      const [row] = await q
+        .insert(outreachSteps)
+        .values({
+          campaignId: input.campaignId,
+          position: input.position ?? 0,
+          sendAfterDays: input.sendAfterDays ?? 0,
+          channel: input.channel ?? "whatsapp",
+          subject: input.subject ?? "",
+          template: input.template ?? "",
+          instructions: input.instructions ?? "",
+        })
+        .returning();
+      if (!row) throw new Error("failed to create outreach step");
+      return toOutreachStep(row);
+    },
+
+    async listOutreachSteps(campaignId) {
+      const rows = await q
+        .select()
+        .from(outreachSteps)
+        .where(eq(outreachSteps.campaignId, campaignId))
+        .orderBy(asc(outreachSteps.position));
+      return rows.map(toOutreachStep);
+    },
+
+    async updateOutreachStep(id, patch) {
+      const [row] = await q
+        .update(outreachSteps)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(outreachSteps.id, id))
+        .returning();
+      return row ? toOutreachStep(row) : null;
+    },
+
+    async deleteOutreachStep(id) {
+      await q.delete(outreachSteps).where(eq(outreachSteps.id, id));
+    },
+
+    async createOutreachSend(input: NewOutreachSend) {
+      const [row] = await q
+        .insert(outreachSends)
+        .values({
+          campaignId: input.campaignId,
+          stepId: input.stepId,
+          personId: input.personId,
+          status: input.status ?? "queued",
+          scheduledAt: input.scheduledAt,
+          taskId: input.taskId ?? null,
+          sentAt: input.sentAt ?? null,
+          error: input.error ?? null,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create outreach send");
+      return toOutreachSend(row);
+    },
+
+    async getOutreachSend(id) {
+      const [row] = await q
+        .select()
+        .from(outreachSends)
+        .where(eq(outreachSends.id, id))
+        .limit(1);
+      return row ? toOutreachSend(row) : null;
+    },
+
+    async findOutreachSend(campaignId, stepId, personId) {
+      const [row] = await q
+        .select()
+        .from(outreachSends)
+        .where(
+          and(
+            eq(outreachSends.campaignId, campaignId),
+            eq(outreachSends.stepId, stepId),
+            eq(outreachSends.personId, personId),
+          ),
+        )
+        .limit(1);
+      return row ? toOutreachSend(row) : null;
+    },
+
+    async listOutreachSends(filter) {
+      const rows = await q
+        .select()
+        .from(outreachSends)
+        .where(
+          and(
+            filter?.campaignId
+              ? eq(outreachSends.campaignId, filter.campaignId)
+              : undefined,
+            filter?.personId
+              ? eq(outreachSends.personId, filter.personId)
+              : undefined,
+          ),
+        )
+        .orderBy(asc(outreachSends.scheduledAt));
+      return rows.map(toOutreachSend);
+    },
+
+    async updateOutreachSend(id, patch) {
+      const [row] = await q
+        .update(outreachSends)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(outreachSends.id, id))
+        .returning();
+      return row ? toOutreachSend(row) : null;
     },
   };
 

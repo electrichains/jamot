@@ -17,6 +17,8 @@ import type {
   AgentSchedule,
   ExternalIdentity,
   Harness,
+  LeadArea,
+  LeadPersona,
   PersonProfile,
   Provenance,
   SecretRef,
@@ -913,6 +915,163 @@ export const paymentRecords = pgTable("payment_records", {
   ...timestamps(),
 });
 
+export const outreachLists = pgTable(
+  "outreach_lists",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    spaceId: uuid("space_id")
+      .notNull()
+      .references(() => spaces.id),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    memberPersonIds: uuid("member_person_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    ...timestamps(),
+  },
+  (table) => [index("outreach_lists_space_id_idx").on(table.spaceId)],
+);
+
+export const outreachCampaigns = pgTable(
+  "outreach_campaigns",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    spaceId: uuid("space_id")
+      .notNull()
+      .references(() => spaces.id),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    listId: uuid("list_id")
+      .notNull()
+      .references(() => outreachLists.id),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agents.id),
+    goal: text("goal").notNull(),
+    status: text("status").notNull().default("draft"),
+    startedAt: timestamp("started_at", { mode: "string", withTimezone: true }),
+    ...timestamps(),
+  },
+  (table) => [
+    index("outreach_campaigns_space_id_idx").on(table.spaceId),
+    index("outreach_campaigns_list_id_idx").on(table.listId),
+  ],
+);
+
+export const outreachSteps = pgTable(
+  "outreach_steps",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => outreachCampaigns.id, { onDelete: "cascade" }),
+    position: integer("position").notNull().default(0),
+    sendAfterDays: integer("send_after_days").notNull().default(0),
+    channel: text("channel").notNull().default("whatsapp"),
+    subject: text("subject").notNull().default(""),
+    template: text("template").notNull().default(""),
+    instructions: text("instructions").notNull().default(""),
+    ...timestamps(),
+  },
+  (table) => [index("outreach_steps_campaign_id_idx").on(table.campaignId)],
+);
+
+export const outreachSends = pgTable(
+  "outreach_sends",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => outreachCampaigns.id, { onDelete: "cascade" }),
+    stepId: uuid("step_id")
+      .notNull()
+      .references(() => outreachSteps.id, { onDelete: "cascade" }),
+    personId: uuid("person_id")
+      .notNull()
+      .references(() => people.id),
+    status: text("status").notNull().default("queued"),
+    scheduledAt: timestamp("scheduled_at", {
+      mode: "string",
+      withTimezone: true,
+    }).notNull(),
+    taskId: uuid("task_id").references(() => tasks.id),
+    sentAt: timestamp("sent_at", { mode: "string", withTimezone: true }),
+    error: text("error"),
+    ...timestamps(),
+  },
+  (table) => [
+    index("outreach_sends_campaign_id_idx").on(table.campaignId),
+    index("outreach_sends_person_id_idx").on(table.personId),
+    index("outreach_sends_campaign_step_person_idx").on(
+      table.campaignId,
+      table.stepId,
+      table.personId,
+    ),
+  ],
+);
+
+export const leadLists = pgTable(
+  "lead_lists",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    spaceId: uuid("space_id")
+      .notNull()
+      .references(() => spaces.id),
+    createdBy: uuid("created_by").references(() => actors.id),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    persona: jsonb("persona")
+      .$type<LeadPersona>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    area: jsonb("area").$type<LeadArea | null>(),
+    providerId: text("provider_id").notNull(),
+    providerConfig: jsonb("provider_config")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    status: text("status").notNull().default("draft"),
+    error: text("error"),
+    leadCount: integer("lead_count").notNull().default(0),
+    lastRunAt: timestamp("last_run_at", { mode: "string", withTimezone: true }),
+    ...timestamps(),
+  },
+  (table) => [
+    index("lead_lists_space_id_idx").on(table.spaceId),
+    index("lead_lists_org_id_idx").on(table.organizationId),
+  ],
+);
+
+export const leadListMembers = pgTable(
+  "lead_list_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    leadListId: uuid("lead_list_id")
+      .notNull()
+      .references(() => leadLists.id, { onDelete: "cascade" }),
+    personId: uuid("person_id")
+      .notNull()
+      .references(() => people.id),
+    providerId: text("provider_id").notNull(),
+    status: text("status").notNull().default("new"),
+    raw: jsonb("raw")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    provenance: jsonb("provenance")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    ...timestamps(),
+  },
+  (table) => [
+    index("lead_list_members_list_idx").on(table.leadListId),
+    index("lead_list_members_person_idx").on(table.personId),
+  ],
+);
+
 export const sessions = pgTable("sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
   actorId: uuid("actor_id"),
@@ -991,6 +1150,12 @@ export const schema = {
   purchaseOrders,
   paymentIntents,
   paymentRecords,
+  outreachLists,
+  outreachCampaigns,
+  outreachSteps,
+  outreachSends,
+  leadLists,
+  leadListMembers,
   sessions,
   users,
 };

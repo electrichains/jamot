@@ -8,7 +8,13 @@ import {
   CatalogOffer,
   Connector,
   Event,
+  LeadList,
+  LeadListMember,
   Organization,
+  OutreachCampaign,
+  OutreachList,
+  OutreachSend,
+  OutreachStep,
   PaymentIntent,
   PaymentRecord,
   Person,
@@ -37,7 +43,14 @@ import type {
   NewCatalog,
   NewCatalogOffer,
   NewConnector,
+  NewLeadList,
+  NewLeadListMember,
+  NewLeadPerson,
   NewOrganization,
+  NewOutreachCampaign,
+  NewOutreachList,
+  NewOutreachSend,
+  NewOutreachStep,
   NewPaymentIntent,
   NewPaymentRecord,
   NewPerson,
@@ -89,6 +102,12 @@ export function createMemoryRepository(): JamotRepository {
   const purchaseOrderStore = new Map<string, PurchaseOrder>();
   const paymentIntentStore = new Map<string, PaymentIntent>();
   const paymentRecordStore = new Map<string, PaymentRecord>();
+  const leadListStore = new Map<string, LeadList>();
+  const leadListMemberStore = new Map<string, LeadListMember>();
+  const outreachLists = new Map<string, OutreachList>();
+  const outreachCampaigns = new Map<string, OutreachCampaign>();
+  const outreachSteps = new Map<string, OutreachStep>();
+  const outreachSends = new Map<string, OutreachSend>();
 
   const repo: JamotRepository = {
     async createActor(input: NewActor) {
@@ -176,6 +195,124 @@ export function createMemoryRepository(): JamotRepository {
       const updated = Person.parse({ ...existing, ...patch });
       people.set(id, updated);
       return updated;
+    },
+
+    async findPersonByEmail(email) {
+      const lower = email.toLowerCase();
+      for (const person of people.values()) {
+        if (person.email?.toLowerCase() === lower) return person;
+      }
+      return null;
+    },
+
+    async createLeadPerson(input: NewLeadPerson) {
+      const actor = await this.createActor({
+        type: "human",
+        source: "external",
+        displayName: input.displayName,
+      });
+      const person = Person.parse({
+        id: uuid(),
+        actorId: actor.id,
+        email: input.email ?? null,
+        profile: input.profile ?? {},
+        membershipSpaceIds: input.membershipSpaceIds ?? [],
+        reputation: {},
+      });
+      people.set(person.id, person);
+      return person;
+    },
+
+    async createLeadList(input: NewLeadList) {
+      const list = LeadList.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        organizationId: input.organizationId ?? null,
+        spaceId: input.spaceId,
+        createdBy: input.createdBy ?? null,
+        name: input.name,
+        description: input.description ?? "",
+        persona: input.persona ?? {},
+        area: input.area ?? null,
+        providerId: input.providerId,
+        providerConfig: input.providerConfig ?? {},
+        status: input.status ?? "draft",
+        error: input.error ?? null,
+        leadCount: input.leadCount ?? 0,
+        lastRunAt: input.lastRunAt ?? null,
+      });
+      leadListStore.set(list.id, list);
+      return list;
+    },
+
+    async getLeadList(id) {
+      return leadListStore.get(id) ?? null;
+    },
+
+    async listLeadLists(filter) {
+      let all = [...leadListStore.values()];
+      if (filter?.spaceId) all = all.filter((l) => l.spaceId === filter.spaceId);
+      if (filter?.organizationId) {
+        all = all.filter((l) => l.organizationId === filter.organizationId);
+      }
+      return all;
+    },
+
+    async updateLeadList(id, patch) {
+      const existing = leadListStore.get(id);
+      if (!existing) return null;
+      const updated = LeadList.parse({
+        ...existing,
+        ...patch,
+        updatedAt: now(),
+      });
+      leadListStore.set(id, updated);
+      return updated;
+    },
+
+    async deleteLeadList(id) {
+      leadListStore.delete(id);
+    },
+
+    async addLeadListMember(input: NewLeadListMember) {
+      const member = LeadListMember.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        leadListId: input.leadListId,
+        personId: input.personId,
+        providerId: input.providerId,
+        status: input.status ?? "new",
+        raw: input.raw ?? {},
+        provenance: input.provenance ?? {},
+      });
+      leadListMemberStore.set(member.id, member);
+      return member;
+    },
+
+    async updateLeadListMember(id, patch) {
+      const existing = leadListMemberStore.get(id);
+      if (!existing) return null;
+      const updated = LeadListMember.parse({
+        ...existing,
+        ...patch,
+        updatedAt: now(),
+      });
+      leadListMemberStore.set(id, updated);
+      return updated;
+    },
+
+    async listLeadListMembers(leadListId) {
+      return [...leadListMemberStore.values()].filter(
+        (m) => m.leadListId === leadListId,
+      );
+    },
+
+    async deleteLeadListMembers(leadListId) {
+      for (const [id, member] of leadListMemberStore) {
+        if (member.leadListId === leadListId) leadListMemberStore.delete(id);
+      }
     },
 
     async createAgent(input: NewAgent) {
@@ -1179,6 +1316,184 @@ export function createMemoryRepository(): JamotRepository {
       return [...paymentRecordStore.values()].filter(
         (r) => r.paymentIntentId === paymentIntentId,
       );
+    },
+
+    async createOutreachList(input: NewOutreachList) {
+      const list = OutreachList.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        spaceId: input.spaceId,
+        name: input.name,
+        description: input.description ?? "",
+        memberPersonIds: input.memberPersonIds ?? [],
+      });
+      outreachLists.set(list.id, list);
+      return list;
+    },
+
+    async getOutreachList(id) {
+      return outreachLists.get(id) ?? null;
+    },
+
+    async listOutreachLists(spaceId) {
+      return [...outreachLists.values()].filter((l) => l.spaceId === spaceId);
+    },
+
+    async updateOutreachList(id, patch) {
+      const existing = outreachLists.get(id);
+      if (!existing) return null;
+      const updated = OutreachList.parse({
+        ...existing,
+        ...patch,
+        updatedAt: now(),
+      });
+      outreachLists.set(id, updated);
+      return updated;
+    },
+
+    async deleteOutreachList(id) {
+      outreachLists.delete(id);
+    },
+
+    async createOutreachCampaign(input: NewOutreachCampaign) {
+      const campaign = OutreachCampaign.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        spaceId: input.spaceId,
+        name: input.name,
+        description: input.description ?? "",
+        listId: input.listId,
+        agentId: input.agentId,
+        goal: input.goal,
+        status: input.status ?? "draft",
+        startedAt: input.startedAt ?? null,
+      });
+      outreachCampaigns.set(campaign.id, campaign);
+      return campaign;
+    },
+
+    async getOutreachCampaign(id) {
+      return outreachCampaigns.get(id) ?? null;
+    },
+
+    async listOutreachCampaigns(filter) {
+      let all = [...outreachCampaigns.values()];
+      if (filter?.spaceId) all = all.filter((c) => c.spaceId === filter.spaceId);
+      if (filter?.status) all = all.filter((c) => c.status === filter.status);
+      return all;
+    },
+
+    async updateOutreachCampaign(id, patch) {
+      const existing = outreachCampaigns.get(id);
+      if (!existing) return null;
+      const updated = OutreachCampaign.parse({
+        ...existing,
+        ...patch,
+        updatedAt: now(),
+      });
+      outreachCampaigns.set(id, updated);
+      return updated;
+    },
+
+    async deleteOutreachCampaign(id) {
+      outreachCampaigns.delete(id);
+    },
+
+    async createOutreachStep(input: NewOutreachStep) {
+      const step = OutreachStep.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        campaignId: input.campaignId,
+        position: input.position ?? 0,
+        sendAfterDays: input.sendAfterDays ?? 0,
+        channel: input.channel ?? "whatsapp",
+        subject: input.subject ?? "",
+        template: input.template ?? "",
+        instructions: input.instructions ?? "",
+      });
+      outreachSteps.set(step.id, step);
+      return step;
+    },
+
+    async listOutreachSteps(campaignId) {
+      return [...outreachSteps.values()]
+        .filter((s) => s.campaignId === campaignId)
+        .sort((a, b) => a.position - b.position);
+    },
+
+    async updateOutreachStep(id, patch) {
+      const existing = outreachSteps.get(id);
+      if (!existing) return null;
+      const updated = OutreachStep.parse({
+        ...existing,
+        ...patch,
+        updatedAt: now(),
+      });
+      outreachSteps.set(id, updated);
+      return updated;
+    },
+
+    async deleteOutreachStep(id) {
+      outreachSteps.delete(id);
+    },
+
+    async createOutreachSend(input: NewOutreachSend) {
+      const send = OutreachSend.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        campaignId: input.campaignId,
+        stepId: input.stepId,
+        personId: input.personId,
+        status: input.status ?? "queued",
+        scheduledAt: input.scheduledAt,
+        taskId: input.taskId ?? null,
+        sentAt: input.sentAt ?? null,
+        error: input.error ?? null,
+      });
+      outreachSends.set(send.id, send);
+      return send;
+    },
+
+    async getOutreachSend(id) {
+      return outreachSends.get(id) ?? null;
+    },
+
+    async findOutreachSend(campaignId, stepId, personId) {
+      for (const send of outreachSends.values()) {
+        if (
+          send.campaignId === campaignId &&
+          send.stepId === stepId &&
+          send.personId === personId
+        ) {
+          return send;
+        }
+      }
+      return null;
+    },
+
+    async listOutreachSends(filter) {
+      let all = [...outreachSends.values()];
+      if (filter?.campaignId) {
+        all = all.filter((s) => s.campaignId === filter.campaignId);
+      }
+      if (filter?.personId) all = all.filter((s) => s.personId === filter.personId);
+      return all.sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+    },
+
+    async updateOutreachSend(id, patch) {
+      const existing = outreachSends.get(id);
+      if (!existing) return null;
+      const updated = OutreachSend.parse({
+        ...existing,
+        ...patch,
+        updatedAt: now(),
+      });
+      outreachSends.set(id, updated);
+      return updated;
     },
   };
 

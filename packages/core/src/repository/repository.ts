@@ -7,7 +7,13 @@ import type {
   CatalogOffer,
   Connector,
   Event,
+  LeadList,
+  LeadListMember,
   Organization,
+  OutreachCampaign,
+  OutreachList,
+  OutreachSend,
+  OutreachStep,
   PaymentIntent,
   PaymentRecord,
   Person,
@@ -51,6 +57,40 @@ export interface NewPerson {
   profile?: Person["profile"];
   membershipSpaceIds?: string[];
   reputation?: Record<string, number>;
+}
+
+/** Creates a Person for an external lead: actor + person, no user/credentials.
+ * Leads appear in People but can never log in. */
+export interface NewLeadPerson {
+  displayName: string;
+  email?: string | null;
+  profile?: Person["profile"];
+  membershipSpaceIds?: string[];
+}
+
+export interface NewLeadList {
+  organizationId?: string | null;
+  spaceId: string;
+  createdBy?: string | null;
+  name: string;
+  description?: string;
+  persona?: LeadList["persona"];
+  area?: LeadList["area"];
+  providerId: string;
+  providerConfig?: Record<string, unknown>;
+  status?: LeadList["status"];
+  error?: string | null;
+  leadCount?: number;
+  lastRunAt?: string | null;
+}
+
+export interface NewLeadListMember {
+  leadListId: string;
+  personId: string;
+  providerId: string;
+  status?: LeadListMember["status"];
+  raw?: Record<string, unknown>;
+  provenance?: Record<string, unknown>;
 }
 
 export interface NewAgent {
@@ -299,6 +339,45 @@ export interface NewPaymentRecord {
   settledAt?: string | null;
 }
 
+export interface NewOutreachList {
+  spaceId: string;
+  name: string;
+  description?: string;
+  memberPersonIds?: string[];
+}
+
+export interface NewOutreachCampaign {
+  spaceId: string;
+  name: string;
+  description?: string;
+  listId: string;
+  agentId: string;
+  goal: string;
+  status?: OutreachCampaign["status"];
+  startedAt?: string | null;
+}
+
+export interface NewOutreachStep {
+  campaignId: string;
+  position?: number;
+  sendAfterDays?: number;
+  channel?: OutreachStep["channel"];
+  subject?: string;
+  template?: string;
+  instructions?: string;
+}
+
+export interface NewOutreachSend {
+  campaignId: string;
+  stepId: string;
+  personId: string;
+  status?: OutreachSend["status"];
+  scheduledAt: string;
+  taskId?: string | null;
+  sentAt?: string | null;
+  error?: string | null;
+}
+
 export interface SecretRecord {
   ref: string;
   scope: SecretRecordScope;
@@ -355,6 +434,40 @@ export interface JamotRepository {
       Pick<Person, "profile" | "email" | "membershipSpaceIds" | "reputation">
     >,
   ): Promise<Person | null>;
+  findPersonByEmail(email: string): Promise<Person | null>;
+  /** Create an external lead as an actor + person (no user account). */
+  createLeadPerson(input: NewLeadPerson): Promise<Person>;
+
+  // lead generation & enrichment
+  createLeadList(input: NewLeadList): Promise<LeadList>;
+  getLeadList(id: string): Promise<LeadList | null>;
+  listLeadLists(filter?: { spaceId?: string; organizationId?: string }): Promise<LeadList[]>;
+  updateLeadList(
+    id: string,
+    patch: Partial<
+      Pick<
+        LeadList,
+        | "name"
+        | "description"
+        | "persona"
+        | "area"
+        | "providerId"
+        | "providerConfig"
+        | "status"
+        | "error"
+        | "leadCount"
+        | "lastRunAt"
+      >
+    >,
+  ): Promise<LeadList | null>;
+  deleteLeadList(id: string): Promise<void>;
+  addLeadListMember(input: NewLeadListMember): Promise<LeadListMember>;
+  updateLeadListMember(
+    id: string,
+    patch: Partial<Pick<LeadListMember, "status" | "raw">>,
+  ): Promise<LeadListMember | null>;
+  listLeadListMembers(leadListId: string): Promise<LeadListMember[]>;
+  deleteLeadListMembers(leadListId: string): Promise<void>;
 
   // agents
   createAgent(input: NewAgent): Promise<Agent>;
@@ -631,4 +744,75 @@ export interface JamotRepository {
 
   createPaymentRecord(input: NewPaymentRecord): Promise<PaymentRecord>;
   listPaymentRecords(paymentIntentId: string): Promise<PaymentRecord[]>;
+
+  // outreach
+  createOutreachList(input: NewOutreachList): Promise<OutreachList>;
+  getOutreachList(id: string): Promise<OutreachList | null>;
+  listOutreachLists(spaceId: string): Promise<OutreachList[]>;
+  updateOutreachList(
+    id: string,
+    patch: Partial<
+      Pick<OutreachList, "name" | "description" | "memberPersonIds">
+    >,
+  ): Promise<OutreachList | null>;
+  deleteOutreachList(id: string): Promise<void>;
+
+  createOutreachCampaign(input: NewOutreachCampaign): Promise<OutreachCampaign>;
+  getOutreachCampaign(id: string): Promise<OutreachCampaign | null>;
+  listOutreachCampaigns(filter?: {
+    spaceId?: string;
+    status?: OutreachCampaign["status"];
+  }): Promise<OutreachCampaign[]>;
+  updateOutreachCampaign(
+    id: string,
+    patch: Partial<
+      Pick<
+        OutreachCampaign,
+        | "name"
+        | "description"
+        | "listId"
+        | "agentId"
+        | "goal"
+        | "status"
+        | "startedAt"
+      >
+    >,
+  ): Promise<OutreachCampaign | null>;
+  deleteOutreachCampaign(id: string): Promise<void>;
+
+  createOutreachStep(input: NewOutreachStep): Promise<OutreachStep>;
+  listOutreachSteps(campaignId: string): Promise<OutreachStep[]>;
+  updateOutreachStep(
+    id: string,
+    patch: Partial<
+      Pick<
+        OutreachStep,
+        | "position"
+        | "sendAfterDays"
+        | "channel"
+        | "subject"
+        | "template"
+        | "instructions"
+      >
+    >,
+  ): Promise<OutreachStep | null>;
+  deleteOutreachStep(id: string): Promise<void>;
+
+  createOutreachSend(input: NewOutreachSend): Promise<OutreachSend>;
+  getOutreachSend(id: string): Promise<OutreachSend | null>;
+  findOutreachSend(
+    campaignId: string,
+    stepId: string,
+    personId: string,
+  ): Promise<OutreachSend | null>;
+  listOutreachSends(filter?: {
+    campaignId?: string;
+    personId?: string;
+  }): Promise<OutreachSend[]>;
+  updateOutreachSend(
+    id: string,
+    patch: Partial<
+      Pick<OutreachSend, "status" | "taskId" | "sentAt" | "error">
+    >,
+  ): Promise<OutreachSend | null>;
 }
