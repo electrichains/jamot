@@ -39,7 +39,7 @@ const copilotRuntime = new CopilotRuntime({
 
 console.log("[copilotkit] CopilotRuntime created OK");
 
-let copilotHandler: ReturnType<typeof createCopilotRuntimeHandler>;
+const copilotHandler: any = null as any;
 try {
   copilotHandler = createCopilotRuntimeHandler({
     runtime: copilotRuntime,
@@ -48,17 +48,16 @@ try {
   console.log("[copilotkit] Handler bound OK");
 } catch (err) {
   console.error("[copilotkit] Handler creation FAILED:", err instanceof Error ? err.message : String(err));
-  copilotHandler = null as any;
 }
 
-async function handler(req: NextRequest) {
+async function handler(request: Request | NextRequest) {
   try {
-    console.log("[copilotkit] REQUEST:", req.method, req.nextUrl.pathname);
+    console.log("[copilotkit] REQUEST method=", request.method);
     if (!copilotHandler) {
       return new NextResponse(JSON.stringify({ error: "copilot not initialized" }), { status: 503 });
     }
-    const result = await copilotHandler(req);
-    console.log("[copilotkit] RESPONSE:", result?.status);
+    const result = await copilotHandler(request as NextRequest);
+    console.log("[copilotkit] RESPONSE status=", result?.status);
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
