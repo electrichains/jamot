@@ -36,7 +36,7 @@ interface RuntimeModelResponse {
  */
 async function resolveChatModel(
   req: NextRequest,
-): Promise<{ model: string; apiKey: string } | null> {
+): Promise<{ model: string; apiKey: string; source: string } | null> {
   const orgId = req.cookies.get("jamot_active_org")?.value;
   const cookieHeader = req.headers.get("cookie") ?? "";
   if (!cookieHeader) return null;
@@ -49,38 +49,63 @@ async function resolveChatModel(
       headers: { cookie: cookieHeader },
       cache: "no-store",
     });
-    if (!res.ok) return null;
-    const data = (await res.json()) as RuntimeModelResponse;
-    if (!data.configured || !data.apiKey || !data.kind || !data.model) return null;
-    return { model: `${data.kind}/${data.model}`, apiKey: data.apiKey };
-  } catch {
-    // API unreachable — fall through to env fallback
-    return null;
+    if (res.ok) {
+      const data = (await res.json()) as RuntimeModelResponse;
+      if (data.configured && data.apiKey && data.kind && data.model) {
+        console.log("[copilotkit] using model provider:", data.providerName ?? data.model);
+        return {
+          model: `${data.kind}/${data.model}`,
+          apiKey: data.apiKey,
+          source: "provider",
+        };
+      }
+      console.log("[copilotkit] runtime returned configured=false, falling back to env");
+    } else {
+      console.log("[copilotkit] runtime returned status", res.status, "falling back to env");
+    }
+  } catch (err) {
+    console.log("[copilotkit] runtime fetch error:", err instanceof Error ? err.message : err, "falling back to env");
   }
+  // Fall back to env vars
+  if (process.env.OPENAI_API_KEY) {
+    console.log("[copilotkit] using env OPENAI_API_KEY");
+    return {
+      model: process.env.OPENAI_MODEL
+        ? `openai/${process.env.OPENAI_MODEL}`
+        : "openai/gpt-4o",
+      apiKey: process.env.OPENAI_API_KEY,
+      source: "env",
+    };
+  }
+  console.warn("[copilotkit] NO API KEY CONFIGURED — chat will not work until OPENAI_API_KEY is set (see https://render.com/docs/env-vars)");
+  return null;
 }
 
 async function buildHandler(req: NextRequest) {
   const resolved = await resolveChatModel(req);
-  const apiKey = resolved?.apiKey ?? process.env.OPENAI_API_KEY ?? "";
-  const model = resolved?.model ?? OPENAI_MODEL;
+  if (!resolved) {
+    throw new Error(
+      "CopilotKit could not find a chat model. Set OPENAI_API_KEY in your environment variables or configure a model provider in Settings > Models.",
+    );
+  }
 
   const runtime = new CopilotRuntime({
     agents: {
       default: new BuiltInAgent({
-        model,
-        apiKey,
+        model: resolved.model,
+        apiKey: resolved.apiKey,
         prompt: DEFAULT_PROMPT,
         maxSteps: 5,
       }),
       builder: new BuiltInAgent({
-        model,
-        apiKey,
+        model: resolved.model,
+        apiKey: resolved.apiKey,
         prompt: BUILDER_PROMPT,
         maxSteps: 6,
       }),
       skills: new BuiltInAgent({
-        model,
-        apiKey,
+        model: resolved.model,
+        apiKey: resolved.apiKey,
         prompt: SKILLS_PROMPT,
         maxSteps: 4,
       }),
@@ -101,9 +126,10 @@ async function handle(req: NextRequest) {
     const handler = await buildHandler(req);
     return handler(req);
   } catch (err) {
-    console.error("[copilotkit] handler error:", err instanceof Error ? err.message : err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[copilotkit] handler error:", message);
     return NextResponse.json(
-      { error: "CopilotKit handler failed to initialize" },
+      { error: message },
       { status: 502 },
     );
   }
