@@ -1,18 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  BuiltInAgent,
+  CopilotRuntime,
+  createCopilotRuntimeHandler,
+} from "@copilotkit/runtime/v2";
 
-console.log("[copilotkit] ROUTE LOADED — flat structure active");
+// --- Module-level runtime (runs ONCE at server startup) ---
+const MODEL = process.env.OPENAI_MODEL || "openai/gpt-4o-mini";
+const API_KEY = process.env.OPENAI_API_KEY ?? "";
+const BASE_URL = process.env.OPENAI_BASE_URL;
 
-async function handler(req: Request) {
-  console.log("[copilotkit] method:", req.method, "path:", new URL(req.url).pathname);
+console.log("[copilotkit] STARTUP model=%s apiKeyLen=%d baseUrl=%s", MODEL, API_KEY.length, BASE_URL || "(none)");
+
+if (BASE_URL) {
+  process.env.OPENAI_BASE_URL = BASE_URL;
+}
+
+const copilotRuntime = new CopilotRuntime({
+  agents: {
+    default: new BuiltInAgent({
+      model: MODEL,
+      prompt: "You are the Jamot Main Manager. Help plan, delegate and track work.",
+      maxSteps: 5,
+    }),
+    builder: new BuiltInAgent({
+      model: MODEL,
+      prompt: "You are the Jamot Agent Builder. Help users design and create agents.",
+      maxSteps: 6,
+    }),
+    skills: new BuiltInAgent({
+      model: MODEL,
+      prompt: "You are the Jamot Skill Assistant. Help users author Markdown skills.",
+      maxSteps: 4,
+    }),
+  },
+  a2ui: {},
+});
+
+console.log("[copilotkit] CopilotRuntime created OK");
+
+let copilotHandler: ReturnType<typeof createCopilotRuntimeHandler>;
+try {
+  copilotHandler = createCopilotRuntimeHandler({
+    runtime: copilotRuntime,
+    basePath: "/api/copilotkit",
+  });
+  console.log("[copilotkit] Handler bound OK");
+} catch (err) {
+  console.error("[copilotkit] Handler creation FAILED:", err instanceof Error ? err.message : String(err));
+  copilotHandler = null as any;
+}
+
+async function handler(req: NextRequest) {
   try {
-    // Return a simple 200 OK so the client knows the server is alive
-    return new Response(
-      JSON.stringify({ status: "ok", message: "CopilotKit endpoint ready" }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    console.log("[copilotkit] REQUEST:", req.method, req.nextUrl.pathname);
+    if (!copilotHandler) {
+      return new NextResponse(JSON.stringify({ error: "copilot not initialized" }), { status: 503 });
+    }
+    const result = await copilotHandler(req);
+    console.log("[copilotkit] RESPONSE:", result?.status);
+    return result;
   } catch (err) {
-    console.error("[copilotkit] ERROR:", err instanceof Error ? err.message : String(err));
-    return new Response(JSON.stringify({ error: "internal error" }), { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[copilotkit] HANDLER ERROR:", msg);
+    return new NextResponse(
+      JSON.stringify({ error: "CopilotKit error: " + msg }),
+      { status: 502, headers: { "Content-Type": "application/json" } },
+    );
   }
 }
 
