@@ -616,7 +616,13 @@ export interface JamotRepository {
     actorId?: string | null;
     payload?: Record<string, unknown>;
   }): Promise<Event>;
-  listEvents(filter?: { actorId?: string; limit?: number }): Promise<Event[]>;
+  listEvents(filter?: {
+    actorId?: string;
+    spaceId?: string;
+    /** Only events strictly after this ISO timestamp. */
+    since?: string;
+    limit?: number;
+  }): Promise<Event[]>;
 
   // spaces, organizations & workspaces
   createSpace(input: NewSpace): Promise<Space>;

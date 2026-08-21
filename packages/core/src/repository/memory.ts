@@ -596,9 +596,12 @@ export function createMemoryRepository(): JamotRepository {
     },
 
     async listEvents(filter) {
-      const all = filter?.actorId
-        ? events.filter((e) => e.actorId === filter.actorId)
-        : [...events];
+      let all = [...events];
+      if (filter?.actorId) all = all.filter((e) => e.actorId === filter.actorId);
+      if (filter?.spaceId) all = all.filter((e) => e.spaceId === filter.spaceId);
+      if (filter?.since) {
+        all = all.filter((e) => e.occurredAt.localeCompare(filter.since as string) > 0);
+      }
       return all
         .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
         .slice(0, filter?.limit ?? 50);

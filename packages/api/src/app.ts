@@ -42,6 +42,7 @@ import reputationRoutes from "./routes/reputation.js";
 import treasuryRoutes from "./routes/treasury.js";
 import oauthRoutes from "./routes/oauth.js";
 import { googleConnectorRoutes } from "./routes/google-connect.js";
+import { eventsRoutes } from "./routes/events.js";
 import waRoutes from "./routes/wa.js";
 import type { MemoryProvider } from "@jamot/core/memory";
 import type { KnowledgeStore } from "@jamot/core/knowledge";
@@ -246,6 +247,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(treasuryRoutes, { prefix: "/api", treasury });
   await app.register(oauthRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(googleConnectorRoutes(opts.repository, secretStore), { prefix: "/api" });
+  await app.register(eventsRoutes(opts.repository), { prefix: "/api" });
   await app.register(waRoutes, { prefix: "/api", repository: opts.repository, whatsAppManager: opts.whatsAppManager });
   await app.register(suppliersRoutes, { prefix: "/api", commerce });
   await app.register(catalogRoutes, { prefix: "/api", commerce });

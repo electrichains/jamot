@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Loader2, Search, UserPlus, Users } from "luc
 import { EmptyList } from "@/components/directory/EmptyList";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
 import { useAuth } from "@/components/auth/auth-context";
+import { useEventStream } from "@/lib/use-event-stream";
 import { cn } from "@/lib/utils";
 import { PeopleLists } from "./PeopleLists";
 import { PersonProfilePanel } from "./PersonProfilePanel";
@@ -134,6 +135,14 @@ function PeopleDirectory({
     setLoading(true);
     void load();
   }, [load]);
+
+  // Realtime: refresh the list when people change in this space (SSE).
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEventStream(spaceId, (event) => {
+    if (!event.type.startsWith("person.") && event.type !== "message.received") return;
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => void load(), 500);
+  });
 
   useEffect(() => {
     const unsubscribe = subscribeAddPerson(() => setAdding(true));

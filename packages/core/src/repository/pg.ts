@@ -6,6 +6,7 @@ import {
   count,
   desc,
   eq,
+  gt,
   ilike,
   inArray,
   or,
@@ -1342,10 +1343,15 @@ export function createPgRepository(db: Db): JamotRepository {
     },
 
     async listEvents(filter) {
+      const conditions = [
+        filter?.actorId ? eq(events.actorId, filter.actorId) : undefined,
+        filter?.spaceId ? eq(events.spaceId, filter.spaceId) : undefined,
+        filter?.since ? gt(events.occurredAt, filter.since) : undefined,
+      ].filter(Boolean);
       const rows = await q
         .select()
         .from(events)
-        .where(filter?.actorId ? eq(events.actorId, filter.actorId) : undefined)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(events.occurredAt))
         .limit(filter?.limit ?? 50);
       return rows.map(toEvent);
