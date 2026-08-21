@@ -1,10 +1,13 @@
 "use client";
 
-import { Fingerprint, Gauge, ShieldCheck, Users } from "lucide-react";
+import { Cpu, Fingerprint, Gauge, ShieldCheck, Users } from "lucide-react";
 
 import { ConfigSection, Segmented, TextField } from "./config-section";
 import type { AgentConfigState } from "./agent-config-types";
 import type { ApiAgent, OrganizationListItem } from "@/lib/api-client";
+import { useAppShell } from "@/components/app-shell/app-shell-context";
+import { Card, Field } from "@/components/settings/section-primitives";
+import { ModelPicker } from "@/components/settings/model-picker";
 
 export function IdentitySection({
   agent,
@@ -178,6 +181,38 @@ export function OrganizationsSection({
           ))}
         </div>
       )}
+    </ConfigSection>
+  );
+}
+
+export function ModelSection({
+  agent,
+  state,
+  onChange,
+}: {
+  agent: ApiAgent;
+  state: AgentConfigState;
+  onChange: (patch: Partial<AgentConfigState>) => void;
+}) {
+  const { space } = useAppShell();
+  const organizationId =
+    agent.organizationIds[0] ?? space.organizationId ?? null;
+
+  return (
+    <ConfigSection
+      title="Model"
+      description="Which configured model this agent uses when running."
+      icon={<Cpu className="size-4" />}
+    >
+      <Card>
+        <Field label="Assigned model">
+          <ModelPicker
+            organizationId={organizationId}
+            value={state.model}
+            onChange={(v) => onChange({ model: v })}
+          />
+        </Field>
+      </Card>
     </ConfigSection>
   );
 }

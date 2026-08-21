@@ -419,6 +419,28 @@ export default async function modelsRoutes(
       prefer = agent?.model ?? null;
     }
 
+    // Per-space orchestrator model preference.
+    if (!prefer) {
+      let spaceId: string | null = null;
+      if (organizationId) {
+        const org = await repository.getOrganization(organizationId as Id);
+        spaceId = org?.spaceId ?? null;
+      } else {
+        // Personal scope — use actor's personal space.
+        const actor = await repository.getActor(actorId);
+        spaceId = actor?.personalSpaceId ?? null;
+      }
+      if (spaceId) {
+        try {
+          const config = await repository.getSpaceSettings(spaceId);
+          const om = config.orchestratorModel as string | null | undefined;
+          if (om) prefer = om;
+        } catch {
+          // No settings or read failure — fall back to first-enabled.
+        }
+      }
+    }
+
     const resolved = await resolveEnabledModel({
       repo: repository,
       store: secretStore,

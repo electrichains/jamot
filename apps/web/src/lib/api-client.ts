@@ -148,6 +148,7 @@ export interface ApiAgent {
   actionPermissions: Record<string, AgentActionPermission>;
   availability: "available" | "busy" | "offline";
   systemPrompt: string | null;
+  model: string | null;
   performance: Record<string, number>;
   createdAt: string;
   updatedAt: string;
@@ -189,6 +190,7 @@ export type UpdateAgentBody = {
   actionPermissions?: Record<string, AgentActionPermission>;
   availability?: "available" | "busy" | "offline";
   systemPrompt?: string | null;
+  model?: string | null;
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -736,6 +738,46 @@ export async function listEnabledModels(
   const data = await api<{ items: ApiEnabledModel[] }>(path);
   return data.items;
 }
+
+/* -------------- Model ref helpers -------------- */
+
+/** Encode a model reference as `providerId::modelId`. */
+export function encodeModelRef(providerId: string, modelId: string): string {
+  return `${providerId}::${modelId}`;
+}
+
+/** Decode a model reference returned by the backend. */
+export function decodeModelRef(ref: string | null | undefined): {
+  providerId: string;
+  modelId: string;
+} | null {
+  if (!ref || !ref.includes("::")) return null;
+  const idx = ref.indexOf("::");
+  return { providerId: ref.slice(0, idx), modelId: ref.slice(idx + 2) };
+}
+
+/* -------------- Space settings -------------- */
+
+export interface SpaceSettingsResponse {
+  orchestratorModel: string | null;
+}
+
+export async function getSpaceSettings(
+  spaceId: string,
+): Promise<SpaceSettingsResponse> {
+  return api(`/api/spaces/${encodeURIComponent(spaceId)}/settings`);
+}
+
+export async function updateSpaceSettings(
+  spaceId: string,
+  input: { orchestratorModel?: string | null },
+): Promise<SpaceSettingsResponse> {
+  return api(`/api/spaces/${encodeURIComponent(spaceId)}/settings`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
 
 export async function listConnectors(
   ownerOrganizationId?: string,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
+import type { Id } from "@jamot/contracts";
 import type { JamotRepository } from "../repository.js";
 import {
   actorRoleInSpace,
@@ -32,7 +33,7 @@ export default async function spaceSettingsRoutes(
     const space = await repository.getSpace(spaceId);
     if (!space) return null;
     const isPersonalOwner = space.ownerActorId === actorId;
-    const role = await actorRoleInSpace(repository, actorId, space.id);
+    const role = await actorRoleInSpace(repository, actorId as Id, space.id as Id);
     const org = await repository.getOrganizationBySpaceId(space.id);
     return { space, isPersonalOwner, role, org };
   }
@@ -50,7 +51,7 @@ export default async function spaceSettingsRoutes(
       return deny(reply, "No access to this space", 403);
     }
 
-    const config = await repository.getSpaceSettings(spaceId);
+    const config = await repository.getSpaceSettings(spaceId as Id);
     return { orchestratorModel: (config.orchestratorModel as string | null) ?? null };
   });
 
@@ -77,7 +78,7 @@ export default async function spaceSettingsRoutes(
       if (body.orchestratorModel !== undefined) {
         patch.orchestratorModel = body.orchestratorModel;
       }
-      const config = await repository.setSpaceSettings(spaceId, patch);
+      const config = await repository.setSpaceSettings(spaceId as Id, patch);
       return { orchestratorModel: (config.orchestratorModel as string | null) ?? null };
     },
   );

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Bell,
+  Cpu,
   Layers,
   Lock,
   MemoryStick,
@@ -29,6 +30,7 @@ import {
   UnifiedSkillsSection,
   UnifiedWorkspaceSection,
 } from "@/components/settings/consolidated-sections";
+import { ModelsSection } from "@/components/settings/models-section";
 
 export default function SettingsPage() {
   const { space, isOrg } = useActiveOrg();
@@ -58,6 +60,12 @@ export default function SettingsPage() {
         label: "Connectors",
         icon: Plug,
         body: <UnifiedConnectorsSection />,
+      },
+      {
+        id: "models",
+        label: "Models",
+        icon: Cpu,
+        body: <ModelsSection />,
       },
       {
         id: "skills",

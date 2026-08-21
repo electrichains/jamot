@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { ComposioConnectors } from "./composio-connectors";
 import { GoogleConnectorCard } from "./google-connector-card";
 import { Vault } from "./Vault";
-import { ModelsSection } from "./models-section";
 import { ChannelsSection } from "./channels-section";
 import { WorkspacesSection } from "./workspaces-section";
 import { PeopleOrgSection } from "./people-org-section";
@@ -318,7 +317,6 @@ export function UnifiedConnectorsSection() {
       <GoogleConnectorCard />
       {isOrg ? <ChannelsSection /> : null}
       <ComposioConnectors mode={isOrg ? "org" : "personal"} />
-      <ModelsSection />
       <Vault />
     </div>
   );

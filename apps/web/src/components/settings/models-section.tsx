@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
+import { Card, Field, SectionHeading, TextInput } from "./section-primitives";
+import { ModelPicker } from "./model-picker";
 import {
   addProviderModel,
   createModelProvider,
@@ -23,8 +25,9 @@ import {
   testModelProvider,
   updateModelProvider,
   type ApiModelProvider,
+  getSpaceSettings,
+  updateSpaceSettings,
 } from "@/lib/api-client";
-import { Card, Field, SectionHeading, TextInput } from "./section-primitives";
 
 function statusBadge(provider: ApiModelProvider) {
   if (provider.status === "ok") {
@@ -255,6 +258,30 @@ export function ModelsSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /* Orchestrator model (per-space setting) */
+  const [orchestratorModel, setOrchestratorModel] = useState<string | null>(null);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    getSpaceSettings(space.id)
+      .then((s) => setOrchestratorModel(s.orchestratorModel ?? null))
+      .catch(() => {})
+      .finally(() => setLoadingSettings(false));
+  }, [space.id]);
+
+  const saveOrchestratorModel = async (value: string | null) => {
+    setOrchestratorModel(value);
+    setSavingSettings(true);
+    try {
+      await updateSpaceSettings(space.id, { orchestratorModel: value });
+    } catch {
+      // Revert on error — user keeps old selection shown
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   const reload = useCallback(async () => {
     try {
       setProviders(await listModelProviders(organizationId ?? undefined));
@@ -309,6 +336,20 @@ export function ModelsSection() {
       />
 
       <div className="flex max-w-2xl flex-col gap-6">
+        {/* General orchestrator (main chat) */}
+        <Field label="General orchestrator (main chat)" hint="Which enabled model the main CopilotKit chatbox uses. `Auto` picks the first reachable provider with an enabled model.">
+          {loadingSettings ? (
+            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+          ) : (
+            <ModelPicker
+              organizationId={organizationId}
+              value={orchestratorModel}
+              onChange={(v) => void saveOrchestratorModel(v)}
+              disabled={savingSettings}
+            />
+          )}
+        </Field>
+
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Providers</h3>
           <Button size="sm" variant="outline" onClick={() => setShowAdd((v) => !v)}>

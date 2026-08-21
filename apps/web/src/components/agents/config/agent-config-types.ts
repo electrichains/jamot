@@ -109,6 +109,7 @@ export interface AgentConfigState {
   heartbeat: ApiAgentHeartbeat;
   budget: string;
   systemPrompt: string;
+  model: string | null;
 }
 
 export function emptyHeartbeat(): ApiAgentHeartbeat {
@@ -139,6 +140,7 @@ export function stateFromAgent(agent: ApiAgent): AgentConfigState {
     heartbeat: { ...agent.heartbeat },
     budget: agent.budget === null ? "" : String(agent.budget),
     systemPrompt: agent.systemPrompt ?? "",
+    model: agent.model ?? null,
   };
 }
 
@@ -173,6 +175,7 @@ export function buildUpdateBody(
   if ((agent.budget ?? null) !== budget) body.budget = budget;
   if (state.systemPrompt !== (agent.systemPrompt ?? ""))
     body.systemPrompt = state.systemPrompt.trim() || null;
+  if (state.model !== agent.model) body.model = state.model;
   return body;
 }
 

@@ -56,6 +56,7 @@ const CreateAgentBody = z.object({
   actionPermissions: z.record(z.string(), z.enum(["automatic", "approval", "never"])).optional(),
   availability: z.enum(["available", "busy", "offline"]).optional(),
   systemPrompt: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
 });
 
 const ImportMcpBody = z.object({

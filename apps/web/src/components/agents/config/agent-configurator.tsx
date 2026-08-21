@@ -9,7 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SaveBar } from "./config-section";
-import { IdentitySection, AutonomySection, AvailabilitySection, OrganizationsSection } from "./identity-autonomy";
+import { IdentitySection, AutonomySection, AvailabilitySection, OrganizationsSection, ModelSection } from "./identity-autonomy";
 import { SkillsSection, CapabilitiesSection, ConnectionsSection, MemoryScopesSection, SubscribedEventsSection } from "./capabilities-section";
 import { PermissionsSection } from "./permissions-section";
 import { SchedulesSection, HeartbeatSection, BudgetSection } from "./schedules-heartbeat";
@@ -278,6 +278,7 @@ export function AgentConfigurator({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="flex flex-col gap-4">
             <IdentitySection agent={agent} state={state} onChange={onChange} />
+            <ModelSection agent={agent} state={state} onChange={onChange} />
             <AutonomySection state={state} onChange={onChange} />
             <AvailabilitySection state={state} onChange={onChange} />
             <OrganizationsSection
