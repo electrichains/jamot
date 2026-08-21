@@ -3,6 +3,7 @@
 import type { ComponentProps, ReactNode } from "react";
 
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export function SectionHeading({
@@ -47,38 +48,33 @@ export function Toggle({
   onChange,
   label,
   description,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (next: boolean) => void;
   label: string;
   description?: string;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2">
-      <div className="flex flex-col">
-        <span className="text-sm font-medium">{label}</span>
+    <div
+      className={cn(
+        "flex items-center justify-between gap-4 rounded-md px-1 py-2.5",
+        disabled ? "opacity-60" : "cursor-pointer hover:bg-muted/40",
+      )}
+      onClick={() => {
+        if (!disabled) onChange(!checked);
+      }}
+    >
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-sm font-medium leading-tight">{label}</span>
         {description ? (
-          <span className="text-xs text-muted-foreground">{description}</span>
+          <span className="text-xs leading-snug text-muted-foreground">
+            {description}
+          </span>
         ) : null}
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-          checked ? "bg-space-accent" : "bg-muted",
-        )}
-      >
-        <span
-          className={cn(
-            "absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform",
-            checked ? "translate-x-[18px]" : "translate-x-0.5",
-          )}
-        />
-      </button>
+      <Switch checked={checked} onChange={onChange} disabled={disabled} ariaLabel={label} />
     </div>
   );
 }

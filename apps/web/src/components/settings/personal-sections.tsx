@@ -499,10 +499,49 @@ export function PersonalAgentsSection() {
 
 /* ---------------------------- Notifications ---------------------------- */
 
+const NOTIFICATION_PREFS_KEY = "jamot:notification-prefs";
+
+interface NotificationPrefs {
+  emailDigests: boolean;
+  approvalRequests: boolean;
+  activityMentions: boolean;
+}
+
+const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  emailDigests: true,
+  approvalRequests: true,
+  activityMentions: false,
+};
+
+function loadNotificationPrefs(): NotificationPrefs {
+  if (typeof window === "undefined") return DEFAULT_NOTIFICATION_PREFS;
+  try {
+    const raw = window.localStorage.getItem(NOTIFICATION_PREFS_KEY);
+    if (!raw) return DEFAULT_NOTIFICATION_PREFS;
+    return { ...DEFAULT_NOTIFICATION_PREFS, ...(JSON.parse(raw) as Partial<NotificationPrefs>) };
+  } catch {
+    return DEFAULT_NOTIFICATION_PREFS;
+  }
+}
+
 export function NotificationsSection() {
-  const [email, setEmail] = useState(true);
-  const [approvals, setApprovals] = useState(true);
-  const [activity, setActivity] = useState(false);
+  const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setPrefs(loadNotificationPrefs());
+    setLoaded(true);
+  }, []);
+
+  const update = (key: keyof NotificationPrefs, value: boolean) => {
+    const next = { ...prefs, [key]: value };
+    setPrefs(next);
+    try {
+      window.localStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(next));
+    } catch {
+      // storage unavailable — keep in-memory state
+    }
+  };
 
   return (
     <div>
@@ -512,22 +551,25 @@ export function NotificationsSection() {
       />
       <Card className="max-w-xl">
         <Toggle
-          checked={email}
-          onChange={setEmail}
+          checked={prefs.emailDigests}
+          onChange={(next) => update("emailDigests", next)}
           label="Email digests"
           description="A daily summary of what happened."
+          disabled={!loaded}
         />
         <Toggle
-          checked={approvals}
-          onChange={setApprovals}
+          checked={prefs.approvalRequests}
+          onChange={(next) => update("approvalRequests", next)}
           label="Approval requests"
           description="Notify me when an agent needs my sign-off."
+          disabled={!loaded}
         />
         <Toggle
-          checked={activity}
-          onChange={setActivity}
+          checked={prefs.activityMentions}
+          onChange={(next) => update("activityMentions", next)}
           label="Activity mentions"
           description="Notify me when I am mentioned."
+          disabled={!loaded}
         />
       </Card>
     </div>

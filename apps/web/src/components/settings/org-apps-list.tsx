@@ -10,42 +10,8 @@ import {
   type AppAllocation,
   type AppManifest,
 } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 import { Card } from "./section-primitives";
-
-function AppToggle({
-  checked,
-  disabled,
-  label,
-  onToggle,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onToggle}
-      className={cn(
-        "relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-space-accent" : "bg-muted",
-      )}
-    >
-      <span
-        className={cn(
-          "absolute top-0.5 size-4 rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-[18px]" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}
 
 export function OrgAppsList({
   organizationId,
@@ -157,11 +123,11 @@ export function OrgAppsList({
               {savingId === app.id ? (
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               ) : null}
-              <AppToggle
+              <Switch
                 checked={app.enabled}
                 disabled={savingId !== null}
-                label={`Toggle ${app.name}`}
-                onToggle={() => void toggleApp(app.id)}
+                ariaLabel={`Toggle ${app.name}`}
+                onChange={() => void toggleApp(app.id)}
               />
             </div>
           ) : (
