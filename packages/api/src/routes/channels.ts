@@ -13,7 +13,7 @@ export interface ChannelRoutesOptions {
 }
 
 const CreateChannelBody = z.object({
-  kind: z.enum(["whatsapp", "matrix"]),
+  kind: z.enum(["whatsapp", "matrix", "telegram"]),
 });
 
 export default async function channelsRoutes(

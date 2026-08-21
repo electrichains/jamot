@@ -3,6 +3,7 @@ import {
   createChannelRegistry,
   createChannelService,
   createMatrixAdapter,
+  createTelegramAdapter,
   createWhatsAppControlServer,
   createWhatsAppManager,
 } from "@jamot/core/channels";
@@ -36,6 +37,8 @@ export function startChannelWorker(): Promise<void> {
   const matrixUser = process.env.MATRIX_BOT_USER;
   const matrixToken =
     process.env.MATRIX_ACCESS_TOKEN ?? process.env.MATRIX_BOT_PASSWORD;
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramApiUrl = process.env.TELEGRAM_API_URL;
 
   const promises: Promise<void>[] = [];
   let manager: ReturnType<typeof createWhatsAppManager> | undefined;
@@ -84,6 +87,16 @@ export function startChannelWorker(): Promise<void> {
       homeserver: matrixHomeserver,
       userId: matrixUser,
       accessToken: matrixToken,
+    });
+    adapter.onMessage(onMessage);
+    registry.register(adapter);
+    promises.push(adapter.connect());
+  }
+
+  if (telegramToken) {
+    const adapter = createTelegramAdapter({
+      token: telegramToken,
+      apiUrl: telegramApiUrl,
     });
     adapter.onMessage(onMessage);
     registry.register(adapter);

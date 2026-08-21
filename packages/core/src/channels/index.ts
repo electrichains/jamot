@@ -24,6 +24,8 @@ export type {
 } from "./whatsapp.js";
 export { createMatrixAdapter } from "./matrix.js";
 export type { MatrixAdapterOpts } from "./matrix.js";
+export { createTelegramAdapter } from "./telegram.js";
+export type { TelegramAdapterOpts } from "./telegram.js";
 export { createWhatsAppControlServer } from "./wa-server.js";
 export type {
   WhatsAppControlServer,
