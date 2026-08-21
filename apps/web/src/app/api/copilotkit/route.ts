@@ -42,9 +42,10 @@ try {
 
   console.log("[copilotkit] CopilotRuntime created OK");
 
+  // Use basePath="" since route is at /api/copilotkit already
   copilotHandler = createCopilotRuntimeHandler({
     runtime: copilotRuntime,
-    basePath: "/api/copilotkit",
+    basePath: "", // Important: no basePath prefix when route is already at correct path
   });
 
   console.log("[copilotkit] Handler bound OK");
@@ -52,14 +53,19 @@ try {
   console.error("[copilotkit] Handler creation FAILED:", err instanceof Error ? err.message : String(err));
 }
 
-async function handler(request: Request | NextRequest) {
+export async function handler(request: Request | NextRequest) {
   try {
-    console.log("[copilotkit] REQUEST method=", request.method);
+    console.log("[copilotkit] REQUEST method=", request.method, "url=", request.url);
+    
     if (!copilotHandler) {
-      return new NextResponse(JSON.stringify({ error: "copilot not initialized" }), { status: 503 });
+      return new NextResponse(JSON.stringify({ error: "copilot not initialized" }), { 
+        status: 503,
+        headers: { "Content-Type": "application/json" }
+      });
     }
-    const result = await copilotHandler(request as NextRequest);
-    console.log("[copilotkit] RESPONSE status=", result?.status);
+    
+    const result = await copilotHandler(request as Request);
+    console.log("[copilotkit] RESPONSE status=", result?.status, "type=", result?.headers?.get("content-type"));
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
