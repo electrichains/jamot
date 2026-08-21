@@ -25,7 +25,12 @@ interface ChannelAccountBarProps {
   accounts: ChannelAccountItem[];
   selectedAccountId: string | null;
   onSelectAccount: (id: string) => void;
-  onAddAccount: (protocol: ChannelProtocol, label: string, identifier?: string) => Promise<void>;
+  onAddAccount: (
+    protocol: ChannelProtocol,
+    label: string,
+    identifier?: string,
+    token?: string,
+  ) => Promise<void>;
   onDeleteAccount: (id: string) => Promise<void>;
   onImportSession?: () => void;
   importing?: boolean;
@@ -44,6 +49,7 @@ export function ChannelAccountBar({
   const [protocol, setProtocol] = useState<ChannelProtocol>("whatsapp");
   const [label, setLabel] = useState("");
   const [identifier, setIdentifier] = useState("");
+  const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
 
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
@@ -52,10 +58,16 @@ export function ChannelAccountBar({
     if (!label.trim()) return;
     setBusy(true);
     try {
-      await onAddAccount(protocol, label.trim(), identifier.trim() || undefined);
+      await onAddAccount(
+        protocol,
+        label.trim(),
+        identifier.trim() || undefined,
+        token.trim() || undefined,
+      );
       setModalOpen(false);
       setLabel("");
       setIdentifier("");
+      setToken("");
     } finally {
       setBusy(false);
     }
@@ -263,21 +275,41 @@ export function ChannelAccountBar({
                     {protocol === "whatsapp"
                       ? "Phone Number (Optional identifier)"
                       : protocol === "telegram"
-                        ? "Bot Token / @Username"
-                        : "Matrix Homeserver / Room"}
+                        ? "Bot Username (e.g. @JamotAlertsBot, optional)"
+                        : "Matrix User ID (e.g. @user:matrix.org)"}
                   </label>
                   <Input
                     placeholder={
                       protocol === "whatsapp"
                         ? "+1 (555) 019-2834"
                         : protocol === "telegram"
-                          ? "bot123456:ABC-DEF..."
+                          ? "@JamotAlertsBot"
                           : "@user:matrix.org"
                     }
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                   />
                 </div>
+
+                {protocol === "telegram" || protocol === "matrix" ? (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {protocol === "telegram"
+                        ? "Bot Token (required)"
+                        : "Access Token (required)"}
+                    </label>
+                    <Input
+                      type="password"
+                      placeholder={
+                        protocol === "telegram"
+                          ? "bot123456:ABC-DEF..."
+                          : "syt_xxx..."
+                      }
+                      value={token}
+                      onChange={(e) => setToken(e.target.value)}
+                    />
+                  </div>
+                ) : null}
 
                 <div className="rounded-2xl bg-muted/40 p-3 text-xs text-muted-foreground flex items-start gap-2">
                   <QrCode className="size-4 shrink-0 text-space-accent mt-0.5" />

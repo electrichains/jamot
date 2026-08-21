@@ -48,6 +48,41 @@ export async function deleteAccount(id: string): Promise<unknown> {
   return api(`/api/wa/accounts/${enc(id)}`, { method: "DELETE" });
 }
 
+export interface ChannelAccount {
+  id: string;
+  spaceId: string;
+  protocol: "telegram" | "matrix";
+  label: string;
+  identifier: string | null;
+  token: string | null | boolean;
+  status: "offline" | "pairing" | "connecting" | "connected" | "error";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listChannelAccounts(spaceId: string): Promise<ChannelAccount[]> {
+  const data = await api<{ items: ChannelAccount[] }>(
+    `/api/wa/channels?spaceId=${enc(spaceId)}`,
+  );
+  return data.items;
+}
+
+export async function createChannelAccount(
+  spaceId: string,
+  protocol: "telegram" | "matrix",
+  label: string,
+  opts: { token?: string; identifier?: string } = {},
+): Promise<ChannelAccount> {
+  return api<ChannelAccount>("/api/wa/channels", {
+    method: "POST",
+    body: JSON.stringify({ spaceId, protocol, label, ...opts }),
+  });
+}
+
+export async function deleteChannelAccount(id: string): Promise<unknown> {
+  return api(`/api/wa/channels/${enc(id)}`, { method: "DELETE" });
+}
+
 export function getState(accountId: string): Promise<WaState> {
   return api<WaState>(`/api/wa/accounts/${enc(accountId)}/state`);
 }

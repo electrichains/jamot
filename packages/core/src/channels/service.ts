@@ -30,7 +30,7 @@ export function createChannelService(deps: ChannelServiceDeps): ChannelService {
     onInbound(msg) {
       return eventBus.publish({
         type: "message.received",
-        spaceId: null,
+        spaceId: msg.spaceId ?? null,
         actorId: null,
         idempotencyKey: `${msg.kind}:${msg.sender}:${msg.timestamp}`,
         payload: {

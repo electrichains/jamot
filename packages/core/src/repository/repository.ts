@@ -42,6 +42,21 @@ import type {
 
 // --- Create inputs (server generates id + timestamps) ---
 
+export type ChannelProtocol = "telegram" | "matrix";
+export type ChannelAccountStatus = "offline" | "pairing" | "connecting" | "connected" | "error";
+
+export interface ChannelAccountRecord {
+  id: string;
+  spaceId: string;
+  protocol: ChannelProtocol;
+  label: string;
+  identifier: string | null;
+  token: string | null;
+  status: ChannelAccountStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface NewActor {
   type: Actor["type"];
   source?: Actor["source"];
@@ -816,4 +831,23 @@ export interface JamotRepository {
       Pick<OutreachSend, "status" | "taskId" | "sentAt" | "error">
     >,
   ): Promise<OutreachSend | null>;
+
+  createChannelAccount(input: {
+    spaceId: string;
+    protocol: ChannelProtocol;
+    label: string;
+    identifier?: string | null;
+    token?: string | null;
+  }): Promise<ChannelAccountRecord>;
+  listChannelAccounts(spaceId: string): Promise<ChannelAccountRecord[]>;
+  listAllChannelAccounts(): Promise<ChannelAccountRecord[]>;
+  getChannelAccount(id: string): Promise<ChannelAccountRecord | null>;
+  updateChannelAccount(
+    id: string,
+    patch: {
+      status?: ChannelAccountStatus;
+      identifier?: string | null;
+    },
+  ): Promise<ChannelAccountRecord | null>;
+  deleteChannelAccount(id: string): Promise<void>;
 }

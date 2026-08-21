@@ -3,6 +3,7 @@ import { createMemoryRepository } from "./repository.js";
 import { createPgRepositoryFromDb } from "./pgRepository.js";
 import { superAdminEmails } from "./auth.js";
 import { createDb } from "@jamot/core";
+import { runMigrations } from "@jamot/core/migrate";
 import type { Db } from "@jamot/core";
 import { createEventBus } from "@jamot/core";
 import {
@@ -39,6 +40,7 @@ let treasury: TreasuryService | undefined;
 let llm: LLMProvider | undefined;
 
 if (process.env.DATABASE_URL) {
+  await runMigrations(process.env.DATABASE_URL);
   db = createDb(process.env.DATABASE_URL);
   repository = createPgRepositoryFromDb(db);
   memoryProvider = createPostgresMemoryProvider(db);

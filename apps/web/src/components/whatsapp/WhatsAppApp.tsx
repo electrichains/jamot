@@ -31,11 +31,14 @@ import { cn } from "@/lib/utils";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
 import {
   createAccount,
+  createChannelAccount,
   deleteAccount,
+  deleteChannelAccount,
   getMessages,
   getState,
   importSession,
   listAccounts,
+  listChannelAccounts,
   listChats,
   listContacts,
   markRead,
@@ -44,6 +47,7 @@ import {
   sendMedia,
   sendText,
 } from "./wa-api";
+import type { ChannelAccount } from "./wa-api";
 import type { WaAccount, WaChat, WaContact, WaConnection, WaMessage, WaState } from "./wa-data";
 import { ChannelAccountBar } from "./ChannelAccountBar";
 import { InChatTaskModal } from "./InChatTaskModal";
@@ -177,6 +181,18 @@ function QrPanel({
 
 type FilterTab = "all" | "unread" | "groups" | "ai";
 
+function mapChannelAccount(item: ChannelAccount): ChannelAccountItem {
+  return {
+    id: item.id,
+    spaceId: item.spaceId,
+    protocol: item.protocol,
+    label: item.label,
+    identifier: item.identifier,
+    status: item.status,
+    createdAt: item.createdAt,
+  };
+}
+
 export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   const { space } = useAppShell();
   const activeSpaceId = space.spaceId ?? space.id ?? "personal";
@@ -208,6 +224,11 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const connected = state?.connection === "open";
+  const selectedAccount = accounts.find((a) => a.id === accountId);
+  const isChannelAccount =
+    selectedAccount?.protocol === "telegram" || selectedAccount?.protocol === "matrix";
+  const realWhatsapp =
+    selectedAccount?.protocol === "whatsapp" && !selectedAccount.id.startsWith("default-");
 
   // Load agent settings from storage
   useEffect(() => {
@@ -235,7 +256,7 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
       try {
         const items = await listAccounts(activeSpaceId);
         if (cancelled) return;
-        
+
         const channelItems: ChannelAccountItem[] = items.map((item) => ({
           id: item.id,
           spaceId: item.spaceId,
@@ -248,9 +269,21 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
           qr: item.qr,
         }));
 
+        let channelAccounts: ChannelAccountItem[] = [];
+        try {
+          const channelData = await listChannelAccounts(activeSpaceId);
+          if (!cancelled) {
+            channelAccounts = channelData.map(mapChannelAccount);
+          }
+        } catch {
+          // community/enterprise connector list may be unavailable; ignore
+        }
+
+        const all = [...channelItems, ...channelAccounts];
+
         // Provide default fallback if empty
-        if (channelItems.length === 0) {
-          channelItems.push({
+        if (all.length === 0) {
+          all.push({
             id: "default-wa",
             spaceId: activeSpaceId,
             protocol: "whatsapp",
@@ -261,8 +294,8 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
           });
         }
 
-        setAccounts(channelItems);
-        setAccountId(channelItems[0]?.id ?? null);
+        setAccounts(all);
+        setAccountId(all[0]?.id ?? null);
       } catch {
         if (cancelled) return;
         setAccounts([
@@ -286,7 +319,7 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
 
   // Poll state and chats for selected account
   useEffect(() => {
-    if (!accountId || accountId.startsWith("default-")) return;
+    if (!accountId || !realWhatsapp) return;
     let cancelled = false;
     const tick = async () => {
       try {
@@ -315,7 +348,7 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
 
   // Poll messages for active chat
   useEffect(() => {
-    if (!selected || !accountId || accountId.startsWith("default-")) return;
+    if (!selected || !accountId || !realWhatsapp) return;
     let cancelled = false;
     const load = async () => {
       try {
@@ -339,7 +372,7 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   // Contacts and search
   useEffect(() => {
     const q = query.trim();
-    if (!q || !accountId || accountId.startsWith("default-")) return;
+    if (!q || !accountId || !realWhatsapp) return;
     let cancelled = false;
     void listContacts(accountId, q)
       .then((list) => {
@@ -366,13 +399,13 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
   const openChat = (jid: string) => {
     setSelected(jid);
     setQuery("");
-    if (accountId && !accountId.startsWith("default-")) {
+    if (accountId && realWhatsapp) {
       void markRead(accountId, jid).catch(() => {});
     }
   };
 
   const handleReset = async () => {
-    if (!accountId || accountId.startsWith("default-")) return;
+    if (!accountId || !realWhatsapp) return;
     setWorkerError(null);
     try {
       await resetPairing(accountId);
@@ -420,7 +453,12 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
     event.target.value = "";
   };
 
-  const handleAddAccount = async (protocol: ChannelProtocol, label: string, identifier?: string) => {
+  const handleAddAccount = async (
+    protocol: ChannelProtocol,
+    label: string,
+    identifier?: string,
+    token?: string,
+  ) => {
     if (protocol === "whatsapp") {
       const created = await createAccount(activeSpaceId, label);
       const updated = await listAccounts(activeSpaceId);
@@ -436,15 +474,12 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
       setAccounts(mapped);
       setAccountId(created.id);
     } else {
-      const newAcc: ChannelAccountItem = {
-        id: `${protocol}-${Date.now()}`,
-        spaceId: activeSpaceId,
-        protocol,
-        label,
-        identifier: identifier || null,
-        status: "connected",
-        createdAt: new Date().toISOString(),
-      };
+      if (!token) throw new Error("Bot token is required to connect a Telegram or Matrix account");
+      const created = await createChannelAccount(activeSpaceId, protocol, label, {
+        token,
+        identifier,
+      });
+      const newAcc: ChannelAccountItem = mapChannelAccount(created);
       setAccounts((prev) => [...prev, newAcc]);
       setAccountId(newAcc.id);
     }
@@ -452,8 +487,13 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
 
   const handleDeleteAccount = async (id: string) => {
     try {
-      if (!id.startsWith("default-") && !id.startsWith("telegram-") && !id.startsWith("matrix-")) {
-        await deleteAccount(id);
+      if (!id.startsWith("default-")) {
+        const target = accounts.find((a) => a.id === id);
+        if (target && (target.protocol === "telegram" || target.protocol === "matrix")) {
+          await deleteChannelAccount(id);
+        } else {
+          await deleteAccount(id);
+        }
       }
       setAccounts((prev) => prev.filter((a) => a.id !== id));
       if (accountId === id) {
@@ -766,7 +806,15 @@ export function WhatsAppApp({ compact = false }: { compact?: boolean }) {
                 <MessageCircle className="size-10 text-muted-foreground/40" />
                 <p>No active channel selected. Add a WhatsApp number or Telegram channel above.</p>
               </div>
-            ) : !connected && !accountId.startsWith("telegram-") && !accountId.startsWith("matrix-") ? (
+            ) : isChannelAccount ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-xs text-muted-foreground">
+                <Send className="size-10 text-sky-500/60" />
+                <p>
+                  {selectedAccount?.protocol === "telegram" ? "Telegram" : "Matrix"} channel connected.
+                  Inbound messages are routed to this workspace&rsquo;s agent.
+                </p>
+              </div>
+            ) : !connected ? (
               <QrPanel
                 key={state?.qr ?? state?.connection ?? "none"}
                 qr={state?.qr}

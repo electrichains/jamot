@@ -106,6 +106,7 @@ import type {
   NewTaskList,
   ComposioOAuthStateRecord,
   SecretRecord,
+  ChannelAccountRecord,
 } from "./repository.js";
 
 type ActorRow = typeof actors.$inferSelect;
@@ -673,6 +674,32 @@ function toOutreachSend(row: OutreachSendRow): OutreachSend {
 }
 
 const nowIso = () => new Date().toISOString();
+
+interface ChannelAccountRow {
+  id: string;
+  space_id: string;
+  protocol: "telegram" | "matrix";
+  label: string;
+  identifier: string | null;
+  token: string | null;
+  status: "offline" | "pairing" | "connecting" | "connected" | "error";
+  created_at: string;
+  updated_at: string;
+}
+
+function toChannelAccount(row: ChannelAccountRow): ChannelAccountRecord {
+  return {
+    id: row.id,
+    spaceId: row.space_id,
+    protocol: row.protocol,
+    label: row.label,
+    identifier: row.identifier,
+    token: row.token,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 export function createPgRepository(db: Db): JamotRepository {
   const q = db.db;
@@ -2561,6 +2588,63 @@ export function createPgRepository(db: Db): JamotRepository {
         .where(eq(outreachSends.id, id))
         .returning();
       return row ? toOutreachSend(row) : null;
+    },
+
+    async createChannelAccount(input) {
+      const { rows } = await db.pool.query<ChannelAccountRow>(
+        `INSERT INTO channel_accounts (space_id, protocol, label, identifier, token, status)
+         VALUES ($1, $2, $3, $4, $5, 'offline')
+         RETURNING id, space_id, protocol, label, identifier, token, status, created_at::text, updated_at::text`,
+        [input.spaceId, input.protocol, input.label, input.identifier ?? null, input.token ?? null],
+      );
+      return toChannelAccount(rows[0]!);
+    },
+    async listChannelAccounts(spaceId) {
+      const { rows } = await db.pool.query<ChannelAccountRow>(
+        `SELECT id, space_id, protocol, label, identifier, token, status, created_at::text, updated_at::text
+         FROM channel_accounts WHERE space_id = $1 ORDER BY created_at ASC`,
+        [spaceId],
+      );
+      return rows.map(toChannelAccount);
+    },
+    async listAllChannelAccounts() {
+      const { rows } = await db.pool.query<ChannelAccountRow>(
+        `SELECT id, space_id, protocol, label, identifier, token, status, created_at::text, updated_at::text
+         FROM channel_accounts ORDER BY created_at ASC`,
+      );
+      return rows.map(toChannelAccount);
+    },
+    async getChannelAccount(id) {
+      const { rows } = await db.pool.query<ChannelAccountRow>(
+        `SELECT id, space_id, protocol, label, identifier, token, status, created_at::text, updated_at::text
+         FROM channel_accounts WHERE id = $1 LIMIT 1`,
+        [id],
+      );
+      return rows[0] ? toChannelAccount(rows[0]) : null;
+    },
+    async updateChannelAccount(id, patch) {
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      if (patch.status !== undefined) {
+        params.push(patch.status);
+        sets.push(`status = $${params.length}`);
+      }
+      if (patch.identifier !== undefined) {
+        params.push(patch.identifier);
+        sets.push(`identifier = $${params.length}`);
+      }
+      if (sets.length === 0) return this.getChannelAccount(id);
+      params.push(id);
+      const { rows } = await db.pool.query<ChannelAccountRow>(
+        `UPDATE channel_accounts SET ${sets.join(", ")}, updated_at = now()
+         WHERE id = $${params.length}
+         RETURNING id, space_id, protocol, label, identifier, token, status, created_at::text, updated_at::text`,
+        params,
+      );
+      return rows[0] ? toChannelAccount(rows[0]) : null;
+    },
+    async deleteChannelAccount(id) {
+      await db.pool.query(`DELETE FROM channel_accounts WHERE id = $1`, [id]);
     },
   };
 

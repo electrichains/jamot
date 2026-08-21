@@ -7,6 +7,7 @@ export interface InboundMessage {
   text: string;
   timestamp: string;
   room?: string;
+  spaceId?: string;
   raw?: unknown;
 }
 

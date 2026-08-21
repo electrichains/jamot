@@ -30,7 +30,8 @@
     "./treasury": "./src/treasury/index.ts",
     "./commerce": "./src/commerce/index.ts",
     "./payments": "./src/payments/index.ts",
-    "./leads": "./src/leads/index.ts"
+    "./leads": "./src/leads/index.ts",
+    "./migrate": "./src/migrate.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

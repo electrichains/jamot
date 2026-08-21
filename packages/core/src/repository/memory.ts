@@ -68,6 +68,7 @@ import type {
   NewTaskList,
   ComposioOAuthStateRecord,
   SecretRecord,
+  ChannelAccountRecord,
 } from "./repository.js";
 
 const now = () => new Date().toISOString();
@@ -108,6 +109,7 @@ export function createMemoryRepository(): JamotRepository {
   const outreachCampaigns = new Map<string, OutreachCampaign>();
   const outreachSteps = new Map<string, OutreachStep>();
   const outreachSends = new Map<string, OutreachSend>();
+  const channelAccounts = new Map<string, ChannelAccountRecord>();
 
   const repo: JamotRepository = {
     async createActor(input: NewActor) {
@@ -1500,6 +1502,52 @@ export function createMemoryRepository(): JamotRepository {
       });
       outreachSends.set(id, updated);
       return updated;
+    },
+
+    async createChannelAccount(input) {
+      const now = new Date().toISOString();
+      const account: ChannelAccountRecord = {
+        id: crypto.randomUUID(),
+        spaceId: input.spaceId,
+        protocol: input.protocol,
+        label: input.label,
+        identifier: input.identifier ?? null,
+        token: input.token ?? null,
+        status: "offline",
+        createdAt: now,
+        updatedAt: now,
+      };
+      channelAccounts.set(account.id, account);
+      return account;
+    },
+
+    async listChannelAccounts(spaceId) {
+      return [...channelAccounts.values()].filter((a) => a.spaceId === spaceId);
+    },
+
+    async listAllChannelAccounts() {
+      return [...channelAccounts.values()];
+    },
+
+    async getChannelAccount(id) {
+      return channelAccounts.get(id) ?? null;
+    },
+
+    async updateChannelAccount(id, patch) {
+      const account = channelAccounts.get(id);
+      if (!account) return null;
+      const updated: ChannelAccountRecord = {
+        ...account,
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.identifier !== undefined ? { identifier: patch.identifier } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+      channelAccounts.set(id, updated);
+      return updated;
+    },
+
+    async deleteChannelAccount(id) {
+      channelAccounts.delete(id);
     },
   };
 

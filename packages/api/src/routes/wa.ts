@@ -11,6 +11,14 @@ const CreateAccountBody = z.object({
   label: z.string().min(1).max(120),
 });
 
+const CreateChannelAccountBody = z.object({
+  spaceId: z.string().min(1),
+  protocol: z.enum(["telegram", "matrix"]),
+  label: z.string().min(1).max(120),
+  identifier: z.string().min(1).optional(),
+  token: z.string().min(1).optional(),
+});
+
 const SendBody = z.object({
   jid: z.string().min(1),
   text: z.string().min(1),
@@ -323,4 +331,51 @@ export default async function waRoutes(
   app.get("/wa/net-meta", { preHandler: requireAuth }, async (_req, reply) => {
     return { internalHostname: process.env.RENDER_INTERNAL_HOSTNAME ?? null };
   });
+
+  app.post(
+    "/wa/channels",
+    { preHandler: [requireAuth, resolveSpaceFromQuery] },
+    async (request, reply) => {
+      const body = parse(CreateChannelAccountBody, request.body, reply);
+      if (!body) return;
+      const account = await repository.createChannelAccount({
+        spaceId: body.spaceId,
+        protocol: body.protocol,
+        label: body.label,
+        identifier: body.identifier,
+        token: body.token,
+      });
+      reply.code(201);
+      return account;
+    },
+  );
+
+  app.get(
+    "/wa/channels",
+    { preHandler: [requireAuth, resolveSpaceFromQuery] },
+    async (request, reply) => {
+      const query = request.query as { spaceId?: string };
+      if (!query.spaceId) return fail(reply, 400, "spaceId is required");
+      const accounts = await repository.listChannelAccounts(query.spaceId);
+      const items = accounts.map((a) => ({
+        ...a,
+        token: a.token ? true : null,
+      }));
+      return { items };
+    },
+  );
+
+  app.delete(
+    "/wa/channels/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const params = request.params as { id?: string };
+      const id = parse(Id, params.id, reply);
+      if (!id) return;
+      const account = await repository.getChannelAccount(id);
+      if (!account) return fail(reply, 404, "channel account not found");
+      await repository.deleteChannelAccount(id);
+      return { ok: true };
+    },
+  );
 }
