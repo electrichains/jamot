@@ -541,6 +541,7 @@ export interface JamotRepository {
   }): Promise<Workspace>;
   getWorkspace(id: string): Promise<Workspace | null>;
   listWorkspaces(organizationId: string): Promise<Workspace[]>;
+  getOrganizationBySpaceId(spaceId: string): Promise<Organization | null>;
   updateWorkspace(
     id: string,
     patch: Partial<Pick<Workspace, "name" | "config">>,

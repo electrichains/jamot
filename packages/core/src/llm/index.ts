@@ -11,6 +11,18 @@ export { createOpenAIProvider } from "./openai.js";
 export { createAnthropicProvider } from "./anthropic.js";
 export type { OpenAIProviderOptions } from "./openai.js";
 export type { AnthropicProviderOptions } from "./anthropic.js";
+export {
+  resolveModelConfig,
+  resolveAnyModelConfig,
+  writeModelConfig,
+  clearModelConfig,
+} from "./model-config.js";
+export type {
+  ModelProvider,
+  ResolvedModelConfig,
+  ModelConfigResolveContext,
+  WriteModelConfigInput,
+} from "./model-config.js";
 
 export type LLMProviderKind = "mock" | "openai" | "anthropic";
 

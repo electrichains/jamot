@@ -1186,6 +1186,16 @@ export function createPgRepository(db: Db): JamotRepository {
       return rows.map(toWorkspace);
     },
 
+    async getOrganizationBySpaceId(spaceId) {
+      const [ws] = await q
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.spaceId, spaceId))
+        .limit(1);
+      if (!ws) return null;
+      return this.getOrganization(ws.organizationId);
+    },
+
     async updateWorkspace(id, patch) {
       const [row] = await q
         .update(workspaces)

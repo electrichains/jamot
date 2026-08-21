@@ -574,6 +574,53 @@ export async function deleteVaultConnection(ref: string): Promise<{ status: stri
   return api(`/api/vault/connections/${encodeURIComponent(ref)}`, { method: "DELETE" });
 }
 
+export type ModelProviderId = "openai" | "anthropic";
+
+export interface ApiModelConfig {
+  configured: boolean;
+  baseUrl?: string | null;
+  model?: string | null;
+  apiKey?: string;
+}
+
+export interface ApiModelsResponse {
+  user: Record<ModelProviderId, ApiModelConfig>;
+  organization: Record<ModelProviderId, ApiModelConfig> | null;
+}
+
+export async function getModels(organizationId?: string): Promise<ApiModelsResponse> {
+  const path = organizationId
+    ? `/api/models?organizationId=${encodeURIComponent(organizationId)}`
+    : "/api/models";
+  return api<ApiModelsResponse>(path);
+}
+
+export async function putModel(input: {
+  provider: ModelProviderId;
+  organizationId?: string | null;
+  baseUrl?: string | null;
+  model?: string | null;
+  apiKey?: string;
+}): Promise<{ status: string; provider: ModelProviderId; scope: string }> {
+  return api<{ status: string; provider: ModelProviderId; scope: string }>("/api/models", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteModel(input: {
+  provider: ModelProviderId;
+  organizationId?: string | null;
+}): Promise<{ status: string; provider: ModelProviderId; scope: string }> {
+  const params = new URLSearchParams();
+  params.set("provider", input.provider);
+  if (input.organizationId) params.set("organizationId", input.organizationId);
+  return api<{ status: string; provider: ModelProviderId; scope: string }>(
+    `/api/models?${params.toString()}`,
+    { method: "DELETE" },
+  );
+}
+
 export async function listConnectors(
   ownerOrganizationId?: string,
 ): Promise<ApiConnector[]> {

@@ -8,6 +8,7 @@ import {
   Bell,
   Bot,
   Building2,
+  Cpu,
   Database,
   FileText,
   Layers,
@@ -34,7 +35,7 @@ import {
 import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/components/auth/auth-context";
 import { useActiveOrg } from "@/components/settings/use-active-org";
-import { SettingsLayout, type SettingsGroup } from "@/components/settings/settings-layout";
+import { SettingsLayout, type SettingsGroup, type SettingsSection } from "@/components/settings/settings-layout";
 import {
   AccountSection,
   AppearanceSection,
@@ -67,48 +68,47 @@ import {
   WorkspaceSettingsSection,
 } from "@/components/settings/org-sections";
 import { Vault } from "@/components/settings/Vault";
+import { ModelsSection } from "@/components/settings/models-section";
 
-const PERSONAL_GROUP: SettingsGroup = {
-  title: "Personal",
-  sections: [
-    { id: "account", label: "Account", icon: User, body: <AccountSection /> },
-    { id: "profile", label: "Profile", icon: UserRound, body: <ProfileSection /> },
-    { id: "memory", label: "Memory", icon: MemoryStick, body: <MemorySection /> },
-    {
-      id: "privacy",
-      label: "Privacy & Consent",
-      icon: Lock,
-      body: <PrivacyConsentSection />,
-    },
-    { id: "vault", label: "Vault", icon: VaultIcon, body: <Vault /> },
-    { id: "connectors", label: "Connectors", icon: Plug, body: <ConnectorsSection /> },
-    { id: "skills", label: "Skills", icon: Sparkles, body: <SkillsSection /> },
-    {
-      id: "personal-agents",
-      label: "Personal Agents",
-      icon: Bot,
-      body: <PersonalAgentsSection />,
-    },
-    {
-      id: "notifications",
-      label: "Notifications",
-      icon: Bell,
-      body: <NotificationsSection />,
-    },
-    {
-      id: "appearance",
-      label: "Appearance",
-      icon: Palette,
-      body: <AppearanceSection />,
-    },
-    {
-      id: "security",
-      label: "Security",
-      icon: ShieldCheck,
-      body: <SecuritySection />,
-    },
-  ],
-};
+const MAIN_SECTIONS: SettingsSection[] = [
+  { id: "account", label: "Account", icon: User, body: <AccountSection /> },
+  { id: "profile", label: "Profile", icon: UserRound, body: <ProfileSection /> },
+  { id: "memory", label: "Memory", icon: MemoryStick, body: <MemorySection /> },
+  {
+    id: "privacy",
+    label: "Privacy & Consent",
+    icon: Lock,
+    body: <PrivacyConsentSection />,
+  },
+  { id: "vault", label: "Vault", icon: VaultIcon, body: <Vault /> },
+  { id: "models", label: "Models", icon: Cpu, body: <ModelsSection /> },
+  { id: "connectors", label: "Connectors", icon: Plug, body: <ConnectorsSection /> },
+  { id: "skills", label: "Skills", icon: Sparkles, body: <SkillsSection /> },
+  {
+    id: "personal-agents",
+    label: "Personal Agents",
+    icon: Bot,
+    body: <PersonalAgentsSection />,
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    icon: Bell,
+    body: <NotificationsSection />,
+  },
+  {
+    id: "appearance",
+    label: "Appearance",
+    icon: Palette,
+    body: <AppearanceSection />,
+  },
+  {
+    id: "security",
+    label: "Security",
+    icon: ShieldCheck,
+    body: <SecuritySection />,
+  },
+];
 
 const ORG_GROUP: SettingsGroup = {
   title: "Organization",
@@ -167,28 +167,29 @@ const ORG_GROUP: SettingsGroup = {
   ],
 };
 
-const WORKSPACE_GROUP: SettingsGroup = {
-  title: "Workspace",
-  sections: [
-    {
-      id: "ws-settings",
-      label: "Workspace settings",
-      icon: Layers,
-      body: <WorkspaceSettingsSection />,
-    },
-  ],
-};
-
 export default function SettingsPage() {
   const { user } = useAuth();
-  const { isOrg } = useActiveOrg();
+  const { space, isOrg } = useActiveOrg();
 
   const groups = useMemo<SettingsGroup[]>(() => {
-    const result: SettingsGroup[] = [PERSONAL_GROUP];
-    if (isOrg) result.push(WORKSPACE_GROUP);
+    const mainGroup: SettingsGroup = {
+      title: space.name,
+      sections: isOrg
+        ? [
+            ...MAIN_SECTIONS,
+            {
+              id: "ws-settings",
+              label: "Workspace settings",
+              icon: Layers,
+              body: <WorkspaceSettingsSection />,
+            },
+          ]
+        : MAIN_SECTIONS,
+    };
+    const result: SettingsGroup[] = [mainGroup];
     if (user?.isSuperAdmin) result.push(ORG_GROUP);
     return result;
-  }, [user?.isSuperAdmin, isOrg]);
+  }, [user?.isSuperAdmin, isOrg, space.name]);
 
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground">

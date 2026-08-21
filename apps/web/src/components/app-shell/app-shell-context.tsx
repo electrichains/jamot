@@ -333,6 +333,9 @@ export function AppShellProvider({
 
   useEffect(() => {
     orgIdRef.current = activeOrganizationId;
+    if (typeof document !== "undefined") {
+      document.cookie = `jamot_active_org=${activeOrganizationId ?? ""}; path=/; max-age=31536000; SameSite=Lax`;
+    }
     void loadRail(activeOrganizationId);
   }, [activeOrganizationId, loadRail]);
 

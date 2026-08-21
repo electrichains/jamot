@@ -517,6 +517,12 @@ export function createMemoryRepository(): JamotRepository {
       );
     },
 
+    async getOrganizationBySpaceId(spaceId) {
+      const ws = [...workspaces.values()].find((w) => w.spaceId === spaceId);
+      if (!ws) return null;
+      return this.getOrganization(ws.organizationId);
+    },
+
     async updateWorkspace(id, patch) {
       const existing = workspaces.get(id);
       if (!existing) return null;

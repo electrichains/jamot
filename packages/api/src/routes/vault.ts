@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { ConnectorProvider, ConnectorType, Id } from "@jamot/contracts";
-import { requireAuth } from "../rbac.js";
+import type { JamotRepository } from "../repository.js";
+import { requireAuth, actorRoleInSpace, ROLE_WEIGHT, loadUser, isSuperAdminUser } from "../rbac.js";
 import { fail, parse } from "../util.js";
 import type { RoutesOptions } from "./types.js";
 
@@ -23,6 +24,7 @@ export default async function vaultRoutes(
   opts: RoutesOptions,
 ): Promise<void> {
   const { repository, secretStore } = opts;
+  const repo = repository as unknown as JamotRepository;
 
   app.get("/vault", { preHandler: requireAuth }, async () => {
     const connectors = await repository.listConnectors();
@@ -41,20 +43,53 @@ export default async function vaultRoutes(
     const body = parse(AddConnectionBody, request.body, reply);
     if (!body) return;
 
-    const scope = body.scope ?? "system";
+    const actorId = request.session.actorId!;
+    const effectiveScope = body.scope ?? "system";
+
+    let ownerActorId: string | null = body.ownerActorId ?? null;
+    let ownerOrganizationId: string | null = body.ownerOrganizationId ?? null;
+
+    if (effectiveScope === "user") {
+      if (ownerActorId && ownerActorId !== actorId) {
+        return fail(reply, 403, "Cannot store secrets for another user.");
+      }
+      ownerActorId = actorId;
+      ownerOrganizationId = null;
+    } else if (effectiveScope === "organization") {
+      if (!ownerOrganizationId) {
+        return fail(reply, 400, "ownerOrganizationId is required for organization scope.");
+      }
+      const org = await repo.getOrganization(ownerOrganizationId as Id);
+      if (!org) return fail(reply, 404, "organization not found");
+      const user = await loadUser(repo, actorId);
+      if (!isSuperAdminUser(user)) {
+        const role = await actorRoleInSpace(repo, actorId as Id, org.spaceId as Id);
+        if (!role || ROLE_WEIGHT[role] < ROLE_WEIGHT.admin) {
+          return fail(reply, 403, "Requires organization admin role or higher.");
+        }
+      }
+      ownerActorId = null;
+    } else {
+      const user = await loadUser(repo, actorId);
+      if (!isSuperAdminUser(user)) {
+        return fail(reply, 403, "Requires super admin.");
+      }
+    }
+
+    const scope = effectiveScope;
     await repository.putSecret({
       ref: body.ref,
       scope,
-      ownerActorId: body.ownerActorId ?? null,
-      ownerOrganizationId: body.ownerOrganizationId ?? null,
+      ownerActorId,
+      ownerOrganizationId,
       ciphertext: secretStore.encrypt(body.secretPlaintext),
     });
 
     const connector = await repository.createConnector({
       provider: body.provider,
       type: body.type ?? "channel",
-      ownerActorId: body.ownerActorId ?? null,
-      ownerOrganizationId: body.ownerOrganizationId ?? null,
+      ownerActorId,
+      ownerOrganizationId,
       capabilities: body.capabilities ?? [],
       credentialRef: { ref: body.ref, scope },
       scopes: body.scopes ?? [],

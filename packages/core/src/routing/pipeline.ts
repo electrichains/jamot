@@ -171,15 +171,19 @@ async function resolveIntent(llm: LLMProvider, message: string): Promise<string>
   return intentFromMessage(message);
 }
 
+export type ModelConfigResolver = (spaceId: string) => Promise<LLMProvider | null>;
+
 export function createRoutingPipeline(deps: {
   repo: JamotRepository;
   llm: LLMProvider;
+  resolveModelConfig?: ModelConfigResolver;
 }): { route(req: RoutingRequest): Promise<RoutingResult> } {
-  const { repo, llm } = deps;
+  const { repo, llm, resolveModelConfig } = deps;
 
   async function route(req: RoutingRequest): Promise<RoutingResult> {
     const risk = req.risk ?? 0;
-    const intent = await resolveIntent(llm, req.message);
+    const provider = (resolveModelConfig ? await resolveModelConfig(req.spaceId) : null) ?? llm;
+    const intent = await resolveIntent(provider, req.message);
     const requiredCapabilities =
       INTENT_CAPABILITY_MAP[intent] ?? INTENT_CAPABILITY_MAP["unknown"] ?? [];
 
