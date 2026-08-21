@@ -784,6 +784,7 @@ export interface ApiSkill {
   ownerOrganizationId: string | null;
   name: string;
   description: string;
+  body: string;
   version: string;
   inputs: Record<string, unknown>;
   outputs: Record<string, unknown>;
@@ -807,6 +808,7 @@ export async function createSkill(input: {
   ownerOrganizationId?: string | null;
   name: string;
   description?: string;
+  body?: string;
   version?: string;
   evaluationCriteria?: string[];
   status?: "draft" | "validated" | "deprecated";
@@ -816,6 +818,27 @@ export async function createSkill(input: {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export async function updateSkill(
+  id: string,
+  patch: {
+    name?: string;
+    description?: string;
+    body?: string;
+    version?: string;
+    evaluationCriteria?: string[];
+    status?: "draft" | "validated" | "deprecated";
+  },
+): Promise<ApiSkill> {
+  return api<ApiSkill>(`/api/skills/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function deleteSkill(id: string): Promise<void> {
+  await api<void>(`/api/skills/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export interface ApiCapability {

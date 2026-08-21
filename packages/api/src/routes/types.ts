@@ -40,6 +40,7 @@ export interface NewSkillInput {
   ownerOrganizationId?: string | null;
   name: string;
   description?: string;
+  body?: string;
   version?: string;
   inputs?: Record<string, unknown>;
   outputs?: Record<string, unknown>;
@@ -56,15 +57,50 @@ export interface VaultRepository {
   listConnectors(filter?: {
     ownerOrganizationId?: string;
   }): Promise<Connector[]>;
+  updateConnector(
+    id: string,
+    patch: Partial<Pick<Connector, "status" | "configuration" | "sharing">>,
+  ): Promise<Connector | null>;
+  deleteConnector(id: string): Promise<void>;
   createCapability(input: NewCapabilityInput): Promise<Capability>;
   getCapability(id: string): Promise<Capability | null>;
   listCapabilities(filter?: { spaceId?: string }): Promise<Capability[]>;
   createSkill(input: NewSkillInput): Promise<Skill>;
   getSkill(id: string): Promise<Skill | null>;
   listSkills(filter?: { ownerOrganizationId?: string }): Promise<Skill[]>;
+  updateSkill(
+    id: string,
+    patch: Partial<
+      Pick<
+        Skill,
+        | "name"
+        | "description"
+        | "body"
+        | "version"
+        | "inputs"
+        | "outputs"
+        | "prerequisites"
+        | "allowedCapabilityIds"
+        | "evaluationCriteria"
+        | "status"
+      >
+    >,
+  ): Promise<Skill | null>;
+  deleteSkill(id: string): Promise<void>;
   putSecret(secret: SecretRecord): Promise<void>;
   getSecret(ref: string): Promise<SecretRecord | null>;
   deleteSecret(ref: string): Promise<void>;
+  getOrganization(id: string): Promise<{ spaceId: string | null } | null>;
+  listRolesForActor(actorId: string): Promise<
+    { spaceId: string; kind: string }[]
+  >;
+  findUserByActor(actorId: string): Promise<{ isSuperAdmin: boolean } | null>;
+  recordEvent(input: {
+    type: string;
+    spaceId?: string | null;
+    actorId?: string | null;
+    payload?: Record<string, unknown>;
+  }): Promise<unknown>;
 }
 
 export interface SecretStore {

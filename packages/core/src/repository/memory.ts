@@ -966,6 +966,7 @@ export function createMemoryRepository(): JamotRepository {
         ownerOrganizationId: input.ownerOrganizationId ?? null,
         name: input.name,
         description: input.description ?? "",
+        body: input.body ?? "",
         version: input.version ?? "1.0.0",
         inputs: input.inputs ?? {},
         outputs: input.outputs ?? {},
@@ -987,6 +988,18 @@ export function createMemoryRepository(): JamotRepository {
       const all = [...skills.values()];
       if (!filter?.ownerOrganizationId) return all;
       return all.filter((s) => s.ownerOrganizationId === filter.ownerOrganizationId);
+    },
+
+    async updateSkill(id, patch) {
+      const existing = skills.get(id);
+      if (!existing) return null;
+      const updated = Skill.parse({ ...existing, ...patch, updatedAt: now() });
+      skills.set(id, updated);
+      return updated;
+    },
+
+    async deleteSkill(id) {
+      skills.delete(id);
     },
 
     async createConnector(input: NewConnector) {

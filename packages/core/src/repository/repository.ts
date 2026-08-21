@@ -231,6 +231,7 @@ export interface NewSkill {
   ownerOrganizationId?: string | null;
   name: string;
   description?: string;
+  body?: string;
   version?: string;
   inputs?: Record<string, unknown>;
   outputs?: Record<string, unknown>;
@@ -698,6 +699,25 @@ export interface JamotRepository {
   createSkill(input: NewSkill): Promise<Skill>;
   getSkill(id: string): Promise<Skill | null>;
   listSkills(filter?: { ownerOrganizationId?: string }): Promise<Skill[]>;
+  updateSkill(
+    id: string,
+    patch: Partial<
+      Pick<
+        Skill,
+        | "name"
+        | "description"
+        | "body"
+        | "version"
+        | "inputs"
+        | "outputs"
+        | "prerequisites"
+        | "allowedCapabilityIds"
+        | "evaluationCriteria"
+        | "status"
+      >
+    >,
+  ): Promise<Skill | null>;
+  deleteSkill(id: string): Promise<void>;
 
   // connectors
   createConnector(input: NewConnector): Promise<Connector>;

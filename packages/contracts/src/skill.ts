@@ -7,6 +7,8 @@ export const Skill = EntityBase.extend({
   ownerOrganizationId: Id.nullable(),
   name: z.string().min(1),
   description: z.string().default(""),
+  /** Markdown specification — the authoring source of truth. */
+  body: z.string().default(""),
   version: z.string().default("1.0.0"),
   inputs: z.record(z.string(), z.unknown()).default({}),
   outputs: z.record(z.string(), z.unknown()).default({}),

@@ -383,6 +383,7 @@ function toSkill(row: SkillRow): Skill {
     ownerOrganizationId: (row.ownerOrganizationId as Id | null) ?? null,
     name: row.name,
     description: row.description,
+    body: row.body ?? "",
     version: row.version,
     inputs: row.inputs,
     outputs: row.outputs,
@@ -1899,6 +1900,7 @@ export function createPgRepository(db: Db): JamotRepository {
           ownerOrganizationId: input.ownerOrganizationId ?? null,
           name: input.name,
           description: input.description ?? "",
+          body: input.body ?? "",
           version: input.version ?? "1.0.0",
           inputs: input.inputs ?? {},
           outputs: input.outputs ?? {},
@@ -1932,6 +1934,19 @@ export function createPgRepository(db: Db): JamotRepository {
             : undefined,
         );
       return rows.map(toSkill);
+    },
+
+    async updateSkill(id, patch) {
+      const [row] = await q
+        .update(skills)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(skills.id, id))
+        .returning();
+      return row ? toSkill(row) : null;
+    },
+
+    async deleteSkill(id) {
+      await q.delete(skills).where(eq(skills.id, id));
     },
 
     async createConnector(input: NewConnector) {

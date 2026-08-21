@@ -489,6 +489,7 @@ export const skills = pgTable("skills", {
   ),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
+  body: text("body").notNull().default(""),
   version: text("version").notNull().default("1.0.0"),
   inputs: jsonb("inputs")
     .$type<Record<string, unknown>>()

@@ -30,15 +30,17 @@
     "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.12.2",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/google.maps": "^3.58.1",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.5",
-    "@types/google.maps": "^3.58.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

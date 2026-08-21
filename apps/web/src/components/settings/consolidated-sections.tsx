@@ -24,10 +24,10 @@ import {
   CapabilitiesSection,
   KnowledgeSection,
   OrgMemorySection,
-  SharedSkillsSection,
 } from "./org-data-sections";
 import { WorkspaceSettingsSection } from "./org-sections";
-import { MemorySection, SkillsSection } from "./personal-sections";
+import { MemorySection } from "./personal-sections";
+import { SkillsManager } from "./skills-manager";
 import { useActiveOrg } from "./use-active-org";
 import {
   Card,
@@ -330,8 +330,13 @@ export function UnifiedSkillsSection() {
   const { isOrg, isAdmin } = useActiveOrg();
   return (
     <div className="flex flex-col gap-6">
-      <SkillsSection />
-      {isOrg ? <SharedSkillsSection /> : null}
+      <SectionHeading
+        title="Skills"
+        description="Reusable capabilities, authored in Markdown. The AI assistant can suggest improvements — you always approve before anything changes."
+      />
+      <div className="max-w-2xl">
+        <SkillsManager />
+      </div>
       {isOrg && isAdmin ? <CapabilitiesSection /> : null}
     </div>
   );
