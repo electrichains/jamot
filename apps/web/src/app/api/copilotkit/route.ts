@@ -16,35 +16,37 @@ if (BASE_URL) {
   process.env.OPENAI_BASE_URL = BASE_URL;
 }
 
-const copilotRuntime = new CopilotRuntime({
-  agents: {
-    default: new BuiltInAgent({
-      model: MODEL,
-      prompt: "You are the Jamot Main Manager. Help plan, delegate and track work.",
-      maxSteps: 5,
-    }),
-    builder: new BuiltInAgent({
-      model: MODEL,
-      prompt: "You are the Jamot Agent Builder. Help users design and create agents.",
-      maxSteps: 6,
-    }),
-    skills: new BuiltInAgent({
-      model: MODEL,
-      prompt: "You are the Jamot Skill Assistant. Help users author Markdown skills.",
-      maxSteps: 4,
-    }),
-  },
-  a2ui: {},
-});
+let copilotHandler: any = null;
 
-console.log("[copilotkit] CopilotRuntime created OK");
-
-const copilotHandler: any = null as any;
 try {
+  const copilotRuntime = new CopilotRuntime({
+    agents: {
+      default: new BuiltInAgent({
+        model: MODEL,
+        prompt: "You are the Jamot Main Manager. Help plan, delegate and track work.",
+        maxSteps: 5,
+      }),
+      builder: new BuiltInAgent({
+        model: MODEL,
+        prompt: "You are the Jamot Agent Builder. Help users design and create agents.",
+        maxSteps: 6,
+      }),
+      skills: new BuiltInAgent({
+        model: MODEL,
+        prompt: "You are the Jamot Skill Assistant. Help users author Markdown skills.",
+        maxSteps: 4,
+      }),
+    },
+    a2ui: {},
+  });
+
+  console.log("[copilotkit] CopilotRuntime created OK");
+
   copilotHandler = createCopilotRuntimeHandler({
     runtime: copilotRuntime,
     basePath: "/api/copilotkit",
   });
+
   console.log("[copilotkit] Handler bound OK");
 } catch (err) {
   console.error("[copilotkit] Handler creation FAILED:", err instanceof Error ? err.message : String(err));
