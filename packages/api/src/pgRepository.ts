@@ -117,6 +117,12 @@ export function createPgRepositoryFromDb(db: Db): JamotRepository {
         [personId, enabled],
       );
     },
+    async updateUserPassword(personId, passwordHash) {
+      await pool.query(
+        `UPDATE users SET password_hash = $2, updated_at = now() WHERE person_id = $1`,
+        [personId, passwordHash],
+      );
+    },
     async createWaAccount(spaceId, label) {
       const { rows } = await pool.query<WaAccountRow>(
         `INSERT INTO wa_accounts (space_id, label)

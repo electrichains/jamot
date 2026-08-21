@@ -45,6 +45,7 @@ export interface JamotRepository extends CoreJamotRepository {
   findUserByProvider(provider: string, providerId: string): Promise<StoredUser | null>;
   findUserByActor(actorId: string): Promise<StoredUser | null>;
   setSuperAdmin(personId: string, enabled: boolean): Promise<void>;
+  updateUserPassword(personId: string, passwordHash: string): Promise<void>;
   createWaAccount(spaceId: string, label: string): Promise<WaAccountRecord>;
   listWaAccounts(spaceId: string): Promise<WaAccountRecord[]>;
   getWaAccount(id: string): Promise<WaAccountRecord | null>;
@@ -89,6 +90,17 @@ export function createMemoryRepository(): JamotRepository {
       for (const user of usersByActor.values()) {
         if (user.person.id !== personId) continue;
         const updated = { ...user, isSuperAdmin: enabled };
+        usersByActor.set(updated.actor.id, updated);
+        if (updated.person.email) users.set(updated.person.email.toLowerCase(), updated);
+        if (updated.provider && updated.providerId) {
+          usersByProvider.set(`${updated.provider}:${updated.providerId}`, updated);
+        }
+      }
+    },
+    async updateUserPassword(personId, passwordHash) {
+      for (const user of usersByActor.values()) {
+        if (user.person.id !== personId) continue;
+        const updated = { ...user, passwordHash };
         usersByActor.set(updated.actor.id, updated);
         if (updated.person.email) users.set(updated.person.email.toLowerCase(), updated);
         if (updated.provider && updated.providerId) {

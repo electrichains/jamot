@@ -1,13 +1,18 @@
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import type { JamotRepository } from "../repository.js";
-import { verifyPassword } from "../auth.js";
+import { hashPassword, verifyPassword } from "../auth.js";
 import { requireAuth } from "../rbac.js";
 import { fail, parse } from "../util.js";
 
 const LoginBody = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const ChangePasswordBody = z.object({
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(8),
 });
 
 export function authRoutes(repo: JamotRepository) {
@@ -44,6 +49,28 @@ export function authRoutes(repo: JamotRepository) {
       const user = await repo.findUserByActor(actorId);
 
       return { actor, person, isSuperAdmin: user?.isSuperAdmin ?? false };
+    });
+
+    app.post("/auth/password", { preHandler: requireAuth }, async (request, reply) => {
+      const body = parse(ChangePasswordBody, request.body, reply);
+      if (!body) return;
+
+      const actorId = request.session.actorId!;
+      const user = await repo.findUserByActor(actorId);
+      if (!user) return fail(reply, 404, "user not found");
+
+      if (user.passwordHash) {
+        if (!body.currentPassword) {
+          return fail(reply, 400, "currentPassword is required");
+        }
+        const valid = await verifyPassword(body.currentPassword, user.passwordHash);
+        if (!valid) return fail(reply, 401, "current password is incorrect");
+      }
+
+      const passwordHash = await hashPassword(body.newPassword);
+      await repo.updateUserPassword(user.person.id, passwordHash);
+
+      return { status: "ok" };
     });
   };
 }

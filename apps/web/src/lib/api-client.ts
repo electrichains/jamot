@@ -82,9 +82,25 @@ export interface AppAllocation {
   apps: Array<AppManifest & { enabled: boolean }>;
 }
 
+export interface MePerson {
+  id: string;
+  actorId?: string;
+  email: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  consent?: {
+    exportEnabled: boolean;
+    visibility: "private" | "org" | "public";
+    allowInference: boolean;
+  } | null;
+  membershipSpaceIds: string[];
+}
+
 export interface MeResponse {
   actor: { id: string; type: string; displayName: string };
-  person: { id: string; email: string | null; membershipSpaceIds: string[] } | null;
+  person: MePerson | null;
   isSuperAdmin: boolean;
 }
 
@@ -506,6 +522,26 @@ export async function createAgent(input: {
       availability: input.availability ?? "available",
       harness: input.harness ?? { kind: "mcp", endpoint: null },
     }),
+  });
+}
+
+export async function updateOwnActor(
+  actorId: string,
+  patch: { displayName?: string },
+): Promise<unknown> {
+  return api(`/api/actors/${actorId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function changePassword(input: {
+  currentPassword?: string;
+  newPassword: string;
+}): Promise<void> {
+  await api("/api/auth/password", {
+    method: "POST",
+    body: JSON.stringify(input),
   });
 }
 
