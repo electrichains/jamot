@@ -211,7 +211,7 @@ export function AppRail() {
   };
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center gap-1 border-l border-border bg-sidebar py-2 text-sidebar-foreground">
+    <div className="relative flex h-full w-full flex-col items-center gap-1 border-l border-border/40 bg-sidebar/80 py-2 text-sidebar-foreground backdrop-blur-md">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -227,7 +227,7 @@ export function AppRail() {
         </SortableContext>
       </DndContext>
 
-      <div className="my-1 h-px w-6 bg-border" />
+      <div className="my-1 h-px w-6 bg-border/40" />
 
       {mcpItems.map((item) => (
         <Button
@@ -235,7 +235,7 @@ export function AppRail() {
           variant="ghost"
           size="icon"
           className={cn(
-            "size-9",
+            "size-9 rounded-lg",
             activeSection === "agents" && "bg-muted text-foreground",
           )}
           aria-label={`${item.label} (MCP)`}
@@ -251,7 +251,7 @@ export function AppRail() {
       <Button
         variant="ghost"
         size="icon"
-        className="size-9"
+        className="size-9 rounded-lg"
         aria-label="Add or manage apps"
         title="Add apps"
         onClick={() => setOpen((value) => !value)}
@@ -266,9 +266,9 @@ export function AppRail() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-2 right-full z-30 mr-1 w-72 overflow-hidden rounded-lg border border-border bg-card p-2 shadow-lg"
+            className="glass-card glass-border absolute bottom-2 right-full z-30 mr-1 w-72 overflow-hidden rounded-xl p-2 shadow-xl"
           >
-            <div className="flex items-center justify-between border-b border-border pb-1.5">
+              <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
               <h3 className="text-sm font-semibold">Add apps</h3>
               <Button
                 variant="ghost"
@@ -451,7 +451,7 @@ function SortableRailItem({
       variant="ghost"
       size="icon"
       className={cn(
-        "size-9",
+        "size-9 rounded-lg",
         active && "bg-muted text-foreground",
         isDragging && "opacity-60",
       )}
