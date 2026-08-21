@@ -10,6 +10,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "3.0.96",
     "@copilotkit/a2ui-renderer": "^1.68.1",
     "@copilotkit/react-core": "^1.67.1",
     "@copilotkit/react-ui": "^1.67.1",

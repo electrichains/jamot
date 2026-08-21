@@ -4,6 +4,33 @@ import {
   CopilotRuntime,
   createCopilotRuntimeHandler,
 } from "@copilotkit/runtime/v2";
+import { createOpenAI } from "@ai-sdk/openai";
+
+/** LanguageModel produced by the AI SDK provider (same type BuiltInAgent accepts). */
+type SdkLanguageModel = ReturnType<ReturnType<typeof createOpenAI>>;
+
+/**
+ * Build the agent model for BuiltInAgent. Providers configured in
+ * Settings > Models usually live on a custom OpenAI-compatible endpoint
+ * (base URL), which a plain "openai/<model>" string cannot express — so we
+ * construct a LanguageModel bound to that base URL. Without a base URL we
+ * fall back to the provider-prefixed string, letting CopilotKit resolve it.
+ */
+function buildAgentModel(input: {
+  modelId: string;
+  kind: "openai" | "anthropic";
+  apiKey: string;
+  baseUrl: string | null;
+}): SdkLanguageModel | string {
+  if (input.baseUrl) {
+    const provider = createOpenAI({
+      apiKey: input.apiKey,
+      baseURL: input.baseUrl,
+    });
+    return provider(input.modelId);
+  }
+  return `${input.kind}/${input.modelId}`;
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -41,7 +68,14 @@ const REASON_HINTS: Record<string, string> = {
 };
 
 type ResolveResult =
-  | { ok: true; model: string; apiKey: string; source: string }
+  | {
+      ok: true;
+      modelId: string;
+      kind: "openai" | "anthropic";
+      apiKey: string;
+      baseUrl: string | null;
+      source: string;
+    }
   | { ok: false; reason: string };
 
 /**
@@ -91,12 +125,14 @@ async function resolveChatModel(req: NextRequest): Promise<ResolveResult> {
       console.log(
         "[copilotkit] using model provider:",
         data.providerName ?? data.model,
-        `(${data.kind}/${data.model})`,
+        `(${data.kind}/${data.model}${data.baseUrl ? ` @ ${data.baseUrl}` : ""})`,
       );
       return {
         ok: true,
-        model: `${data.kind}/${data.model}`,
+        modelId: data.model,
+        kind: data.kind,
         apiKey: data.apiKey,
+        baseUrl: data.baseUrl ?? null,
         source: "provider",
       };
     }
@@ -140,22 +176,24 @@ async function buildHandler(req: NextRequest) {
     );
   }
 
+  const agentModel = buildAgentModel(resolved);
+
   const runtime = new CopilotRuntime({
     agents: {
       default: new BuiltInAgent({
-        model: resolved.model,
+        model: agentModel,
         apiKey: resolved.apiKey,
         prompt: DEFAULT_PROMPT,
         maxSteps: 5,
       }),
       builder: new BuiltInAgent({
-        model: resolved.model,
+        model: agentModel,
         apiKey: resolved.apiKey,
         prompt: BUILDER_PROMPT,
         maxSteps: 6,
       }),
       skills: new BuiltInAgent({
-        model: resolved.model,
+        model: agentModel,
         apiKey: resolved.apiKey,
         prompt: SKILLS_PROMPT,
         maxSteps: 4,

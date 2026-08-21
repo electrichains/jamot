@@ -10,6 +10,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: 3.0.96
+        version: 3.0.96(zod@3.25.76)
       '@copilotkit/a2ui-renderer':
         specifier: ^1.68.1
         version: 1.68.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
