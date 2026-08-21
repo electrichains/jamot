@@ -83,6 +83,7 @@ import {
   roles,
   secrets,
   skills,
+  spaceSettings,
   spaces,
   suppliers,
   taskAttachments,
@@ -286,6 +287,7 @@ function toAgent(row: AgentRow): Agent {
     actionPermissions: row.actionPermissions,
     availability: row.availability,
     systemPrompt: row.systemPrompt,
+    model: row.model ?? null,
     performance: row.performance,
   };
 }
@@ -1402,6 +1404,7 @@ export function createPgRepository(db: Db): JamotRepository {
           schedules: input.schedules ?? [],
           actionPermissions: input.actionPermissions ?? {},
           systemPrompt: input.systemPrompt ?? null,
+          model: input.model ?? null,
           performance: input.performance ?? {},
         })
         .returning();
@@ -1526,6 +1529,32 @@ export function createPgRepository(db: Db): JamotRepository {
         .where(eq(spaces.id, id))
         .limit(1);
       return row ? toSpace(row) : null;
+    },
+
+    async getSpaceSettings(spaceId: string): Promise<Record<string, unknown>> {
+      const [row] = await q
+        .select()
+        .from(spaceSettings)
+        .where(eq(spaceSettings.spaceId, spaceId))
+        .limit(1);
+      return (row?.config as Record<string, unknown>) ?? {};
+    },
+
+    async setSpaceSettings(
+      spaceId: string,
+      patch: Record<string, unknown>,
+    ): Promise<Record<string, unknown>> {
+      const current = await this.getSpaceSettings(spaceId);
+      const next = { ...current, ...patch };
+      const [row] = await q
+        .insert(spaceSettings)
+        .values({ spaceId: spaceId as Id, config: next })
+        .onConflictDoUpdate({
+          target: spaceSettings.spaceId,
+          set: { config: next, updatedAt: nowIso() },
+        })
+        .returning();
+      return (row?.config as Record<string, unknown>) ?? next;
     },
 
     async listSpaces() {

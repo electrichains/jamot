@@ -159,6 +159,21 @@ export const spaces = pgTable("spaces", {
   ...timestamps(),
 });
 
+/**
+ * Per-space settings, keyed by space id. `config` is a free-form JSON bag
+ * (e.g. `orchestratorModel`). One row per space; upserted on write.
+ */
+export const spaceSettings = pgTable("space_settings", {
+  spaceId: uuid("space_id")
+    .primaryKey()
+    .references(() => spaces.id),
+  config: jsonb("config")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  ...timestamps(),
+});
+
 export const people = pgTable("people", {
   id: uuid("id").defaultRandom().primaryKey(),
   actorId: uuid("actor_id")
@@ -322,6 +337,7 @@ export const agents = pgTable("agents", {
     .default(sql`'{}'::jsonb`),
   availability: availabilityEnum("availability").notNull().default("offline"),
   systemPrompt: text("system_prompt"),
+  model: text("model"),
   performance: jsonb("performance")
     .$type<Record<string, number>>()
     .notNull()

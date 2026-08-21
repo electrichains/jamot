@@ -87,6 +87,7 @@ export function createMemoryRepository(): JamotRepository {
   const people = new Map<string, Person>();
   const agents = new Map<string, Agent>();
   const spaces = new Map<string, Space>();
+  const spaceSettingsStore = new Map<string, Record<string, unknown>>();
   const organizations = new Map<string, Organization>();
   const workspaces = new Map<string, Workspace>();
   const roles = new Map<string, Role>();
@@ -627,6 +628,7 @@ export function createMemoryRepository(): JamotRepository {
         schedules: input.schedules ?? [],
         actionPermissions: input.actionPermissions ?? {},
         systemPrompt: input.systemPrompt ?? null,
+        model: input.model ?? null,
         performance: input.performance ?? {},
       });
       agents.set(agent.id, agent);
@@ -722,6 +724,19 @@ export function createMemoryRepository(): JamotRepository {
 
     async getSpace(id) {
       return spaces.get(id) ?? null;
+    },
+
+    async getSpaceSettings(spaceId: string): Promise<Record<string, unknown>> {
+      return spaceSettingsStore.get(spaceId) ?? {};
+    },
+
+    async setSpaceSettings(
+      spaceId: string,
+      patch: Record<string, unknown>,
+    ): Promise<Record<string, unknown>> {
+      const next = { ...this.getSpaceSettings(spaceId), ...patch };
+      spaceSettingsStore.set(spaceId, next);
+      return next;
     },
 
     async listSpaces() {

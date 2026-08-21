@@ -400,7 +400,7 @@ export default async function modelsRoutes(
    */
   app.get("/models/runtime", { preHandler: requireAuth }, async (request) => {
     const actorId = request.session.actorId!;
-    const query = request.query as { organizationId?: string };
+    const query = request.query as { organizationId?: string; agentId?: string; prefer?: string };
 
     let organizationId: string | null = null;
     if (query.organizationId) {
@@ -410,11 +410,21 @@ export default async function modelsRoutes(
       }
     }
 
+    // A specific agent's assignment takes precedence when supplied. The model
+    // ref is non-sensitive; resolveEnabledModel only matches it within the
+    // caller's own provider scopes, so no extra authorization is needed.
+    let prefer = (query.prefer as string | undefined) ?? null;
+    if (!prefer && query.agentId) {
+      const agent = await repository.getAgent(query.agentId as Id);
+      prefer = agent?.model ?? null;
+    }
+
     const resolved = await resolveEnabledModel({
       repo: repository,
       store: secretStore,
       organizationId,
       actorId,
+      prefer,
     });
     if (!resolved) return { configured: false };
     return { configured: true, ...resolved };

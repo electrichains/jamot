@@ -83,6 +83,12 @@ export const Agent = EntityBase.extend({
   availability: z.enum(["available", "busy", "offline"]).default("offline"),
   /** Advanced: system instructions surfaced only in Advanced settings. */
   systemPrompt: z.string().nullable(),
+  /**
+   * Per-agent model assignment, encoded as `providerId::modelId` referencing an
+   * enabled model on a configured provider. `null` means "use the first enabled
+   * model" (the platform default).
+   */
+  model: z.string().nullable(),
   performance: z.record(z.string(), z.number()).default({}),
 });
 export type Agent = z.infer<typeof Agent>;
@@ -107,6 +113,7 @@ export const UpdateAgentBody = z
     actionPermissions: z.record(z.string(), ActionPermission).optional(),
     availability: z.enum(["available", "busy", "offline"]).optional(),
     systemPrompt: z.string().nullable().optional(),
+    model: z.string().nullable().optional(),
   })
   .strict();
 export type UpdateAgentBody = z.infer<typeof UpdateAgentBody>;

@@ -32,6 +32,7 @@ import vaultRoutes from "./routes/vault.js";
 import modelsRoutes from "./routes/models.js";
 import assignmentsRoutes from "./routes/assignments.js";
 import agentsRoutes from "./routes/agents.js";
+import spaceSettingsRoutes from "./routes/space-settings.js";
 import channelsRoutes from "./routes/channels.js";
 import taskListsRoutes from "./routes/task-lists.js";
 import memoryRoutes from "./routes/memory.js";
@@ -237,6 +238,10 @@ export async function buildApp(opts: BuildAppOptions) {
     secretStore,
   });
   await app.register(agentsRoutes, { prefix: "/api", repository: opts.repository });
+  await app.register(spaceSettingsRoutes, {
+    prefix: "/api",
+    repository: opts.repository,
+  });
   await app.register(channelsRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(taskListsRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(memoryRoutes, { prefix: "/api", memoryProvider });

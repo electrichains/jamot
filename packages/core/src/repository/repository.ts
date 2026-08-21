@@ -206,6 +206,7 @@ export interface NewAgent {
   schedules?: Agent["schedules"];
   actionPermissions?: Agent["actionPermissions"];
   systemPrompt?: string | null;
+  model?: string | null;
   performance?: Record<string, number>;
 }
 
@@ -693,6 +694,11 @@ export interface JamotRepository {
   // spaces, organizations & workspaces
   createSpace(input: NewSpace): Promise<Space>;
   getSpace(id: string): Promise<Space | null>;
+  getSpaceSettings(spaceId: string): Promise<Record<string, unknown>>;
+  setSpaceSettings(
+    spaceId: string,
+    patch: Record<string, unknown>,
+  ): Promise<Record<string, unknown>>;
   listSpaces(): Promise<Space[]>;
   updateSpace(id: string, patch: Partial<Pick<Space, "name">>): Promise<Space | null>;
   createOrganization(input: NewOrganization): Promise<Organization>;

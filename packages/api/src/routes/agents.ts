@@ -131,6 +131,7 @@ export default async function agentsRoutes(
       schedules: body.schedules ?? [],
       actionPermissions: body.actionPermissions ?? {},
       systemPrompt: body.systemPrompt ?? null,
+      model: body.model ?? null,
     });
 
     await repository.recordEvent({
