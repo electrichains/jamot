@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   BuiltInAgent,
   CopilotRuntime,
@@ -30,11 +30,13 @@ interface RuntimeModelResponse {
 }
 
 /**
- * Resolve the chat model from the platform's model configuration: the first
- * enabled model of the active org's providers, then the user's providers,
- * then environment fallbacks (see GET /api/models/runtime).
+ * Resolve the chat model from the platform's model configuration.
+ * Tries the API's /api/models/runtime first (per-space orchestrator
+ * preference → first-enabled model), falls back to env config.
  */
-async function resolveChatModel(req: NextRequest): Promise<{ model: string; apiKey: string } | null> {
+async function resolveChatModel(
+  req: NextRequest,
+): Promise<{ model: string; apiKey: string } | null> {
   const orgId = req.cookies.get("jamot_active_org")?.value;
   const cookieHeader = req.headers.get("cookie") ?? "";
   if (!cookieHeader) return null;
@@ -52,6 +54,7 @@ async function resolveChatModel(req: NextRequest): Promise<{ model: string; apiK
     if (!data.configured || !data.apiKey || !data.kind || !data.model) return null;
     return { model: `${data.kind}/${data.model}`, apiKey: data.apiKey };
   } catch {
+    // API unreachable — fall through to env fallback
     return null;
   }
 }
@@ -94,8 +97,16 @@ async function buildHandler(req: NextRequest) {
 export const runtime = "nodejs";
 
 async function handle(req: NextRequest) {
-  const handler = await buildHandler(req);
-  return handler(req);
+  try {
+    const handler = await buildHandler(req);
+    return handler(req);
+  } catch (err) {
+    console.error("[copilotkit] handler error:", err instanceof Error ? err.message : err);
+    return NextResponse.json(
+      { error: "CopilotKit handler failed to initialize" },
+      { status: 502 },
+    );
+  }
 }
 
 export const GET = handle;

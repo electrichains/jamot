@@ -404,9 +404,13 @@ export default async function modelsRoutes(
 
     let organizationId: string | null = null;
     if (query.organizationId) {
-      const org = await repository.getOrganization(query.organizationId as Id);
-      if (org && (await canAccessOrg(repository, actorId, org.spaceId, ROLE_WEIGHT.member))) {
-        organizationId = query.organizationId;
+      try {
+        const org = await repository.getOrganization(query.organizationId as Id);
+        if (org && (await canAccessOrg(repository, actorId, org.spaceId, ROLE_WEIGHT.member))) {
+          organizationId = query.organizationId;
+        }
+      } catch {
+        // Organization lookup failed — fall through without org scope
       }
     }
 
@@ -415,20 +419,32 @@ export default async function modelsRoutes(
     // caller's own provider scopes, so no extra authorization is needed.
     let prefer = (query.prefer as string | undefined) ?? null;
     if (!prefer && query.agentId) {
-      const agent = await repository.getAgent(query.agentId as Id);
-      prefer = agent?.model ?? null;
+      try {
+        const agent = await repository.getAgent(query.agentId as Id);
+        prefer = agent?.model ?? null;
+      } catch {
+        // Agent lookup failed — ignore
+      }
     }
 
     // Per-space orchestrator model preference.
     if (!prefer) {
       let spaceId: string | null = null;
       if (organizationId) {
-        const org = await repository.getOrganization(organizationId as Id);
-        spaceId = org?.spaceId ?? null;
-      } else {
-        // Personal scope — use actor's personal space.
-        const actor = await repository.getActor(actorId);
-        spaceId = actor?.personalSpaceId ?? null;
+        try {
+          const org = await repository.getOrganization(organizationId as Id);
+          spaceId = org?.spaceId ?? null;
+        } catch {
+          // Org re-lookup failed
+        }
+      }
+      if (!spaceId) {
+        try {
+          const actor = await repository.getActor(actorId);
+          spaceId = actor?.personalSpaceId ?? null;
+        } catch {
+          // Actor lookup failed
+        }
       }
       if (spaceId) {
         try {
@@ -436,20 +452,25 @@ export default async function modelsRoutes(
           const om = config.orchestratorModel as string | null | undefined;
           if (om) prefer = om;
         } catch {
-          // No settings or read failure — fall back to first-enabled.
+          // No settings table or read failure — fall back to first-enabled.
         }
       }
     }
 
-    const resolved = await resolveEnabledModel({
-      repo: repository,
-      store: secretStore,
-      organizationId,
-      actorId,
-      prefer,
-    });
-    if (!resolved) return { configured: false };
-    return { configured: true, ...resolved };
+    try {
+      const resolved = await resolveEnabledModel({
+        repo: repository,
+        store: secretStore,
+        organizationId,
+        actorId,
+        prefer,
+      });
+      if (!resolved) return { configured: false };
+      return { configured: true, ...resolved };
+    } catch (err) {
+      console.error("[models/runtime] resolution error:", err instanceof Error ? err.message : err);
+      return { configured: false };
+    }
   });
 
   // Legacy guard: old clients used GET/PUT/DELETE /models directly.
