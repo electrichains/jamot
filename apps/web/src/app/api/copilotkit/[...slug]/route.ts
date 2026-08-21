@@ -39,18 +39,30 @@ async function resolveChatModel(
 ): Promise<{ model: string; apiKey: string; source: string } | null> {
   const orgId = req.cookies.get("jamot_active_org")?.value;
   const cookieHeader = req.headers.get("cookie") ?? "";
-  if (!cookieHeader) return null;
+
+  console.log("[copilotkit] resolveChatModel called:", {
+    hasCookie: !!cookieHeader,
+    hasOrgCookie: !!orgId,
+  });
+
+  if (!cookieHeader) {
+    // No cookies — might be internal fetch without auth context.
+    return null;
+  }
 
   const url = new URL(`${API_URL}/api/models/runtime`);
   if (orgId) url.searchParams.set("organizationId", orgId);
 
   try {
+    console.log("[copilotkit] fetching runtime from:", url.toString());
     const res = await fetch(url.toString(), {
       headers: { cookie: cookieHeader },
       cache: "no-store",
     });
+    console.log("[copilotkit] runtime response status:", res.status);
     if (res.ok) {
       const data = (await res.json()) as RuntimeModelResponse;
+      console.log("[copilotkit] runtime configured:", data.configured, "data:", JSON.stringify(data).slice(0, 500));
       if (data.configured && data.apiKey && data.kind && data.model) {
         console.log("[copilotkit] using model provider:", data.providerName ?? data.model);
         return {
@@ -61,14 +73,16 @@ async function resolveChatModel(
       }
       console.log("[copilotkit] runtime returned configured=false, falling back to env");
     } else {
-      console.log("[copilotkit] runtime returned status", res.status, "falling back to env");
+      const text = await res.text();
+      console.log("[copilotkit] runtime failed:", res.status, "-", text.slice(0, 500));
     }
   } catch (err) {
-    console.log("[copilotkit] runtime fetch error:", err instanceof Error ? err.message : err, "falling back to env");
+    console.log("[copilotkit] runtime fetch error:", err instanceof Error ? err.message : err);
   }
-  // Fall back to env vars
+
+  // Fall back to env vars — ensures copilot works even when no provider is configured yet
   if (process.env.OPENAI_API_KEY) {
-    console.log("[copilotkit] using env OPENAI_API_KEY");
+    console.log("[copilotkit] using env OPENAI_API_KEY for gpt-4o");
     return {
       model: process.env.OPENAI_MODEL
         ? `openai/${process.env.OPENAI_MODEL}`
@@ -77,15 +91,19 @@ async function resolveChatModel(
       source: "env",
     };
   }
-  console.warn("[copilotkit] NO API KEY CONFIGURED — chat will not work until OPENAI_API_KEY is set (see https://render.com/docs/env-vars)");
+
+  console.warn("[copilotkit] NO API KEY CONFIGURED — neither models/runtime nor OPENAI_API_KEY available");
   return null;
 }
 
 async function buildHandler(req: NextRequest) {
   const resolved = await resolveChatModel(req);
+  // Graceful degradation: if no model found, throw with clear message —
+  // copilot page fails visibly instead of giving a silent 502.
   if (!resolved) {
+    console.error("[copilotkit] no model available — copilot will fail on first message");
     throw new Error(
-      "CopilotKit could not find a chat model. Set OPENAI_API_KEY in your environment variables or configure a model provider in Settings > Models.",
+      "No chat model configured. Please set OPENAI_API_KEY in Render or configure a model in Settings > Models.",
     );
   }
 

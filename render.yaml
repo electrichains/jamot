@@ -92,14 +92,14 @@ projects:
                 - pnpm-lock.yaml
                 - pnpm-workspace.yaml
             envVars:
+              # Next_PUBLIC_ values must be concrete strings — they're compiled into client JS.
               - key: NEXT_PUBLIC_API_URL
-                valueFromService:
-                  name: jamot-api
-                  type: internalHostname
+                value: https://api.jamot.pro
               # Root domain used to detect per-org subdomains (e.g. org.jamot.pro).
               - key: NEXT_PUBLIC_ROOT_DOMAIN
                 value: jamot.pro
               # Fallback LLM key when no model provider is configured in Settings > Models.
+              # Set your OpenAI key here for basic copilot functionality during migration.
               - key: OPENAI_API_KEY
                 sync: false
 
