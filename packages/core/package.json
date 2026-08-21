@@ -31,6 +31,7 @@
     "./commerce": "./src/commerce/index.ts",
     "./payments": "./src/payments/index.ts",
     "./leads": "./src/leads/index.ts",
+    "./google": "./src/google/index.ts",
     "./migrate": "./src/migrate.ts"
   },
   "scripts": {

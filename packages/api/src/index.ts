@@ -26,6 +26,9 @@ import type { ReputationService } from "@jamot/core/reputation";
 import type { TreasuryService } from "@jamot/core/treasury";
 import type { LLMProvider } from "@jamot/core/llm";
 import { createSessionStore } from "./session-store.js";
+import { createHash } from "node:crypto";
+import { createSecretStore } from "@jamot/core/secrets/secret-store";
+import { createGoogleSyncService } from "@jamot/core/google";
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -198,6 +201,49 @@ const shutdown = async (signal: string) => {
 };
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
+
+// Periodic Google connector sync (People import + Gmail sender ingestion).
+// Runs in-process: the API owns the vault key derivation.
+if (
+  repository &&
+  process.env.GOOGLE_CLIENT_ID &&
+  process.env.GOOGLE_CLIENT_SECRET
+) {
+  const syncStore = createSecretStore({
+    encryptionKey: createHash("sha256").update(secret).digest("base64"),
+  });
+  const googleSync = createGoogleSyncService({
+    repo: repository,
+    store: syncStore,
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  });
+  const syncGoogleConnectors = async () => {
+    try {
+      const connectors = (await repository.listConnectors()).filter(
+        (c) => c.provider === "google",
+      );
+      for (const connector of connectors) {
+        try {
+          const result = await googleSync.syncConnector(connector);
+          console.log(
+            `[google] sync ${connector.id}: ${result.contacts} contacts, ${result.senders} senders`,
+          );
+        } catch (err) {
+          console.error(`[google] sync failed for ${connector.id}`, err);
+          await repository
+            .updateConnectorStatus(connector.id, "error")
+            .catch(() => undefined);
+        }
+      }
+    } catch (err) {
+      console.error("[google] connector scan failed", err);
+    }
+  };
+  void syncGoogleConnectors();
+  const timer = setInterval(() => void syncGoogleConnectors(), 15 * 60 * 1000);
+  timer.unref();
+}
 
 try {
   await app.listen({ host, port });

@@ -5,6 +5,7 @@ declare module "fastify" {
     actorId?: Id;
     personId?: Id;
     oauthState?: string;
+    googleConnectorState?: string;
   }
 
   interface FastifyRequest {

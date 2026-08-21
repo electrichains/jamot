@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-context";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { ComposioConnectors } from "@/components/settings/composio-connectors";
+import { GoogleConnectorCard } from "@/components/settings/google-connector-card";
 import { cn } from "@/lib/utils";
 import { CreateAgent } from "@/components/agents/CreateAgent";
 import {
@@ -311,7 +312,12 @@ export function PrivacyConsentSection() {
 /* ------------------------------ Connectors ------------------------------ */
 
 export function ConnectorsSection() {
-  return <ComposioConnectors mode="personal" />;
+  return (
+    <div className="flex flex-col gap-4">
+      <GoogleConnectorCard />
+      <ComposioConnectors mode="personal" />
+    </div>
+  );
 }
 
 /* ------------------------------ Skills ------------------------------ */
