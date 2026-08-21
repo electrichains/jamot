@@ -610,51 +610,131 @@ export async function deleteVaultConnection(ref: string): Promise<{ status: stri
   return api(`/api/vault/connections/${encodeURIComponent(ref)}`, { method: "DELETE" });
 }
 
-export type ModelProviderId = "openai" | "anthropic";
-
-export interface ApiModelConfig {
-  configured: boolean;
-  baseUrl?: string | null;
-  model?: string | null;
-  apiKey?: string;
+/**
+ * Model configuration — provider-agnostic. A provider is any
+ * OpenAI-compatible endpoint (OpenAI, OpenRouter, self-hosted gateways).
+ * Flow: Provider → Base URL → API Key → Test/Discover → Models → Enable.
+ */
+export interface ApiProviderModel {
+  id: string;
+  modelId: string;
+  discovered: boolean;
+  enabled: boolean;
 }
 
-export interface ApiModelsResponse {
-  user: Record<ModelProviderId, ApiModelConfig>;
-  organization: Record<ModelProviderId, ApiModelConfig> | null;
+export interface ApiModelProvider {
+  id: string;
+  ownerActorId: string | null;
+  ownerOrganizationId: string | null;
+  name: string;
+  baseUrl: string;
+  status: "ok" | "error" | "unknown";
+  lastTestedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+  hasKey: boolean;
+  models: ApiProviderModel[];
 }
 
-export async function getModels(organizationId?: string): Promise<ApiModelsResponse> {
+export interface ApiModelTestResult {
+  ok: boolean;
+  models: string[];
+  error?: string;
+}
+
+export async function listModelProviders(
+  organizationId?: string,
+): Promise<ApiModelProvider[]> {
   const path = organizationId
-    ? `/api/models?organizationId=${encodeURIComponent(organizationId)}`
-    : "/api/models";
-  return api<ApiModelsResponse>(path);
+    ? `/api/models/providers?organizationId=${encodeURIComponent(organizationId)}`
+    : "/api/models/providers";
+  const data = await api<{ items: ApiModelProvider[] }>(path);
+  return data.items;
 }
 
-export async function putModel(input: {
-  provider: ModelProviderId;
+export async function createModelProvider(input: {
+  name: string;
+  baseUrl: string;
+  apiKey: string;
   organizationId?: string | null;
-  baseUrl?: string | null;
-  model?: string | null;
-  apiKey?: string;
-}): Promise<{ status: string; provider: ModelProviderId; scope: string }> {
-  return api<{ status: string; provider: ModelProviderId; scope: string }>("/api/models", {
-    method: "PUT",
+}): Promise<{ provider: ApiModelProvider; test: ApiModelTestResult }> {
+  return api("/api/models/providers", {
+    method: "POST",
     body: JSON.stringify(input),
   });
 }
 
-export async function deleteModel(input: {
-  provider: ModelProviderId;
-  organizationId?: string | null;
-}): Promise<{ status: string; provider: ModelProviderId; scope: string }> {
-  const params = new URLSearchParams();
-  params.set("provider", input.provider);
-  if (input.organizationId) params.set("organizationId", input.organizationId);
-  return api<{ status: string; provider: ModelProviderId; scope: string }>(
-    `/api/models?${params.toString()}`,
+export async function updateModelProvider(
+  id: string,
+  patch: { name?: string; baseUrl?: string; apiKey?: string },
+): Promise<{ provider: ApiModelProvider; test: ApiModelTestResult | null }> {
+  return api(`/api/models/providers/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function testModelProvider(
+  id: string,
+): Promise<{ provider: ApiModelProvider; test: ApiModelTestResult }> {
+  return api(`/api/models/providers/${encodeURIComponent(id)}/test`, {
+    method: "POST",
+  });
+}
+
+export async function deleteModelProvider(id: string): Promise<void> {
+  await api<void>(`/api/models/providers/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function addProviderModel(
+  providerId: string,
+  modelId: string,
+): Promise<ApiProviderModel> {
+  return api(`/api/models/providers/${encodeURIComponent(providerId)}/models`, {
+    method: "POST",
+    body: JSON.stringify({ modelId }),
+  });
+}
+
+export async function setProviderModelEnabled(
+  providerId: string,
+  modelRowId: string,
+  enabled: boolean,
+): Promise<ApiProviderModel> {
+  return api(
+    `/api/models/providers/${encodeURIComponent(providerId)}/models/${encodeURIComponent(modelRowId)}`,
+    { method: "PATCH", body: JSON.stringify({ enabled }) },
+  );
+}
+
+export async function deleteProviderModel(
+  providerId: string,
+  modelRowId: string,
+): Promise<void> {
+  await api<void>(
+    `/api/models/providers/${encodeURIComponent(providerId)}/models/${encodeURIComponent(modelRowId)}`,
     { method: "DELETE" },
   );
+}
+
+export interface ApiEnabledModel {
+  providerId: string;
+  providerName: string;
+  modelId: string;
+  baseUrl: string;
+}
+
+export async function listEnabledModels(
+  organizationId?: string,
+): Promise<ApiEnabledModel[]> {
+  const path = organizationId
+    ? `/api/models/enabled?organizationId=${encodeURIComponent(organizationId)}`
+    : "/api/models/enabled";
+  const data = await api<{ items: ApiEnabledModel[] }>(path);
+  return data.items;
 }
 
 export async function listConnectors(

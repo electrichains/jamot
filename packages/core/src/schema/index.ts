@@ -211,6 +211,35 @@ export const identities = pgTable("identities", {
   ...timestamps(),
 });
 
+export const modelProviders = pgTable("model_providers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerActorId: uuid("owner_actor_id").references(() => actors.id, {
+    onDelete: "cascade",
+  }),
+  ownerOrganizationId: uuid("owner_organization_id").references(
+    () => organizations.id,
+    { onDelete: "cascade" },
+  ),
+  name: text("name").notNull(),
+  baseUrl: text("base_url").notNull(),
+  credentialRef: text("credential_ref").notNull(),
+  status: text("status").notNull().default("unknown"),
+  lastTestedAt: timestamp("last_tested_at", { mode: "string", withTimezone: true }),
+  lastError: text("last_error"),
+  ...timestamps(),
+});
+
+export const providerModels = pgTable("provider_models", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  providerId: uuid("provider_id")
+    .notNull()
+    .references(() => modelProviders.id, { onDelete: "cascade" }),
+  modelId: text("model_id").notNull(),
+  discovered: boolean("discovered").notNull().default(true),
+  enabled: boolean("enabled").notNull().default(true),
+  ...timestamps(),
+});
+
 /** Uncertain cross-identity matches awaiting human review (never auto-merged). */
 export const personMergeCandidates = pgTable("person_merge_candidates", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -1166,6 +1195,8 @@ export const schema = {
   people,
   identities,
   personMergeCandidates,
+  modelProviders,
+  providerModels,
   agents,
   organizations,
   workspaces,

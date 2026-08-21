@@ -34,7 +34,30 @@ async function registerAndLogin(
   return sessionCookie(login);
 }
 
-describe("models smoke", () => {
+// Unroutable address: live tests fail fast without hanging.
+const DEAD_BASE_URL = "http://127.0.0.1:9/v1";
+
+async function addProvider(
+  app: App,
+  cookie: string,
+  input: { name: string; organizationId?: string },
+): Promise<string> {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/models/providers",
+    headers: { cookie },
+    payload: {
+      name: input.name,
+      baseUrl: DEAD_BASE_URL,
+      apiKey: "sk-test",
+      organizationId: input.organizationId ?? null,
+    },
+  });
+  expect(res.statusCode).toBe(201);
+  return res.json().provider.id as string;
+}
+
+describe("models smoke (provider-agnostic)", () => {
   let app: App;
   let owner: string;
   let admin: string;
@@ -72,214 +95,166 @@ describe("models smoke", () => {
   });
 
   it("unauthenticated requests are rejected with 401", async () => {
-    const get = await app.inject({ method: "GET", url: "/api/models" });
-    const put = await app.inject({
-      method: "PUT",
-      url: "/api/models",
-      payload: { provider: "openai", apiKey: "sk-x" },
-    });
-    const del = await app.inject({
-      method: "DELETE",
-      url: "/api/models?provider=openai",
+    const get = await app.inject({ method: "GET", url: "/api/models/providers" });
+    const post = await app.inject({
+      method: "POST",
+      url: "/api/models/providers",
+      payload: { name: "x", baseUrl: DEAD_BASE_URL, apiKey: "sk-x" },
     });
     expect(get.statusCode).toBe(401);
-    expect(put.statusCode).toBe(401);
-    expect(del.statusCode).toBe(401);
+    expect(post.statusCode).toBe(401);
   });
 
-  it("personal scope: put, masked read, secret read, delete", async () => {
-    const put = await app.inject({
-      method: "PUT",
-      url: "/api/models",
-      headers: { cookie: owner },
-      payload: { provider: "openai", apiKey: "sk-test-123" },
-    });
-    expect(put.statusCode).toBe(200);
-    expect(put.json()).toMatchObject({ status: "ok", provider: "openai", scope: "user" });
+  it("personal scope: create masked, update, delete", async () => {
+    const id = await addProvider(app, owner, { name: "Personal gateway" });
 
-    const masked = await app.inject({
+    const listed = await app.inject({
       method: "GET",
-      url: "/api/models",
+      url: "/api/models/providers",
       headers: { cookie: owner },
     });
-    expect(masked.statusCode).toBe(200);
-    expect(masked.json().user.openai.configured).toBe(true);
-    expect(masked.json().user.openai.apiKey).toBeUndefined();
+    const provider = listed.json().items.find((p: { id: string }) => p.id === id);
+    expect(provider).toBeTruthy();
+    expect(provider.credentialRef).toBeUndefined();
+    expect(provider.hasKey).toBe(true);
 
-    const secret = await app.inject({
-      method: "GET",
-      url: "/api/models?includeSecret=true",
+    const patched = await app.inject({
+      method: "PATCH",
+      url: `/api/models/providers/${id}`,
       headers: { cookie: owner },
+      payload: { name: "Renamed gateway" },
     });
-    expect(secret.json().user.openai.apiKey).toBe("sk-test-123");
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json().provider.name).toBe("Renamed gateway");
 
-    const update = await app.inject({
-      method: "PUT",
-      url: "/api/models",
-      headers: { cookie: owner },
-      payload: { provider: "openai", baseUrl: "https://gateway.example/v1", model: "gpt-4o-mini" },
-    });
-    expect(update.statusCode).toBe(200);
-    const after = await app.inject({
-      method: "GET",
-      url: "/api/models",
-      headers: { cookie: owner },
-    });
-    expect(after.json().user.openai.baseUrl).toBe("https://gateway.example/v1");
-    expect(after.json().user.openai.model).toBe("gpt-4o-mini");
-
-    const del = await app.inject({
+    const deleted = await app.inject({
       method: "DELETE",
-      url: "/api/models?provider=openai",
+      url: `/api/models/providers/${id}`,
       headers: { cookie: owner },
     });
-    expect(del.statusCode).toBe(200);
-    expect(del.json()).toMatchObject({ status: "ok", scope: "user" });
-
-    const gone = await app.inject({
-      method: "GET",
-      url: "/api/models",
-      headers: { cookie: owner },
-    });
-    expect(gone.json().user.openai.configured).toBe(false);
+    expect(deleted.statusCode).toBe(204);
   });
 
-  it("personal scope validation", async () => {
-    const noKey = await app.inject({
-      method: "PUT",
-      url: "/api/models",
-      headers: { cookie: owner },
-      payload: { provider: "anthropic" },
-    });
-    expect(noKey.statusCode).toBe(400);
+  it("isolation: personal providers stay private; org providers hidden from strangers", async () => {
+    await addProvider(app, owner, { name: "Owner personal" });
+    await addProvider(app, owner, { name: "Acme shared", organizationId: orgId });
 
-    const badProvider = await app.inject({
-      method: "PUT",
-      url: "/api/models",
-      headers: { cookie: owner },
-      payload: { provider: "bogus", apiKey: "x" },
-    });
-    expect(badProvider.statusCode).toBe(400);
-
-    const noProvider = await app.inject({
-      method: "DELETE",
-      url: "/api/models",
-      headers: { cookie: owner },
-    });
-    expect(noProvider.statusCode).toBe(400);
-  });
-
-  it("isolation: other users and other orgs do not see a config", async () => {
-    await app.inject({
-      method: "PUT",
-      url: "/api/models",
-      headers: { cookie: owner },
-      payload: { provider: "openai", apiKey: "sk-owner-personal" },
-    });
-
-    const otherUser = await app.inject({
+    const memberView = await app.inject({
       method: "GET",
-      url: "/api/models",
+      url: `/api/models/providers?organizationId=${orgId}`,
       headers: { cookie: member },
     });
-    expect(otherUser.json().user.openai.configured).toBe(false);
+    const memberNames = memberView.json().items.map((p: { name: string }) => p.name);
+    expect(memberNames).toContain("Acme shared");
+    expect(memberNames).not.toContain("Owner personal");
 
-    const otherOrg = await app.inject({
+    const strangerView = await app.inject({
       method: "GET",
-      url: `/api/models?organizationId=${orgId}&includeSecret=true`,
+      url: `/api/models/providers?organizationId=${orgId}`,
       headers: { cookie: stranger },
     });
-    expect(otherOrg.json().organization.openai.configured).toBe(false);
+    const strangerNames = strangerView.json().items.map((p: { name: string }) => p.name);
+    expect(strangerNames).not.toContain("Acme shared");
+    expect(strangerNames).not.toContain("Owner personal");
   });
 
   it("org scope: owner/admin may write; member/stranger get 403", async () => {
     const byMember = await app.inject({
-      method: "PUT",
-      url: "/api/models",
+      method: "POST",
+      url: "/api/models/providers",
       headers: { cookie: member },
-      payload: { provider: "openai", apiKey: "sk-org", organizationId: orgId },
+      payload: { name: "x", baseUrl: DEAD_BASE_URL, apiKey: "sk-x", organizationId: orgId },
     });
     expect(byMember.statusCode).toBe(403);
 
     const byStranger = await app.inject({
-      method: "PUT",
-      url: "/api/models",
+      method: "POST",
+      url: "/api/models/providers",
       headers: { cookie: stranger },
-      payload: { provider: "openai", apiKey: "sk-org", organizationId: orgId },
+      payload: { name: "x", baseUrl: DEAD_BASE_URL, apiKey: "sk-x", organizationId: orgId },
     });
     expect(byStranger.statusCode).toBe(403);
 
-    const byOwner = await app.inject({
-      method: "PUT",
-      url: "/api/models",
-      headers: { cookie: owner },
-      payload: { provider: "openai", apiKey: "sk-org", organizationId: orgId },
+    const byAdmin = await app.inject({
+      method: "POST",
+      url: "/api/models/providers",
+      headers: { cookie: admin },
+      payload: { name: "Admin org provider", baseUrl: DEAD_BASE_URL, apiKey: "sk-x", organizationId: orgId },
     });
-    expect(byOwner.statusCode).toBe(200);
-    expect(byOwner.json()).toMatchObject({ scope: "organization" });
+    expect(byAdmin.statusCode).toBe(201);
+    expect(byAdmin.json().provider.ownerOrganizationId).toBe(orgId);
   });
 
-  it("org secret readable by any member; gated for strangers", async () => {
-    const byMember = await app.inject({
-      method: "GET",
-      url: `/api/models?organizationId=${orgId}&includeSecret=true`,
-      headers: { cookie: member },
-    });
-    expect(byMember.statusCode).toBe(200);
-    expect(byMember.json().organization.openai.configured).toBe(true);
-    expect(byMember.json().organization.openai.apiKey).toBe("sk-org");
-
-    const byStranger = await app.inject({
-      method: "GET",
-      url: `/api/models?organizationId=${orgId}&includeSecret=true`,
-      headers: { cookie: stranger },
-    });
-    expect(byStranger.json().organization.openai.configured).toBe(true);
-    expect(byStranger.json().organization.openai.apiKey).toBeUndefined();
-  });
-
-  it("org write to a nonexistent org returns 404", async () => {
+  it("write to a nonexistent org returns 404", async () => {
     const res = await app.inject({
-      method: "PUT",
-      url: "/api/models",
+      method: "POST",
+      url: "/api/models/providers",
       headers: { cookie: owner },
-      payload: { provider: "openai", apiKey: "sk-x", organizationId: "org_does_not_exist" },
+      payload: {
+        name: "x",
+        baseUrl: DEAD_BASE_URL,
+        apiKey: "sk-x",
+        organizationId: "00000000-0000-4000-8000-00000000dead",
+      },
     });
     expect(res.statusCode).toBe(404);
   });
 
-  it("org delete by owner clears the org config", async () => {
-    const del = await app.inject({
-      method: "DELETE",
-      url: `/api/models?provider=openai&organizationId=${orgId}`,
-      headers: { cookie: owner },
+  it("enabled models feed /models/enabled and /models/runtime", async () => {
+    const id = await addProvider(app, member, { name: "Member personal runtime" });
+    await app.inject({
+      method: "POST",
+      url: `/api/models/providers/${id}/models`,
+      headers: { cookie: member },
+      payload: { modelId: "member-model" },
     });
-    expect(del.statusCode).toBe(200);
-    expect(del.json()).toMatchObject({ scope: "organization" });
 
-    const after = await app.inject({
+    const enabled = await app.inject({
       method: "GET",
-      url: `/api/models?organizationId=${orgId}`,
-      headers: { cookie: owner },
+      url: "/api/models/enabled",
+      headers: { cookie: member },
     });
-    expect(after.json().organization.openai.configured).toBe(false);
+    expect(
+      enabled.json().items.some((m: { modelId: string }) => m.modelId === "member-model"),
+    ).toBe(true);
+
+    const runtime = await app.inject({
+      method: "GET",
+      url: "/api/models/runtime",
+      headers: { cookie: member },
+    });
+    expect(runtime.statusCode).toBe(200);
+    expect(runtime.json().configured).toBe(true);
+    expect(runtime.json().model).toBe("member-model");
+    expect(typeof runtime.json().apiKey).toBe("string");
   });
 
-  it("anthropic provider works in personal scope", async () => {
-    const put = await app.inject({
-      method: "PUT",
-      url: "/api/models",
-      headers: { cookie: admin },
-      payload: { provider: "anthropic", apiKey: "ant-test-xyz" },
+  it("org providers take precedence over personal ones at runtime", async () => {
+    const orgProviderId = await addProvider(app, owner, {
+      name: "Acme runtime",
+      organizationId: orgId,
     });
-    expect(put.statusCode).toBe(200);
+    await app.inject({
+      method: "POST",
+      url: `/api/models/providers/${orgProviderId}/models`,
+      headers: { cookie: owner },
+      payload: { modelId: "org-model" },
+    });
 
-    const secret = await app.inject({
-      method: "GET",
-      url: "/api/models?includeSecret=true",
-      headers: { cookie: admin },
+    const personalId = await addProvider(app, member, { name: "Member runtime 2" });
+    await app.inject({
+      method: "POST",
+      url: `/api/models/providers/${personalId}/models`,
+      headers: { cookie: member },
+      payload: { modelId: "member-model-2" },
     });
-    expect(secret.json().user.anthropic.configured).toBe(true);
-    expect(secret.json().user.anthropic.apiKey).toBe("ant-test-xyz");
+
+    const runtime = await app.inject({
+      method: "GET",
+      url: `/api/models/runtime?organizationId=${orgId}`,
+      headers: { cookie: member },
+    });
+    expect(runtime.json().model).toBe("org-model");
+    expect(runtime.json().providerName).toBe("Acme runtime");
   });
 });

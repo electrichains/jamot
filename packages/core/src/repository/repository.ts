@@ -59,6 +59,42 @@ export interface ChannelAccountRecord {
   updatedAt: string;
 }
 
+// --- Model providers (provider-agnostic, OpenAI-compatible endpoints) ---
+
+export type ModelProviderStatus = "ok" | "error" | "unknown";
+
+export interface ModelProviderRecord {
+  id: string;
+  ownerActorId: string | null;
+  ownerOrganizationId: string | null;
+  name: string;
+  baseUrl: string;
+  credentialRef: string;
+  status: ModelProviderStatus;
+  lastTestedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewModelProvider {
+  ownerActorId?: string | null;
+  ownerOrganizationId?: string | null;
+  name: string;
+  baseUrl: string;
+  credentialRef: string;
+}
+
+export interface ProviderModelRecord {
+  id: string;
+  providerId: string;
+  modelId: string;
+  discovered: boolean;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface NewActor {
   type: Actor["type"];
   source?: Actor["source"];
@@ -473,6 +509,36 @@ export type TaskStatusUpdate = Pick<Task, "status">;
 // --- The repository ---
 
 export interface JamotRepository {
+  // model providers
+  createModelProvider(input: NewModelProvider): Promise<ModelProviderRecord>;
+  getModelProvider(id: string): Promise<ModelProviderRecord | null>;
+  listModelProviders(filter?: {
+    ownerActorId?: string;
+    ownerOrganizationId?: string;
+  }): Promise<ModelProviderRecord[]>;
+  updateModelProvider(
+    id: string,
+    patch: Partial<
+      Pick<
+        ModelProviderRecord,
+        "name" | "baseUrl" | "status" | "lastTestedAt" | "lastError"
+      >
+    >,
+  ): Promise<ModelProviderRecord | null>;
+  deleteModelProvider(id: string): Promise<void>;
+  /** Upsert on (providerId, modelId); never flips an existing enabled flag. */
+  upsertProviderModel(input: {
+    providerId: string;
+    modelId: string;
+    discovered?: boolean;
+  }): Promise<ProviderModelRecord>;
+  listProviderModels(providerId: string): Promise<ProviderModelRecord[]>;
+  updateProviderModel(
+    id: string,
+    patch: Partial<Pick<ProviderModelRecord, "enabled" | "discovered">>,
+  ): Promise<ProviderModelRecord | null>;
+  deleteProviderModel(id: string): Promise<void>;
+
   // actors
   createActor(input: NewActor): Promise<Actor>;
   getActor(id: string): Promise<Actor | null>;

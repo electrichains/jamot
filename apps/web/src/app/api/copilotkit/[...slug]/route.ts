@@ -20,21 +20,27 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL
   ? `openai/${process.env.OPENAI_MODEL}`
   : "openai/gpt-4o";
 
-interface ModelConfig {
-  configured?: boolean;
+interface RuntimeModelResponse {
+  configured: boolean;
+  kind?: "openai" | "anthropic";
+  model?: string;
+  baseUrl?: string;
   apiKey?: string;
-  baseUrl?: string | null;
-  model?: string | null;
+  providerName?: string;
 }
 
+/**
+ * Resolve the chat model from the platform's model configuration: the first
+ * enabled model of the active org's providers, then the user's providers,
+ * then environment fallbacks (see GET /api/models/runtime).
+ */
 async function resolveChatModel(req: NextRequest): Promise<{ model: string; apiKey: string } | null> {
   const orgId = req.cookies.get("jamot_active_org")?.value;
   const cookieHeader = req.headers.get("cookie") ?? "";
   if (!cookieHeader) return null;
 
-  const url = new URL(`${API_URL}/api/models`);
+  const url = new URL(`${API_URL}/api/models/runtime`);
   if (orgId) url.searchParams.set("organizationId", orgId);
-  url.searchParams.set("includeSecret", "true");
 
   try {
     const res = await fetch(url.toString(), {
@@ -42,26 +48,9 @@ async function resolveChatModel(req: NextRequest): Promise<{ model: string; apiK
       cache: "no-store",
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as {
-      user?: { openai?: ModelConfig; anthropic?: ModelConfig };
-      organization?: { openai?: ModelConfig; anthropic?: ModelConfig } | null;
-    };
-
-    const pickOpenAI =
-      (orgId && data.organization?.openai?.configured ? data.organization.openai : null) ??
-      (data.user?.openai?.configured ? data.user.openai : null);
-    const pickAnthropic =
-      (orgId && data.organization?.anthropic?.configured ? data.organization.anthropic : null) ??
-      (data.user?.anthropic?.configured ? data.user.anthropic : null);
-
-    const chosen = pickOpenAI ?? pickAnthropic;
-    if (!chosen?.apiKey) return null;
-
-    const kind = pickOpenAI ? "openai" : "anthropic";
-    const modelName =
-      chosen.model ||
-      (kind === "openai" ? process.env.OPENAI_MODEL || "gpt-4o" : "claude-3-5-sonnet-latest");
-    return { model: `${kind}/${modelName}`, apiKey: chosen.apiKey };
+    const data = (await res.json()) as RuntimeModelResponse;
+    if (!data.configured || !data.apiKey || !data.kind || !data.model) return null;
+    return { model: `${data.kind}/${data.model}`, apiKey: data.apiKey };
   } catch {
     return null;
   }

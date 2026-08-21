@@ -62,8 +62,10 @@ import {
   connectors,
   events,
   identities,
+  modelProviders,
   organizations,
   personMergeCandidates,
+  providerModels,
   workspaces,
   outreachCampaigns,
   outreachLists,
@@ -127,6 +129,9 @@ import type {
   SecretRecord,
   ChannelAccountRecord,
   PeopleFilter,
+  ModelProviderRecord,
+  NewModelProvider,
+  ProviderModelRecord,
 } from "./repository.js";
 
 type ActorRow = typeof actors.$inferSelect;
@@ -197,6 +202,38 @@ function toIdentity(row: IdentityRow): Identity {
     verified: row.verified,
     confidence: row.confidence,
     source: row.source,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+type ModelProviderRow = typeof modelProviders.$inferSelect;
+
+function toModelProviderRecord(row: ModelProviderRow): ModelProviderRecord {
+  return {
+    id: row.id,
+    ownerActorId: row.ownerActorId ?? null,
+    ownerOrganizationId: row.ownerOrganizationId ?? null,
+    name: row.name,
+    baseUrl: row.baseUrl,
+    credentialRef: row.credentialRef,
+    status: (row.status as ModelProviderRecord["status"]) ?? "unknown",
+    lastTestedAt: row.lastTestedAt ?? null,
+    lastError: row.lastError ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+type ProviderModelRow = typeof providerModels.$inferSelect;
+
+function toProviderModelRecord(row: ProviderModelRow): ProviderModelRecord {
+  return {
+    id: row.id,
+    providerId: row.providerId,
+    modelId: row.modelId,
+    discovered: row.discovered,
+    enabled: row.enabled,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -768,6 +805,118 @@ export function createPgRepository(db: Db): JamotRepository {
   const q = db.db;
 
   const repo: JamotRepository = {
+    async createModelProvider(input: NewModelProvider) {
+      const [row] = await q
+        .insert(modelProviders)
+        .values({
+          ownerActorId: input.ownerActorId ?? null,
+          ownerOrganizationId: input.ownerOrganizationId ?? null,
+          name: input.name,
+          baseUrl: input.baseUrl,
+          credentialRef: input.credentialRef,
+        })
+        .returning();
+      if (!row) throw new Error("failed to create model provider");
+      return toModelProviderRecord(row);
+    },
+
+    async getModelProvider(id) {
+      const [row] = await q
+        .select()
+        .from(modelProviders)
+        .where(eq(modelProviders.id, id))
+        .limit(1);
+      return row ? toModelProviderRecord(row) : null;
+    },
+
+    async listModelProviders(filter) {
+      const conditions = [
+        filter?.ownerActorId
+          ? eq(modelProviders.ownerActorId, filter.ownerActorId)
+          : undefined,
+        filter?.ownerOrganizationId
+          ? eq(modelProviders.ownerOrganizationId, filter.ownerOrganizationId)
+          : undefined,
+      ].filter(Boolean);
+      const rows = await q
+        .select()
+        .from(modelProviders)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(asc(modelProviders.createdAt));
+      return rows.map(toModelProviderRecord);
+    },
+
+    async updateModelProvider(id, patch) {
+      const [row] = await q
+        .update(modelProviders)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(modelProviders.id, id))
+        .returning();
+      return row ? toModelProviderRecord(row) : null;
+    },
+
+    async deleteModelProvider(id) {
+      await q.delete(providerModels).where(eq(providerModels.providerId, id));
+      await q.delete(modelProviders).where(eq(modelProviders.id, id));
+    },
+
+    async upsertProviderModel(input) {
+      const discovered = input.discovered ?? true;
+      const [existingRow] = await q
+        .select()
+        .from(providerModels)
+        .where(
+          and(
+            eq(providerModels.providerId, input.providerId),
+            eq(providerModels.modelId, input.modelId),
+          ),
+        )
+        .limit(1);
+      if (existingRow) {
+        if (!existingRow.discovered && discovered) {
+          const [row] = await q
+            .update(providerModels)
+            .set({ discovered: true, updatedAt: nowIso() })
+            .where(eq(providerModels.id, existingRow.id))
+            .returning();
+          if (row) return toProviderModelRecord(row);
+        }
+      return toProviderModelRecord(existingRow);
+      }
+      const [row] = await q
+        .insert(providerModels)
+        .values({
+          providerId: input.providerId,
+          modelId: input.modelId,
+          discovered,
+        })
+        .returning();
+      if (!row) throw new Error("failed to upsert provider model");
+      return toProviderModelRecord(row);
+    },
+
+    async listProviderModels(providerId) {
+      const rows = await q
+        .select()
+        .from(providerModels)
+        .where(eq(providerModels.providerId, providerId))
+        .orderBy(asc(providerModels.modelId));
+      return rows.map(toProviderModelRecord);
+    },
+
+    async updateProviderModel(id, patch) {
+      const [row] = await q
+        .update(providerModels)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(providerModels.id, id))
+        .returning();
+      return row ? toProviderModelRecord(row) : null;
+    },
+
+    async deleteProviderModel(id) {
+      await q.delete(providerModels).where(eq(providerModels.id, id));
+    },
+
     async createActor(input: NewActor) {
       const [row] = await q
         .insert(actors)

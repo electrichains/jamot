@@ -74,6 +74,9 @@ import type {
   SecretRecord,
   ChannelAccountRecord,
   PeopleFilter,
+  ModelProviderRecord,
+  NewModelProvider,
+  ProviderModelRecord,
 } from "./repository.js";
 
 const now = () => new Date().toISOString();
@@ -117,8 +120,105 @@ export function createMemoryRepository(): JamotRepository {
   const channelAccounts = new Map<string, ChannelAccountRecord>();
   const identityStore = new Map<string, Identity>();
   const mergeCandidateStore = new Map<string, MergeCandidate>();
+  const modelProviderStore = new Map<string, ModelProviderRecord>();
+  const providerModelStore = new Map<string, ProviderModelRecord>();
 
   const repo: JamotRepository = {
+    async createModelProvider(input: NewModelProvider) {
+      const record: ModelProviderRecord = {
+        id: uuid(),
+        ownerActorId: input.ownerActorId ?? null,
+        ownerOrganizationId: input.ownerOrganizationId ?? null,
+        name: input.name,
+        baseUrl: input.baseUrl,
+        credentialRef: input.credentialRef,
+        status: "unknown",
+        lastTestedAt: null,
+        lastError: null,
+        createdAt: now(),
+        updatedAt: now(),
+      };
+      modelProviderStore.set(record.id, record);
+      return record;
+    },
+
+    async getModelProvider(id) {
+      return modelProviderStore.get(id) ?? null;
+    },
+
+    async listModelProviders(filter) {
+      return [...modelProviderStore.values()]
+        .filter((p) => {
+          if (filter?.ownerActorId && p.ownerActorId !== filter.ownerActorId) return false;
+          if (
+            filter?.ownerOrganizationId &&
+            p.ownerOrganizationId !== filter.ownerOrganizationId
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
+
+    async updateModelProvider(id, patch) {
+      const existing = modelProviderStore.get(id);
+      if (!existing) return null;
+      const updated = { ...existing, ...patch, updatedAt: now() };
+      modelProviderStore.set(id, updated);
+      return updated;
+    },
+
+    async deleteModelProvider(id) {
+      modelProviderStore.delete(id);
+      for (const [modelRowId, modelRow] of providerModelStore.entries()) {
+        if (modelRow.providerId === id) providerModelStore.delete(modelRowId);
+      }
+    },
+
+    async upsertProviderModel(input) {
+      const discovered = input.discovered ?? true;
+      for (const existing of providerModelStore.values()) {
+        if (existing.providerId === input.providerId && existing.modelId === input.modelId) {
+          if (!existing.discovered && discovered) {
+            const updated = { ...existing, discovered: true, updatedAt: now() };
+            providerModelStore.set(existing.id, updated);
+            return updated;
+          }
+          return existing;
+        }
+      }
+      const record: ProviderModelRecord = {
+        id: uuid(),
+        providerId: input.providerId,
+        modelId: input.modelId,
+        discovered,
+        enabled: true,
+        createdAt: now(),
+        updatedAt: now(),
+      };
+      providerModelStore.set(record.id, record);
+      return record;
+    },
+
+    async listProviderModels(providerId) {
+      return [...providerModelStore.values()]
+        .filter((m) => m.providerId === providerId)
+        .sort((a, b) => a.modelId.localeCompare(b.modelId));
+    },
+
+    async updateProviderModel(id, patch) {
+      const existing = providerModelStore.get(id);
+      if (!existing) return null;
+      const updated = { ...existing, ...patch, updatedAt: now() };
+      providerModelStore.set(id, updated);
+      return updated;
+    },
+
+    async deleteProviderModel(id) {
+      providerModelStore.delete(id);
+    },
+
     async createActor(input: NewActor) {
       const actor = Actor.parse({
         id: uuid(),

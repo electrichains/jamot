@@ -4,11 +4,7 @@ import { Id } from "@jamot/contracts";
 import type { JamotRepository } from "../repository.js";
 import { createRoutingPipeline } from "@jamot/core/routing";
 import type { LLMProvider } from "@jamot/core/llm";
-import {
-  createLLMProvider,
-  resolveAnyModelConfig,
-  type ModelProvider,
-} from "@jamot/core/llm";
+import { createLLMProvider, resolveEnabledModel } from "@jamot/core/llm";
 import type { SecretStoreLike } from "../app.js";
 import { requireAuth } from "../rbac.js";
 import { fail, parse } from "../util.js";
@@ -30,23 +26,23 @@ export default async function assignmentsRoutes(
 ): Promise<void> {
   const { repository, llm, secretStore } = opts;
 
-  const buildProvider = (provider: ModelProvider, apiKey: string, baseUrl?: string, model?: string): LLMProvider | null => {
-    try {
-      return createLLMProvider(provider, { apiKey, baseUrl, model });
-    } catch {
-      return null;
-    }
-  };
-
   const resolveModel = async (spaceId: string): Promise<LLMProvider | null> => {
     const org = await repository.getOrganizationBySpaceId(spaceId);
-    const cfg = await resolveAnyModelConfig({
-      repository,
+    const cfg = await resolveEnabledModel({
+      repo: repository,
       store: secretStore,
       organizationId: org?.id ?? null,
     });
     if (!cfg) return null;
-    return buildProvider(cfg.provider, cfg.apiKey, cfg.baseUrl, cfg.model);
+    try {
+      return createLLMProvider(cfg.kind, {
+        apiKey: cfg.apiKey,
+        baseUrl: cfg.baseUrl,
+        model: cfg.model,
+      });
+    } catch {
+      return null;
+    }
   };
 
   const pipeline = createRoutingPipeline({ repo: repository, llm, resolveModelConfig: resolveModel });
