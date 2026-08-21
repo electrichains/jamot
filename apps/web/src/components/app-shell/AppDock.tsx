@@ -15,6 +15,7 @@ import { LeadsWorkspace } from "@/components/leads/LeadsWorkspace";
 import { OutreachWorkspace } from "@/components/outreach/OutreachWorkspace";
 
 import { SECTION_TITLES, useAppShell, type SectionId } from "./app-shell-context";
+import type { AppManifest } from "@/lib/api-client";
 
 const PLACEHOLDER_SECTIONS: SectionId[] = ["calendar", "crm"];
 
@@ -26,8 +27,73 @@ function PlaceholderSection({ title }: { title: string }) {
   );
 }
 
+function AppPanelBody({ app }: { app: AppManifest }) {
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <p className="text-sm text-muted-foreground">{app.description}</p>
+      {app.capabilities.length > 0 ? (
+        <div>
+          <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Capabilities
+          </h4>
+          <div className="flex flex-wrap gap-1">
+            {app.capabilities.map((capability) => (
+              <span
+                key={capability}
+                className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              >
+                {capability}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <div className="text-xs text-muted-foreground">Version {app.version}</div>
+    </div>
+  );
+}
+
 export function AppDock() {
-  const { activeSection, setActiveSection } = useAppShell();
+  const {
+    activeSection,
+    activeAppId,
+    availableApps,
+    setActiveSection,
+    closeApp,
+  } = useAppShell();
+
+  if (!activeSection && !activeAppId) {
+    return null;
+  }
+
+  if (activeAppId) {
+    const app = availableApps.find((candidate) => candidate.id === activeAppId);
+    return (
+      <aside className="flex h-full flex-col bg-sidebar/80 text-sidebar-foreground backdrop-blur-md">
+        <header className="flex h-11 shrink-0 items-center justify-between border-b border-border/40 px-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {app?.name ?? "App"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
+            aria-label="Close app"
+            onClick={closeApp}
+          >
+            <X className="size-3.5" />
+          </Button>
+        </header>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {app ? (
+            <AppPanelBody app={app} />
+          ) : (
+            <p className="p-4 text-xs text-muted-foreground">App not found.</p>
+          )}
+        </div>
+      </aside>
+    );
+  }
 
   if (!activeSection) {
     return null;

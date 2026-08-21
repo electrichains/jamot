@@ -6,13 +6,18 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 
 import {
+  getApps,
+  getOrganizationApps,
   getOrganizations,
   resolveOrganizationBySubdomain,
+  setOrganizationApps,
+  type AppManifest,
   type OrganizationListItem,
   type OrgRole,
 } from "@/lib/api-client";
@@ -27,6 +32,13 @@ function currentSubdomain(): string | null {
   const sub = host.slice(0, -suffix.length);
   if (!sub || ["www", "app", "api", "mvp", "mail"].includes(sub)) return null;
   return sub;
+}
+
+function arrayMove<T>(arr: T[], from: number, to: number): T[] {
+  const copy = arr.slice();
+  const [moved] = copy.splice(from, 1);
+  copy.splice(to, 0, moved);
+  return copy;
 }
 
 export interface Space {
@@ -108,6 +120,17 @@ interface AppShellState {
   setRightSize: (size: number) => void;
   setSpace: (id: string) => void;
   setActiveSection: (id: SectionId | null) => void;
+  // AppRail
+  railAppIds: string[];
+  railApps: AppManifest[];
+  availableApps: AppManifest[];
+  activeAppId: string | null;
+  railLoaded: boolean;
+  loadRail: (orgId?: string) => Promise<void>;
+  openApp: (id: string) => void;
+  closeApp: () => void;
+  reorderRail: (from: number, to: number) => void;
+  toggleRailApp: (id: string) => void;
 }
 
 const AppShellContext = createContext<AppShellState | null>(null);
@@ -156,9 +179,14 @@ export function AppShellProvider({
 }) {
   const [leftSize, setLeftSize] = useState(DEFAULT_LEFT_SIZE);
   const [rightSize, setRightSize] = useState(DEFAULT_RIGHT_SIZE);
-  const [activeSection, setActiveSection] = useState<SectionId | null>(null);
+  const [activeSection, setActiveSectionState] = useState<SectionId | null>(null);
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [organizationsLoading, setOrganizationsLoading] = useState(true);
+
+  const [railAppIds, setRailAppIds] = useState<string[]>([]);
+  const [availableApps, setAvailableApps] = useState<AppManifest[]>([]);
+  const [activeAppId, setActiveAppId] = useState<string | null>(null);
+  const [railLoaded, setRailLoaded] = useState(false);
 
   const spaces = useMemo<Space[]>(() => {
     const orgSpaces = organizations.flatMap((item, index) =>
@@ -224,6 +252,98 @@ export function AppShellProvider({
     [spaces],
   );
 
+  const activeOrganizationId = useMemo(() => {
+    const sp = spaces.find((candidate) => candidate.id === spaceId);
+    return sp?.organizationId;
+  }, [spaces, spaceId]);
+
+  // --- AppRail state & actions (org-scoped, persisted via enabledAppIds) ---
+  const orgIdRef = useRef<string | undefined>(undefined);
+
+  const loadRail = useCallback(async (orgId?: string) => {
+    const id = orgId ?? orgIdRef.current;
+    try {
+      if (id) {
+        const alloc = await getOrganizationApps(id);
+        setRailAppIds(alloc.enabledAppIds);
+        setAvailableApps(alloc.apps);
+      } else {
+        const apps = await getApps();
+        setAvailableApps(apps);
+        setRailAppIds([]);
+      }
+    } catch {
+      setAvailableApps([]);
+      setRailAppIds([]);
+    } finally {
+      setRailLoaded(true);
+    }
+  }, []);
+
+  const persistRail = useCallback(async (next: string[]) => {
+    const id = orgIdRef.current;
+    if (!id) return;
+    try {
+      await setOrganizationApps(id, next);
+    } catch {
+      // Keep optimistic local state on failure.
+    }
+  }, []);
+
+  const reorderRail = useCallback(
+    (from: number, to: number) => {
+      setRailAppIds((prev) => {
+        const next = arrayMove(prev, from, to);
+        void persistRail(next);
+        return next;
+      });
+    },
+    [persistRail],
+  );
+
+  const toggleRailApp = useCallback(
+    (id: string) => {
+      setRailAppIds((prev) => {
+        const next = prev.includes(id)
+          ? prev.filter((x) => x !== id)
+          : [...prev, id];
+        void persistRail(next);
+        return next;
+      });
+    },
+    [persistRail],
+  );
+
+  const openApp = useCallback((id: string) => {
+    setActiveAppId(id);
+  }, []);
+
+  const closeApp = useCallback(() => {
+    setActiveAppId(null);
+  }, []);
+
+  // Opening any nav section dismisses the AppRail app panel (separate state).
+  const setActiveSection = useCallback(
+    (id: SectionId | null) => {
+      setActiveAppId(null);
+      setActiveSectionState(id);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    orgIdRef.current = activeOrganizationId;
+    void loadRail(activeOrganizationId);
+  }, [activeOrganizationId, loadRail]);
+
+  const railApps = useMemo(
+    () =>
+      railAppIds
+        .map((id) => availableApps.find((app) => app.id === id))
+        .filter((app): app is AppManifest => Boolean(app)),
+    [railAppIds, availableApps],
+  );
+
   // Subdomain auto-activation: visiting <org>.jamot.pro activates that org's
   // default workspace once the org list is ready.
   useEffect(() => {
@@ -272,6 +392,16 @@ export function AppShellProvider({
       setRightSize,
       setSpace,
       setActiveSection,
+      railAppIds,
+      railApps,
+      availableApps,
+      activeAppId,
+      railLoaded,
+      loadRail,
+      openApp,
+      closeApp,
+      reorderRail,
+      toggleRailApp,
     };
   }, [
     leftSize,
@@ -283,6 +413,16 @@ export function AppShellProvider({
     organizationsLoading,
     reloadOrganizations,
     setSpace,
+    railAppIds,
+    railApps,
+    availableApps,
+    activeAppId,
+    railLoaded,
+    loadRail,
+    openApp,
+    closeApp,
+    reorderRail,
+    toggleRailApp,
   ]);
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;

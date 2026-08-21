@@ -23,6 +23,8 @@ import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { LeftSidebar } from "./LeftSidebar";
 import { MainWorkspace } from "./MainWorkspace";
 import { AppDock } from "./AppDock";
+import { AppRail } from "./app-rail";
+import { AppRailConfig } from "./app-rail-config";
 import { useBreakpoint } from "./use-breakpoint";
 
 const LAYOUT_KEY = "jamot:shell:layout";
@@ -59,7 +61,7 @@ function AppShellInner() {
 }
 
 function DesktopShell() {
-  const { setLeftSize, setRightSize, activeSection } = useAppShell();
+  const { setLeftSize, setRightSize, activeSection, activeAppId } = useAppShell();
   const leftRef = usePanelRef();
   const rightRef = usePanelRef();
   const mainRef = usePanelRef();
@@ -74,10 +76,11 @@ function DesktopShell() {
   const [dockCollapsed, setDockCollapsed] = useState(true);
   const [chatCompact, setChatCompact] = useState(false);
   const [chatPopupOpen, setChatPopupOpen] = useState(false);
+  const [railConfigOpen, setRailConfigOpen] = useState(false);
 
   useEffect(() => {
     if (!rightRef.current) return;
-    if (activeSection) {
+    if (activeSection || activeAppId) {
       if (rightRef.current.isCollapsed()) {
         rightRef.current.expand();
       }
@@ -88,7 +91,7 @@ function DesktopShell() {
     } else if (!rightRef.current.isCollapsed()) {
       rightRef.current.collapse();
     }
-  }, [activeSection, rightRef]);
+  }, [activeSection, activeAppId, rightRef]);
 
   useEffect(() => {
     try {
@@ -166,8 +169,12 @@ function DesktopShell() {
   };
 
   return (
-    <>
-      <Group id="jamot-shell" orientation="horizontal" className="h-full w-full">
+    <div className="relative flex h-full w-full">
+      <Group
+        id="jamot-shell"
+        orientation="horizontal"
+        className="h-full flex-1"
+      >
         <Panel
           id="left"
           defaultSize={DEFAULT_LEFT_SIZE}
@@ -226,6 +233,15 @@ function DesktopShell() {
         </Panel>
       </Group>
 
+      <AppRail
+        configOpen={railConfigOpen}
+        onToggleConfig={() => setRailConfigOpen((value) => !value)}
+      />
+      <AppRailConfig
+        open={railConfigOpen}
+        onClose={() => setRailConfigOpen(false)}
+      />
+
       <AnimatePresence>
         {chatCompact ? (
           <motion.div
@@ -282,7 +298,7 @@ function DesktopShell() {
           </motion.div>
         ) : null}
       </AnimatePresence>
-    </>
+    </div>
   );
 }
 
