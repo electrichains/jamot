@@ -26,6 +26,7 @@ import {
   Landmark,
   LayoutGrid,
   ListTodo,
+  Maximize2,
   Megaphone,
   MessageCircle,
   Plus,
@@ -247,12 +248,12 @@ export function AppRail({
               variant="ghost"
               size="sm"
               className="h-8 gap-1.5 px-2 text-xs"
-              aria-label="Restore chat panel"
-              title="Restore chat panel"
+              aria-label="Restore full layout"
+              title="Restore full layout"
               onClick={onRestoreChat}
             >
-              <MessageCircle className="size-3.5" />
-              Chat
+              <Maximize2 className="size-3.5" />
+              Expand
             </Button>
           ) : null}
         </div>

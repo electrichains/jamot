@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   Group,
   Panel,
@@ -82,6 +88,7 @@ function DesktopShell() {
   const [chatPopupOpen, setChatPopupOpen] = useState(false);
   const dockHostRef = useRef<HTMLDivElement | null>(null);
   const [dockLeft, setDockLeft] = useState<number | null>(null);
+  const railDragStartX = useRef<number | null>(null);
 
   useEffect(() => {
     if (!rightRef.current) return;
@@ -188,6 +195,27 @@ function DesktopShell() {
     setActiveSection(activeSection === id ? null : id);
   };
 
+  // Grab the right edge of the magnetic rail and drag it rightward to restore
+  // the full resizable shell.
+  const startRailDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    railDragStartX.current = event.clientX;
+    const cleanup = () => {
+      railDragStartX.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (railDragStartX.current != null && e.clientX - railDragStartX.current > 12) {
+        cleanup();
+        restoreChat();
+      }
+    };
+    const onUp = () => cleanup();
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   // Anchor the chat bubble/popup to the bottom-left of the right dock.
   useEffect(() => {
     if (!chatCompact) return;
@@ -216,6 +244,15 @@ function DesktopShell() {
               onRestoreChat={restoreChat}
               onSelectSection={handleSelectSection}
             />
+          </div>
+          <div
+            role="separator"
+            aria-label="Drag right to restore full layout"
+            title="Drag right to restore full layout"
+            onPointerDown={startRailDrag}
+            className="flex w-1.5 shrink-0 cursor-col-resize items-center justify-center bg-border/40 transition-colors hover:bg-space-accent/50"
+          >
+            <span className="h-8 w-0.5 rounded-full bg-muted-foreground/40" />
           </div>
           <div className="min-w-0 flex-1" />
           <div
