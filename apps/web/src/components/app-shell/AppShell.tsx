@@ -23,8 +23,7 @@ import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { LeftSidebar } from "./LeftSidebar";
 import { MainWorkspace } from "./MainWorkspace";
 import { AppDock } from "./AppDock";
-import { AppRail } from "./app-rail";
-import { AppRailConfig } from "./app-rail-config";
+import { AppRail } from "./AppRail";
 import { useBreakpoint } from "./use-breakpoint";
 
 const LAYOUT_KEY = "jamot:shell:layout";
@@ -76,7 +75,6 @@ function DesktopShell() {
   const [dockCollapsed, setDockCollapsed] = useState(true);
   const [chatCompact, setChatCompact] = useState(false);
   const [chatPopupOpen, setChatPopupOpen] = useState(false);
-  const [railConfigOpen, setRailConfigOpen] = useState(false);
 
   useEffect(() => {
     if (!rightRef.current) return;
@@ -233,14 +231,9 @@ function DesktopShell() {
         </Panel>
       </Group>
 
-      <AppRail
-        configOpen={railConfigOpen}
-        onToggleConfig={() => setRailConfigOpen((value) => !value)}
-      />
-      <AppRailConfig
-        open={railConfigOpen}
-        onClose={() => setRailConfigOpen(false)}
-      />
+      <div className="w-14 shrink-0">
+        <AppRail />
+      </div>
 
       <AnimatePresence>
         {chatCompact ? (
