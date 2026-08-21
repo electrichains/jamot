@@ -18,6 +18,7 @@ import {
   DEFAULT_RIGHT_SIZE,
   DEFAULT_SECTION_WIDTH,
   useAppShell,
+  type SectionId,
 } from "./app-shell-context";
 import { ChatWorkspace } from "@/components/chat/ChatWorkspace";
 import { LeftSidebar } from "./LeftSidebar";
@@ -30,6 +31,9 @@ const LAYOUT_KEY = "jamot:shell:layout";
 const LEFT_KEY = "jamot:left-collapsed";
 /** When the center (chat) panel is narrower than this, collapse it into a floating bubble. */
 const CHAT_COMPACT_WIDTH = 340;
+/** Size of the round chat bubble and the gap kept between it and the dock. */
+const BUBBLE_SIZE = 48;
+const BUBBLE_GAP = 12;
 
 export function AppShell() {
   return <AppShellInner />;
@@ -60,7 +64,8 @@ function AppShellInner() {
 }
 
 function DesktopShell() {
-  const { setLeftSize, setRightSize, activeSection, activeAppId } = useAppShell();
+  const { setLeftSize, setRightSize, activeSection, activeAppId, setActiveSection } =
+    useAppShell();
   const leftRef = usePanelRef();
   const rightRef = usePanelRef();
   const mainRef = usePanelRef();
@@ -75,6 +80,8 @@ function DesktopShell() {
   const [dockCollapsed, setDockCollapsed] = useState(true);
   const [chatCompact, setChatCompact] = useState(false);
   const [chatPopupOpen, setChatPopupOpen] = useState(false);
+  const dockHostRef = useRef<HTMLDivElement | null>(null);
+  const [dockLeft, setDockLeft] = useState<number | null>(null);
 
   useEffect(() => {
     if (!rightRef.current) return;
@@ -93,34 +100,39 @@ function DesktopShell() {
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(LAYOUT_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as { left?: number; right?: number };
-        if (typeof saved.left === "number" && saved.left >= 1) {
-          leftRef.current?.resize(saved.left);
-        }
-      }
-    } catch {
-      // Ignore malformed layout data.
-    } finally {
-      restoredRef.current = true;
-    }
-  }, [leftRef, rightRef]);
-
-  useEffect(() => {
-    try {
       window.localStorage.setItem(LEFT_KEY, leftCollapsed ? "1" : "0");
     } catch {
       // ignore storage errors
     }
   }, [leftCollapsed]);
 
+  // Restore persisted sizes whenever the resizable shell (re)mounts.
   useEffect(() => {
-    if (leftCollapsed) {
-      leftRef.current?.collapse();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (chatCompact) return;
+    const frame = requestAnimationFrame(() => {
+      try {
+        const raw = window.localStorage.getItem(LAYOUT_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw) as { left?: number; right?: number };
+          if (typeof saved.left === "number" && saved.left >= 1) {
+            leftRef.current?.resize(saved.left);
+          }
+        }
+      } catch {
+        // Ignore malformed layout data.
+      } finally {
+        restoredRef.current = true;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [chatCompact, leftRef, rightRef]);
+
+  // Keep the left panel's collapsed state in sync when the shell (re)mounts.
+  useEffect(() => {
+    if (chatCompact) return;
+    if (leftCollapsed) leftRef.current?.collapse();
+    else leftRef.current?.expand();
+  }, [chatCompact, leftCollapsed, leftRef]);
 
   const persistSize = (which: "left" | "right", value: number) => {
     if (!restoredRef.current) return;
@@ -166,74 +178,122 @@ function DesktopShell() {
     else panel.collapse();
   };
 
+  const restoreChat = () => {
+    setChatPopupOpen(false);
+    setChatCompact(false);
+  };
+
+  const handleSelectSection = (id: SectionId) => {
+    setChatPopupOpen(false);
+    setActiveSection(activeSection === id ? null : id);
+  };
+
+  // Anchor the chat bubble/popup to the bottom-left of the right dock.
+  useEffect(() => {
+    if (!chatCompact) return;
+    const el = dockHostRef.current;
+    if (!el) return;
+    const update = () => setDockLeft(el.getBoundingClientRect().left);
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [chatCompact]);
+
   return (
-    <div className="relative flex h-full w-full">
-      <Group
-        id="jamot-shell"
-        orientation="horizontal"
-        className="h-full flex-1"
-      >
-        <Panel
-          id="left"
-          defaultSize={DEFAULT_LEFT_SIZE}
-          minSize={0}
-          maxSize={320}
-          collapsible
-          collapsedSize={0}
-          panelRef={leftRef}
-          onResize={handleLeftResize}
-          className="h-full"
-        >
-          <LeftSidebar />
-        </Panel>
-
-        <Separator
-          id="sep-left"
-          className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
-        />
-
-        <Panel
-          id="main"
-          minSize={0}
-          collapsible
-          collapsedSize={0}
-          panelRef={mainRef}
-          onResize={handleMainResize}
-          className="h-full"
-        >
-          {chatCompact ? null : (
-            <MainWorkspace
-              onToggleLeft={toggleLeft}
-              leftOpen={!leftCollapsed}
-              onToggleDock={toggleDock}
-              dockOpen={!dockCollapsed}
+    <>
+      {chatCompact ? (
+        <div className="flex h-full w-full overflow-hidden">
+          <div className="flex h-full w-60 shrink-0">
+            <LeftSidebar />
+          </div>
+          <div className="flex h-full w-60 shrink-0">
+            <AppRail
+              expanded
+              onRestoreChat={restoreChat}
+              onSelectSection={handleSelectSection}
             />
-          )}
-        </Panel>
+          </div>
+          <div className="min-w-0 flex-1" />
+          <div
+            ref={dockHostRef}
+            className="flex h-full shrink-0"
+            style={{ width: activeSection || activeAppId ? DEFAULT_RIGHT_SIZE : 0 }}
+          >
+            {activeSection || activeAppId ? <AppDock /> : null}
+          </div>
+        </div>
+      ) : (
+        <div className="relative flex h-full w-full">
+          <Group
+            id="jamot-shell"
+            orientation="horizontal"
+            className="h-full flex-1"
+          >
+            <Panel
+              id="left"
+              defaultSize={DEFAULT_LEFT_SIZE}
+              minSize={0}
+              maxSize={320}
+              collapsible
+              collapsedSize={0}
+              panelRef={leftRef}
+              onResize={handleLeftResize}
+              className="h-full"
+            >
+              <LeftSidebar />
+            </Panel>
 
-        <Separator
-          id="sep-right"
-          className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
-        />
+            <Separator
+              id="sep-left"
+              className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
+            />
 
-        <Panel
-          id="right"
-          defaultSize={DEFAULT_RIGHT_SIZE}
-          minSize={0}
-          maxSize={2000}
-          collapsible
-          collapsedSize={0}
-          panelRef={rightRef}
-          onResize={handleRightResize}
-          className="h-full"
-        >
-          <AppDock />
-        </Panel>
-      </Group>
+            <Panel
+              id="main"
+              minSize={0}
+              collapsible
+              collapsedSize={0}
+              panelRef={mainRef}
+              onResize={handleMainResize}
+              className="h-full"
+            >
+              <MainWorkspace
+                onToggleLeft={toggleLeft}
+                leftOpen={!leftCollapsed}
+                onToggleDock={toggleDock}
+                dockOpen={!dockCollapsed}
+              />
+            </Panel>
 
-      <div className="w-14 shrink-0">
-        <AppRail />
-      </div>
+            <Separator
+              id="sep-right"
+              className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
+            />
+
+            <Panel
+              id="right"
+              defaultSize={DEFAULT_RIGHT_SIZE}
+              minSize={0}
+              maxSize={2000}
+              collapsible
+              collapsedSize={0}
+              panelRef={rightRef}
+              onResize={handleRightResize}
+              className="h-full"
+            >
+              <AppDock />
+            </Panel>
+          </Group>
+
+          <div className="w-14 shrink-0">
+            <AppRail />
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {chatCompact ? (
@@ -242,12 +302,20 @@ function DesktopShell() {
             initial={{ opacity: 0, y: 16, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.9 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className="fixed bottom-5 right-5 z-50"
+            transition={{ duration: 0.18 }}
+            className="fixed bottom-5 z-50"
+            style={
+              dockLeft != null
+                ? {
+                    left: dockLeft - BUBBLE_SIZE - BUBBLE_GAP,
+                    transition: "left 200ms ease",
+                  }
+                : { right: 20 }
+            }
           >
             <Button
               size="icon"
-              className="size-12 rounded-full bg-space-accent text-space-accent-foreground shadow-xl shadow-space-accent/25 hover:opacity-95"
+              className="size-12 rounded-full shadow-lg"
               aria-label={chatPopupOpen ? "Close chat" : "Open chat"}
               onClick={() => setChatPopupOpen((value) => !value)}
             >
@@ -268,17 +336,20 @@ function DesktopShell() {
             initial={{ opacity: 0, y: 24, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
-            transition={{ type: "spring", stiffness: 350, damping: 28 }}
-            className="glass-card glass-border fixed bottom-24 right-5 z-50 flex h-[520px] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-3xl shadow-2xl"
+            transition={{ duration: 0.2 }}
+            className="fixed bottom-24 z-50 flex h-[520px] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+            style={
+              dockLeft != null
+                ? { left: dockLeft - 400 - BUBBLE_GAP, transition: "left 200ms ease" }
+                : { right: 20 }
+            }
           >
-            <div className="flex h-11 shrink-0 items-center justify-between border-b border-border/40 px-4">
-              <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Assistant
-              </span>
+            <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
+              <span className="text-sm font-medium">Chat</span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7 rounded-lg"
+                className="size-7"
                 aria-label="Minimize chat"
                 onClick={() => setChatPopupOpen(false)}
               >
@@ -291,7 +362,7 @@ function DesktopShell() {
           </motion.div>
         ) : null}
       </AnimatePresence>
-    </div>
+    </>
   );
 }
 

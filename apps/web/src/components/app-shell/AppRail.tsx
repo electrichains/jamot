@@ -122,7 +122,17 @@ function loadMcpItems(): McpRailItem[] {
   return [];
 }
 
-export function AppRail() {
+interface AppRailProps {
+  expanded?: boolean;
+  onRestoreChat?: () => void;
+  onSelectSection?: (id: SectionId) => void;
+}
+
+export function AppRail({
+  expanded = false,
+  onRestoreChat,
+  onSelectSection,
+}: AppRailProps) {
   const {
     activeSection,
     setActiveSection,
@@ -198,6 +208,11 @@ export function AppRail() {
     setMcpItems((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const selectSection = (id: SectionId) => {
+    if (onSelectSection) onSelectSection(id);
+    else setActiveSection(id);
+  };
+
   const renderItem = (item: RailItem) => {
     const active = activeSection === item.id;
     return (
@@ -205,13 +220,44 @@ export function AppRail() {
         key={item.id}
         item={item}
         active={active}
-        onClick={() => setActiveSection(active ? null : item.id)}
+        expanded={expanded}
+        onClick={() =>
+          onSelectSection
+            ? onSelectSection(item.id)
+            : setActiveSection(active ? null : item.id)
+        }
       />
     );
   };
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center gap-1 border-l border-border/40 bg-sidebar/80 py-2 text-sidebar-foreground backdrop-blur-md">
+    <div
+      className={cn(
+        "relative flex h-full w-full flex-col border-l border-border/40 bg-sidebar/80 py-2 text-sidebar-foreground backdrop-blur-md",
+        expanded ? "items-stretch gap-0.5" : "items-center gap-1",
+      )}
+    >
+      {expanded ? (
+        <div className="mb-1 flex shrink-0 items-center justify-between border-b border-border px-3 pb-2">
+          <span className="font-display text-sm font-semibold tracking-tight">
+            Apps
+          </span>
+          {onRestoreChat ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 px-2 text-xs"
+              aria-label="Restore chat panel"
+              title="Restore chat panel"
+              onClick={onRestoreChat}
+            >
+              <MessageCircle className="size-3.5" />
+              Chat
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -221,28 +267,35 @@ export function AppRail() {
           items={prefs.order}
           strategy={verticalListSortingStrategy}
         >
-          <div className="flex flex-col items-center gap-1">
+          <div
+            className={cn(
+              "flex flex-col gap-1",
+              expanded ? "w-full px-2" : "items-center",
+            )}
+          >
             {visibleItems.map(renderItem)}
           </div>
         </SortableContext>
       </DndContext>
 
-      <div className="my-1 h-px w-6 bg-border/40" />
+      <div className={cn("my-1 h-px bg-border/40", expanded ? "mx-3" : "w-6")} />
 
       {mcpItems.map((item) => (
         <Button
           key={item.id}
           variant="ghost"
-          size="icon"
           className={cn(
-            "size-9 rounded-lg",
+            expanded ? "h-9 w-full justify-start gap-2 px-3 text-sm" : "size-9 rounded-lg",
             activeSection === "agents" && "bg-muted text-foreground",
           )}
           aria-label={`${item.label} (MCP)`}
           title={`${item.label} — MCP server`}
-          onClick={() => setActiveSection("agents")}
+          onClick={() => selectSection("agents")}
         >
-          <Server className="size-4 text-muted-foreground" />
+          <Server className="size-4 shrink-0 text-muted-foreground" />
+          {expanded ? (
+            <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+          ) : null}
         </Button>
       ))}
 
@@ -250,13 +303,16 @@ export function AppRail() {
 
       <Button
         variant="ghost"
-        size="icon"
-        className="size-9 rounded-lg"
+        className={cn(
+          "shrink-0",
+          expanded ? "h-9 w-full justify-start gap-2 px-3 text-sm" : "size-9 rounded-lg",
+        )}
         aria-label="Add or manage apps"
         title="Add apps"
         onClick={() => setOpen((value) => !value)}
       >
-        <Plus className="size-4" />
+        <Plus className="size-4 shrink-0" />
+        {expanded ? <span>Add apps</span> : null}
       </Button>
 
       <AnimatePresence>
@@ -266,9 +322,12 @@ export function AppRail() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -4 }}
             transition={{ duration: 0.15 }}
-            className="glass-card glass-border absolute bottom-2 right-full z-30 mr-1 w-72 overflow-hidden rounded-xl p-2 shadow-xl"
+            className={cn(
+              "glass-card glass-border absolute bottom-2 z-30 w-72 overflow-hidden rounded-xl p-2 shadow-xl",
+              expanded ? "left-full ml-1" : "right-full mr-1",
+            )}
           >
-              <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
+            <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
               <h3 className="text-sm font-semibold">Add apps</h3>
               <Button
                 variant="ghost"
@@ -426,10 +485,12 @@ export function AppRail() {
 function SortableRailItem({
   item,
   active,
+  expanded,
   onClick,
 }: {
   item: RailItem;
   active: boolean;
+  expanded: boolean;
   onClick: () => void;
 }) {
   const {
@@ -449,9 +510,8 @@ function SortableRailItem({
       {...attributes}
       {...listeners}
       variant="ghost"
-      size="icon"
       className={cn(
-        "size-9 rounded-lg",
+        expanded ? "h-9 w-full justify-start gap-2 px-3 text-sm" : "size-9 rounded-lg",
         active && "bg-muted text-foreground",
         isDragging && "opacity-60",
       )}
@@ -461,8 +521,11 @@ function SortableRailItem({
       onClick={onClick}
     >
       <Icon
-        className={cn("size-4", active ? "text-foreground" : "text-muted-foreground")}
+        className={cn("size-4 shrink-0", active ? "text-foreground" : "text-muted-foreground")}
       />
+      {expanded ? (
+        <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+      ) : null}
     </Button>
   );
 }
