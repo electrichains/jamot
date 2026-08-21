@@ -8,3 +8,10 @@ export type {
   WhatsAppPersonProvisioner,
   WhatsAppPersonProvisionerDeps,
 } from "./wa-person.js";
+export { createChannelPersonProvisioner } from "./channel-person.js";
+export type {
+  ChannelPersonIngestRepo,
+  ChannelPersonProvisioner,
+  ChannelPersonProvisionerDeps,
+  ChannelProvisionResult,
+} from "./channel-person.js";

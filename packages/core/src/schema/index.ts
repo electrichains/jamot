@@ -7,6 +7,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  real,
   text,
   timestamp,
   uuid,
@@ -15,6 +16,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type {
   ActionPermission,
   AgentSchedule,
+  Consent,
   ExternalIdentity,
   Harness,
   LeadArea,
@@ -75,6 +77,7 @@ export const connectorProviderEnum = pgEnum("connector_provider", [
   "discord",
   "custom",
   "composio",
+  "google",
 ]);
 export const connectorTypeEnum = pgEnum("connector_type", [
   "channel",
@@ -162,6 +165,16 @@ export const people = pgTable("people", {
     .notNull()
     .references(() => actors.id),
   email: text("email"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  phone: text("phone"),
+  avatarUrl: text("avatar_url"),
+  avatarSource: text("avatar_source"),
+  consent: jsonb("consent").$type<Consent>(),
+  lastInteractionAt: timestamp("last_interaction_at", {
+    mode: "string",
+    withTimezone: true,
+  }),
   profile: jsonb("profile")
     .$type<PersonProfile>()
     .notNull()
@@ -174,6 +187,49 @@ export const people = pgTable("people", {
     .$type<Record<string, number>>()
     .notNull()
     .default(sql`'{}'::jsonb`),
+  ...timestamps(),
+});
+
+/**
+ * One canonical Person carries many channel identities (WhatsApp, Telegram,
+ * email, Google, ...). Unique per (provider, value); provenance + confidence
+ * live on the identity itself so resolution never silently merges people.
+ */
+export const identities = pgTable("identities", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorId: uuid("actor_id")
+    .notNull()
+    .references(() => actors.id, { onDelete: "cascade" }),
+  personId: uuid("person_id").references(() => people.id, {
+    onDelete: "cascade",
+  }),
+  provider: text("provider").notNull(),
+  value: text("value").notNull(),
+  verified: boolean("verified").notNull().default(true),
+  confidence: real("confidence").notNull().default(1),
+  source: text("source").notNull().default("observed"),
+  ...timestamps(),
+});
+
+/** Uncertain cross-identity matches awaiting human review (never auto-merged). */
+export const personMergeCandidates = pgTable("person_merge_candidates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  spaceId: uuid("space_id").references(() => spaces.id, {
+    onDelete: "set null",
+  }),
+  personAId: uuid("person_a_id")
+    .notNull()
+    .references(() => people.id, { onDelete: "cascade" }),
+  personBId: uuid("person_b_id")
+    .notNull()
+    .references(() => people.id, { onDelete: "cascade" }),
+  reason: text("reason").notNull(),
+  detail: jsonb("detail")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+  status: text("status").notNull().default("pending"),
+  ...timestamps(),
 });
 
 export const agents = pgTable("agents", {
@@ -1107,6 +1163,8 @@ export const schema = {
   actors,
   spaces,
   people,
+  identities,
+  personMergeCandidates,
   agents,
   organizations,
   workspaces,

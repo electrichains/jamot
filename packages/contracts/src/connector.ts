@@ -13,6 +13,7 @@ export const ConnectorProvider = z.enum([
   "discord",
   "custom",
   "composio",
+  "google",
 ]);
 export type ConnectorProvider = z.infer<typeof ConnectorProvider>;
 

@@ -1,5 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { and, arrayContains, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  arrayContains,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sql,
+} from "drizzle-orm";
+import { MergeCandidateStatus } from "@jamot/contracts";
 import type {
   Actor,
   Agent,
@@ -9,8 +21,10 @@ import type {
   CatalogOffer,
   Connector,
   Event,
+  Identity,
   LeadList,
   LeadListMember,
+  MergeCandidate,
   Organization,
   OutreachCampaign,
   OutreachList,
@@ -46,7 +60,9 @@ import {
   composioOauthStates,
   connectors,
   events,
+  identities,
   organizations,
+  personMergeCandidates,
   workspaces,
   outreachCampaigns,
   outreachLists,
@@ -81,9 +97,11 @@ import type {
   NewCatalog,
   NewCatalogOffer,
   NewConnector,
+  NewIdentity,
   NewLeadList,
   NewLeadListMember,
   NewLeadPerson,
+  NewMergeCandidate,
   NewOrganization,
   NewOutreachCampaign,
   NewOutreachList,
@@ -107,6 +125,7 @@ import type {
   ComposioOAuthStateRecord,
   SecretRecord,
   ChannelAccountRecord,
+  PeopleFilter,
 } from "./repository.js";
 
 type ActorRow = typeof actors.$inferSelect;
@@ -150,9 +169,51 @@ function toPerson(row: typeof people.$inferSelect): Person {
     id: row.id as Id,
     actorId: row.actorId as Id,
     email: row.email,
+    firstName: row.firstName ?? null,
+    lastName: row.lastName ?? null,
+    phone: row.phone ?? null,
+    avatarUrl: row.avatarUrl ?? null,
+    avatarSource: row.avatarSource ?? null,
+    consent: row.consent ?? null,
+    lastInteractionAt: row.lastInteractionAt ?? null,
     profile: row.profile,
     membershipSpaceIds: row.membershipSpaceIds as Id[],
     reputation: row.reputation,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+type IdentityRow = typeof identities.$inferSelect;
+
+function toIdentity(row: IdentityRow): Identity {
+  return {
+    id: row.id as Id,
+    actorId: row.actorId as Id,
+    personId: (row.personId as Id | null) ?? null,
+    provider: row.provider,
+    value: row.value,
+    verified: row.verified,
+    confidence: row.confidence,
+    source: row.source,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+type MergeCandidateRow = typeof personMergeCandidates.$inferSelect;
+
+function toMergeCandidate(row: MergeCandidateRow): MergeCandidate {
+  return {
+    id: row.id as Id,
+    spaceId: (row.spaceId as Id | null) ?? null,
+    personAId: row.personAId as Id,
+    personBId: row.personBId as Id,
+    reason: row.reason,
+    detail: row.detail,
+    status: MergeCandidateStatus.parse(row.status),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -782,12 +843,131 @@ export function createPgRepository(db: Db): JamotRepository {
       return row ? toPerson(row) : null;
     },
 
+    async addIdentity(input: NewIdentity) {
+      const confidence = input.confidence ?? 1;
+      const existing = await repo.findIdentity(input.provider, input.value);
+      if (existing) {
+        const patch: Partial<
+          Pick<Identity, "personId" | "verified" | "confidence" | "source">
+        > = {};
+        if (input.personId && !existing.personId) patch.personId = input.personId as Id;
+        if (input.verified && !existing.verified) patch.verified = true;
+        if (confidence > existing.confidence) {
+          patch.confidence = confidence;
+          if (input.source) patch.source = input.source;
+        }
+        if (Object.keys(patch).length === 0) return existing;
+        const updated = await repo.updateIdentity(existing.id, patch);
+        return updated ?? existing;
+      }
+      const [row] = await q
+        .insert(identities)
+        .values({
+          actorId: input.actorId,
+          personId: input.personId ?? null,
+          provider: input.provider,
+          value: input.value,
+          verified: input.verified ?? true,
+          confidence,
+          source: input.source ?? "observed",
+        })
+        .returning();
+      if (!row) throw new Error("failed to create identity");
+      return toIdentity(row);
+    },
+
+    async listIdentitiesForActor(actorId) {
+      const rows = await q
+        .select()
+        .from(identities)
+        .where(eq(identities.actorId, actorId))
+        .orderBy(asc(identities.createdAt));
+      return rows.map(toIdentity);
+    },
+
+    async listIdentitiesForPerson(personId) {
+      const rows = await q
+        .select()
+        .from(identities)
+        .where(eq(identities.personId, personId))
+        .orderBy(asc(identities.createdAt));
+      return rows.map(toIdentity);
+    },
+
+    async findActorByIdentity(provider, value) {
+      const identity = await repo.findIdentity(provider, value);
+      if (identity) return repo.getActor(identity.actorId);
+      return repo.findActorByExternalIdentity(provider, value);
+    },
+
+    async findIdentity(provider, value) {
+      const [row] = await q
+        .select()
+        .from(identities)
+        .where(and(eq(identities.provider, provider), eq(identities.value, value)))
+        .limit(1);
+      return row ? toIdentity(row) : null;
+    },
+
+    async updateIdentity(id, patch) {
+      const [row] = await q
+        .update(identities)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(identities.id, id))
+        .returning();
+      return row ? toIdentity(row) : null;
+    },
+
+    async removeIdentity(id) {
+      await q.delete(identities).where(eq(identities.id, id));
+    },
+
+    async createMergeCandidate(input: NewMergeCandidate) {
+      const [row] = await q
+        .insert(personMergeCandidates)
+        .values({
+          spaceId: input.spaceId ?? null,
+          personAId: input.personAId,
+          personBId: input.personBId,
+          reason: input.reason,
+          detail: input.detail ?? {},
+        })
+        .returning();
+      if (!row) throw new Error("failed to create merge candidate");
+      return toMergeCandidate(row);
+    },
+
+    async listMergeCandidates(filter) {
+      const where = and(
+        filter?.status ? eq(personMergeCandidates.status, filter.status) : undefined,
+        filter?.spaceId ? eq(personMergeCandidates.spaceId, filter.spaceId) : undefined,
+      );
+      const rows = where
+        ? await q.select().from(personMergeCandidates).where(where)
+        : await q.select().from(personMergeCandidates);
+      return rows.map(toMergeCandidate);
+    },
+
+    async updateMergeCandidate(id, patch) {
+      const [row] = await q
+        .update(personMergeCandidates)
+        .set({ ...patch, updatedAt: nowIso() })
+        .where(eq(personMergeCandidates.id, id))
+        .returning();
+      return row ? toMergeCandidate(row) : null;
+    },
+
     async createPerson(input: NewPerson) {
       const [row] = await q
         .insert(people)
         .values({
           actorId: input.actorId,
           email: input.email ?? null,
+          firstName: input.firstName ?? null,
+          lastName: input.lastName ?? null,
+          phone: input.phone ?? null,
+          avatarUrl: input.avatarUrl ?? null,
+          avatarSource: input.avatarSource ?? null,
           profile: input.profile ?? {
             selfDescribed: {},
             integral: {},
@@ -825,10 +1005,62 @@ export function createPgRepository(db: Db): JamotRepository {
     async updatePerson(id, patch) {
       const [row] = await q
         .update(people)
-        .set(patch)
+        .set({ ...patch, updatedAt: nowIso() })
         .where(eq(people.id, id))
         .returning();
       return row ? toPerson(row) : null;
+    },
+
+    async searchPeople(filter: PeopleFilter) {
+      const page = Math.max(1, filter.page ?? 1);
+      const perPage = Math.min(200, Math.max(1, filter.perPage ?? 50));
+
+      const conditions = [];
+      if (filter.spaceId) {
+        conditions.push(arrayContains(people.membershipSpaceIds, [filter.spaceId]));
+      }
+      if (filter.channel) {
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM identities i
+            WHERE i.person_id = ${people.id} AND i.provider = ${filter.channel}
+          )`,
+        );
+      }
+      if (filter.q && filter.q.trim()) {
+        const like = `%${filter.q.trim()}%`;
+        conditions.push(
+          or(
+            ilike(people.firstName, like),
+            ilike(people.lastName, like),
+            ilike(people.email, like),
+            ilike(people.phone, like),
+            sql`(coalesce(${people.firstName}, '') || ' ' || coalesce(${people.lastName}, '')) ILIKE ${like}`,
+          ),
+        );
+      }
+      const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const orderBy =
+        filter.sort === "name"
+          ? [
+              asc(sql`coalesce(${people.firstName}, '')`),
+              asc(sql`coalesce(${people.lastName}, '')`),
+            ]
+          : filter.sort === "recently_added"
+            ? [desc(people.createdAt)]
+            : [sql`${people.lastInteractionAt} DESC NULLS LAST`, desc(people.createdAt)];
+
+      const base = q.select().from(people);
+      const rows = where
+        ? await base.where(where).orderBy(...orderBy).limit(perPage).offset((page - 1) * perPage)
+        : await base.orderBy(...orderBy).limit(perPage).offset((page - 1) * perPage);
+
+      const [totalRow] = where
+        ? await q.select({ value: count() }).from(people).where(where)
+        : await q.select({ value: count() }).from(people);
+
+      return { items: rows.map(toPerson), total: totalRow?.value ?? 0 };
     },
 
     async findPersonByEmail(email) {
@@ -836,6 +1068,15 @@ export function createPgRepository(db: Db): JamotRepository {
         .select()
         .from(people)
         .where(eq(people.email, email))
+        .limit(1);
+      return row ? toPerson(row) : null;
+    },
+
+    async findPersonByPhone(phone) {
+      const [row] = await q
+        .select()
+        .from(people)
+        .where(eq(people.phone, phone))
         .limit(1);
       return row ? toPerson(row) : null;
     },

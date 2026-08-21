@@ -12,6 +12,7 @@ import { createDb, createEventBus } from "@jamot/core";
 import { runMigrations } from "@jamot/core/migrate";
 import { createMemoryRepository } from "@jamot/core/repository/memory";
 import { createPgRepository } from "@jamot/core/repository/pg";
+import { createChannelPersonProvisioner } from "@jamot/core/ingest";
 
 export async function startChannelWorker(): Promise<void> {
   const registry = createChannelRegistry();
@@ -27,8 +28,22 @@ export async function startChannelWorker(): Promise<void> {
     eventBus,
     registry,
   });
+
+  // Every inbound channel message resolves to ONE canonical Person with the
+  // channel identity attached (identity resolution lives in core/ingest).
+  const provisioner = createChannelPersonProvisioner({
+    repo,
+    spaceResolver: async (channelId) => {
+      const account = await repo.getChannelAccount(channelId);
+      return account?.spaceId;
+    },
+  });
+
   const onMessage = (msg: InboundMessage) => {
     console.log(`[channel:${msg.kind}] ${msg.sender}: ${msg.text}`);
+    void provisioner
+      .handleInbound(msg)
+      .catch((err) => console.error("[channel] person provisioning failed", err));
     void service.onInbound(msg);
   };
 

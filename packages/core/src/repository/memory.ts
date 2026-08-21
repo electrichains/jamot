@@ -8,8 +8,10 @@ import {
   CatalogOffer,
   Connector,
   Event,
+  Identity,
   LeadList,
   LeadListMember,
+  MergeCandidate,
   Organization,
   OutreachCampaign,
   OutreachList,
@@ -43,9 +45,11 @@ import type {
   NewCatalog,
   NewCatalogOffer,
   NewConnector,
+  NewIdentity,
   NewLeadList,
   NewLeadListMember,
   NewLeadPerson,
+  NewMergeCandidate,
   NewOrganization,
   NewOutreachCampaign,
   NewOutreachList,
@@ -69,6 +73,7 @@ import type {
   ComposioOAuthStateRecord,
   SecretRecord,
   ChannelAccountRecord,
+  PeopleFilter,
 } from "./repository.js";
 
 const now = () => new Date().toISOString();
@@ -110,6 +115,8 @@ export function createMemoryRepository(): JamotRepository {
   const outreachSteps = new Map<string, OutreachStep>();
   const outreachSends = new Map<string, OutreachSend>();
   const channelAccounts = new Map<string, ChannelAccountRecord>();
+  const identityStore = new Map<string, Identity>();
+  const mergeCandidateStore = new Map<string, MergeCandidate>();
 
   const repo: JamotRepository = {
     async createActor(input: NewActor) {
@@ -167,11 +174,120 @@ export function createMemoryRepository(): JamotRepository {
       return null;
     },
 
+    async addIdentity(input: NewIdentity) {
+      const confidence = input.confidence ?? 1;
+      const existing = await repo.findIdentity(input.provider, input.value);
+      if (existing) {
+        const updated = Identity.parse({ ...existing });
+        if (input.personId && !updated.personId) updated.personId = input.personId as Id;
+        if (input.verified && !updated.verified) updated.verified = true;
+        if (confidence > updated.confidence) {
+          updated.confidence = confidence;
+          if (input.source) updated.source = input.source;
+        }
+        updated.updatedAt = now();
+        identityStore.set(existing.id, updated);
+        return updated;
+      }
+      const identity = Identity.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        actorId: input.actorId,
+        personId: input.personId ?? null,
+        provider: input.provider,
+        value: input.value,
+        verified: input.verified ?? true,
+        confidence,
+        source: input.source ?? "observed",
+      });
+      identityStore.set(identity.id, identity);
+      return identity;
+    },
+
+    async listIdentitiesForActor(actorId) {
+      return [...identityStore.values()]
+        .filter((i) => i.actorId === actorId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
+
+    async listIdentitiesForPerson(personId) {
+      return [...identityStore.values()]
+        .filter((i) => i.personId === personId)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
+
+    async findActorByIdentity(provider, value) {
+      const identity = await repo.findIdentity(provider, value);
+      if (identity) return repo.getActor(identity.actorId);
+      return repo.findActorByExternalIdentity(provider, value);
+    },
+
+    async findIdentity(provider, value) {
+      for (const identity of identityStore.values()) {
+        if (identity.provider === provider && identity.value === value) {
+          return identity;
+        }
+      }
+      return null;
+    },
+
+    async updateIdentity(id, patch) {
+      const existing = identityStore.get(id);
+      if (!existing) return null;
+      const updated = Identity.parse({ ...existing, ...patch, updatedAt: now() });
+      identityStore.set(id, updated);
+      return updated;
+    },
+
+    async removeIdentity(id) {
+      identityStore.delete(id);
+    },
+
+    async createMergeCandidate(input: NewMergeCandidate) {
+      const candidate = MergeCandidate.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        spaceId: input.spaceId ?? null,
+        personAId: input.personAId,
+        personBId: input.personBId,
+        reason: input.reason,
+        detail: input.detail ?? {},
+        status: "pending",
+      });
+      mergeCandidateStore.set(candidate.id, candidate);
+      return candidate;
+    },
+
+    async listMergeCandidates(filter) {
+      return [...mergeCandidateStore.values()].filter((c) => {
+        if (filter?.status && c.status !== filter.status) return false;
+        if (filter?.spaceId && c.spaceId !== filter.spaceId) return false;
+        return true;
+      });
+    },
+
+    async updateMergeCandidate(id, patch) {
+      const existing = mergeCandidateStore.get(id);
+      if (!existing) return null;
+      const updated = MergeCandidate.parse({ ...existing, ...patch, updatedAt: now() });
+      mergeCandidateStore.set(id, updated);
+      return updated;
+    },
+
     async createPerson(input: NewPerson) {
       const person = Person.parse({
         id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
         actorId: input.actorId,
         email: input.email ?? null,
+        firstName: input.firstName ?? null,
+        lastName: input.lastName ?? null,
+        phone: input.phone ?? null,
+        avatarUrl: input.avatarUrl ?? null,
+        avatarSource: input.avatarSource ?? null,
         profile: input.profile ?? {},
         membershipSpaceIds: input.membershipSpaceIds ?? [],
         reputation: input.reputation ?? {},
@@ -191,10 +307,54 @@ export function createMemoryRepository(): JamotRepository {
       );
     },
 
+    async searchPeople(filter: PeopleFilter) {
+      const page = Math.max(1, filter.page ?? 1);
+      const perPage = Math.min(200, Math.max(1, filter.perPage ?? 50));
+      const q = filter.q?.trim().toLowerCase();
+
+      let matches = [...people.values()].filter((p) => {
+        if (filter.spaceId && !(p.membershipSpaceIds ?? []).includes(filter.spaceId as Id)) {
+          return false;
+        }
+        if (filter.channel) {
+          const hasChannel = [...identityStore.values()].some(
+            (i) => i.personId === p.id && i.provider === filter.channel,
+          );
+          if (!hasChannel) return false;
+        }
+        if (q) {
+          const haystack = [p.firstName, p.lastName, p.email, p.phone]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return true;
+      });
+
+      matches = matches.sort((a, b) => {
+        if (filter.sort === "name") {
+          return `${a.firstName ?? ""} ${a.lastName ?? ""}`.localeCompare(
+            `${b.firstName ?? ""} ${b.lastName ?? ""}`,
+          );
+        }
+        if (filter.sort === "recently_added") {
+          return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+        }
+        return (b.lastInteractionAt ?? b.createdAt ?? "").localeCompare(
+          a.lastInteractionAt ?? a.createdAt ?? "",
+        );
+      });
+
+      const total = matches.length;
+      const items = matches.slice((page - 1) * perPage, page * perPage);
+      return { items, total };
+    },
+
     async updatePerson(id, patch) {
       const existing = people.get(id);
       if (!existing) return null;
-      const updated = Person.parse({ ...existing, ...patch });
+      const updated = Person.parse({ ...existing, ...patch, updatedAt: now() });
       people.set(id, updated);
       return updated;
     },
@@ -203,6 +363,13 @@ export function createMemoryRepository(): JamotRepository {
       const lower = email.toLowerCase();
       for (const person of people.values()) {
         if (person.email?.toLowerCase() === lower) return person;
+      }
+      return null;
+    },
+
+    async findPersonByPhone(phone) {
+      for (const person of people.values()) {
+        if (person.phone === phone) return person;
       }
       return null;
     },

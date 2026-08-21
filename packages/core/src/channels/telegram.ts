@@ -12,7 +12,12 @@ interface TelegramUpdate {
   update_id: number;
   message?: {
     message_id: number;
-    from?: { id: number };
+    from?: {
+      id: number;
+      first_name?: string;
+      last_name?: string;
+      username?: string;
+    };
     chat: { id: number };
     date: number;
     text?: string;

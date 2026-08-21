@@ -7,8 +7,10 @@ import type {
   CatalogOffer,
   Connector,
   Event,
+  Identity,
   LeadList,
   LeadListMember,
+  MergeCandidate,
   Organization,
   OutreachCampaign,
   OutreachList,
@@ -69,9 +71,48 @@ export interface NewActor {
 export interface NewPerson {
   actorId: string;
   email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  avatarSource?: string | null;
   profile?: Person["profile"];
   membershipSpaceIds?: string[];
   reputation?: Record<string, number>;
+}
+
+/**
+ * Channel identity that resolves to a Person. (provider, value) is globally
+ * unique: upserting an existing identity never downgrades its confidence.
+ */
+export interface NewIdentity {
+  actorId: string;
+  personId?: string | null;
+  provider: string;
+  value: string;
+  verified?: boolean;
+  confidence?: number;
+  source?: string;
+}
+
+export interface NewMergeCandidate {
+  spaceId?: string | null;
+  personAId: string;
+  personBId: string;
+  reason: string;
+  detail?: Record<string, unknown>;
+}
+
+/** Server-side people query: search, filters and pagination. */
+export interface PeopleFilter {
+  spaceId?: string;
+  /** Free-text search across name, email, phone and channel identifiers. */
+  q?: string;
+  /** Restrict to people carrying an identity of this provider. */
+  channel?: string;
+  sort?: "recently_active" | "recently_added" | "name";
+  page?: number;
+  perPage?: number;
 }
 
 /** Creates a Person for an external lead: actor + person, no user/credentials.
@@ -439,17 +480,58 @@ export interface JamotRepository {
   findActorByExternalIdentity(provider: string, value: string): Promise<Actor | null>;
   findPersonByActorId(actorId: string): Promise<Person | null>;
 
+  // identities — one Person, many channel identities
+  /** Upsert on (provider, value). Never downgrades existing confidence. */
+  addIdentity(input: NewIdentity): Promise<Identity>;
+  listIdentitiesForActor(actorId: string): Promise<Identity[]>;
+  listIdentitiesForPerson(personId: string): Promise<Identity[]>;
+  /** Exact identity lookup — the entry point of identity resolution. */
+  findActorByIdentity(provider: string, value: string): Promise<Actor | null>;
+  findIdentity(provider: string, value: string): Promise<Identity | null>;
+  updateIdentity(
+    id: string,
+    patch: Partial<Pick<Identity, "personId" | "verified" | "confidence" | "source">>,
+  ): Promise<Identity | null>;
+  removeIdentity(id: string): Promise<void>;
+
+  // merge candidates — uncertain identity collisions, human-resolved
+  createMergeCandidate(input: NewMergeCandidate): Promise<MergeCandidate>;
+  listMergeCandidates(filter?: {
+    spaceId?: string;
+    status?: MergeCandidate["status"];
+  }): Promise<MergeCandidate[]>;
+  updateMergeCandidate(
+    id: string,
+    patch: Partial<Pick<MergeCandidate, "status" | "detail">>,
+  ): Promise<MergeCandidate | null>;
+
   // people
   createPerson(input: NewPerson): Promise<Person>;
   getPerson(id: string): Promise<Person | null>;
   listPeople(filter?: { spaceId?: string }): Promise<Person[]>;
+  /** Server-side search + pagination for large people databases. */
+  searchPeople(filter: PeopleFilter): Promise<{ items: Person[]; total: number }>;
   updatePerson(
     id: string,
     patch: Partial<
-      Pick<Person, "profile" | "email" | "membershipSpaceIds" | "reputation">
+      Pick<
+        Person,
+        | "profile"
+        | "email"
+        | "firstName"
+        | "lastName"
+        | "phone"
+        | "avatarUrl"
+        | "avatarSource"
+        | "consent"
+        | "lastInteractionAt"
+        | "membershipSpaceIds"
+        | "reputation"
+      >
     >,
   ): Promise<Person | null>;
   findPersonByEmail(email: string): Promise<Person | null>;
+  findPersonByPhone(phone: string): Promise<Person | null>;
   /** Create an external lead as an actor + person (no user account). */
   createLeadPerson(input: NewLeadPerson): Promise<Person>;
 

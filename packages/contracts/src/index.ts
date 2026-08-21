@@ -1,5 +1,6 @@
 export * from "./common.js";
 export * from "./actor.js";
+export * from "./identity.js";
 export * from "./person.js";
 export * from "./agent.js";
 export * from "./org.js";
