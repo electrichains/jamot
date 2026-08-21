@@ -105,6 +105,14 @@ export default async function vaultRoutes(
     const params = request.params as { ref?: string };
     const ref = parse(z.string().min(1), params.ref, reply);
     if (!ref) return;
+    // Remove the connector that owns this credential too, so deleting a
+    // secret never leaves an orphaned connector row behind.
+    const connectors = await repository.listConnectors();
+    for (const connector of connectors) {
+      if (connector.credentialRef.ref === ref) {
+        await repository.deleteConnector(connector.id);
+      }
+    }
     await repository.deleteSecret(ref);
     return { status: "ok" };
   });

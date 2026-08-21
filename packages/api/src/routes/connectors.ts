@@ -64,4 +64,31 @@ export default async function connectorsRoutes(
     if (!connector) return fail(reply, 404, "connector not found");
     return connector;
   });
+
+  const ConnectorPatch = z.object({
+    status: z.enum(["connected", "disconnected", "error"]).optional(),
+    configuration: z.record(z.string(), z.unknown()).optional(),
+  });
+
+  app.patch("/connectors/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const params = request.params as { id?: string };
+    const id = parse(Id, params.id, reply);
+    if (!id) return;
+    const patch = parse(ConnectorPatch, request.body, reply);
+    if (!patch) return;
+    const updated = await repository.updateConnector(id, patch);
+    if (!updated) return fail(reply, 404, "connector not found");
+    return updated;
+  });
+
+  app.delete("/connectors/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const params = request.params as { id?: string };
+    const id = parse(Id, params.id, reply);
+    if (!id) return;
+    const connector = await repository.getConnector(id);
+    if (!connector) return fail(reply, 404, "connector not found");
+    await repository.deleteSecret(connector.credentialRef.ref);
+    await repository.deleteConnector(id);
+    reply.code(204).send();
+  });
 }
