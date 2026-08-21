@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import type { JamotRepository } from "../repository.js";
-import { hashPassword, verifyPassword } from "../auth.js";
+import { clearStaleHostOnlySessionCookie, hashPassword, verifyPassword } from "../auth.js";
 import { requireAuth } from "../rbac.js";
 import { fail, parse } from "../util.js";
 
@@ -27,6 +27,7 @@ export function authRoutes(repo: JamotRepository) {
       const valid = await verifyPassword(body.password, user.passwordHash);
       if (!valid) return fail(reply, 401, "invalid credentials");
 
+      clearStaleHostOnlySessionCookie(reply);
       request.session.set("actorId", user.actor.id);
       request.session.set("personId", user.person.id);
 

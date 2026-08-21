@@ -122,13 +122,216 @@ async function testAndDiscover(
   return result;
 }
 
+/**
+ * Resolve the runtime context for model resolution: the caller's accessible
+ * organizationId and the effective `prefer` ref (query > agent assignment >
+ * per-space orchestrator setting). Shared by /models/runtime and its debug
+ * endpoint so both report identical context.
+ */
+async function resolveRuntimeContext(
+  repository: JamotRepository,
+  actorId: string,
+  query: { organizationId?: string; agentId?: string; prefer?: string },
+): Promise<{
+  organizationId: string | null;
+  prefer: string | null;
+  preferSource: "query" | "agent" | "spaceSettings" | null;
+  spaceSettings: { spaceId: string | null; orchestratorModel: string | null };
+}> {
+  let organizationId: string | null = null;
+  if (query.organizationId) {
+    try {
+      const org = await repository.getOrganization(query.organizationId as Id);
+      if (org && (await canAccessOrg(repository, actorId, org.spaceId, ROLE_WEIGHT.member))) {
+        organizationId = query.organizationId;
+      }
+    } catch {
+      // Organization lookup failed — fall through without org scope
+    }
+  }
+
+  let prefer = (query.prefer as string | undefined) ?? null;
+  let preferSource: "query" | "agent" | "spaceSettings" | null = prefer ? "query" : null;
+
+  // A specific agent's assignment takes precedence when supplied. The model
+  // ref is non-sensitive; resolveEnabledModel only matches it within the
+  // caller's own provider scopes, so no extra authorization is needed.
+  if (!prefer && query.agentId) {
+    try {
+      const agent = await repository.getAgent(query.agentId as Id);
+      if (agent?.model) {
+        prefer = agent.model;
+        preferSource = "agent";
+      }
+    } catch {
+      // Agent lookup failed — ignore
+    }
+  }
+
+  // Per-space orchestrator model preference.
+  const spaceSettings: { spaceId: string | null; orchestratorModel: string | null } = {
+    spaceId: null,
+    orchestratorModel: null,
+  };
+  if (!prefer) {
+    let spaceId: string | null = null;
+    if (organizationId) {
+      try {
+        const org = await repository.getOrganization(organizationId as Id);
+        spaceId = org?.spaceId ?? null;
+      } catch {
+        // Org re-lookup failed
+      }
+    }
+    if (!spaceId) {
+      try {
+        const actor = await repository.getActor(actorId);
+        spaceId = actor?.personalSpaceId ?? null;
+      } catch {
+        // Actor lookup failed
+      }
+    }
+    spaceSettings.spaceId = spaceId;
+    if (spaceId) {
+      try {
+        const config = await repository.getSpaceSettings(spaceId);
+        const om = config.orchestratorModel as string | null | undefined;
+        spaceSettings.orchestratorModel = om ?? null;
+        if (om) {
+          prefer = om;
+          preferSource = "spaceSettings";
+        }
+      } catch {
+        // No settings table or read failure — fall back to first-enabled.
+      }
+    }
+  }
+
+  return { organizationId, prefer, preferSource, spaceSettings };
+}
+
+/**
+ * Key-masked, step-by-step report of what resolveEnabledModel sees. Used to
+ * explain a `configured:false` result and power /models/runtime/debug.
+ */
+async function inspectModelResolution(
+  repository: JamotRepository,
+  secretStore: { decrypt(ciphertext: string): string },
+  actorId: string,
+  organizationId: string | null,
+  prefer: string | null,
+): Promise<{
+  reason: string | null;
+  scopes: Array<{
+    scope: "organization" | "personal";
+    providers: Array<{
+      id: string;
+      name: string;
+      modelsTotal: number;
+      enabledModelIds: string[];
+      secretFound: boolean;
+      decryptOk: boolean | null;
+      decryptError: string | null;
+    }>;
+  }>;
+}> {
+  const scopes: Array<{
+    scope: "organization" | "personal";
+    providers: Array<{
+      id: string;
+      name: string;
+      modelsTotal: number;
+      enabledModelIds: string[];
+      secretFound: boolean;
+      decryptOk: boolean | null;
+      decryptError: string | null;
+    }>;
+  }> = [];
+
+  let providerCount = 0;
+  let enabledCount = 0;
+  let secretMissing = 0;
+  let decryptFailed = 0;
+
+  const targets: Array<{ scope: "organization" | "personal"; filter: { ownerOrganizationId?: string; ownerActorId?: string } }> = [];
+  if (organizationId) targets.push({ scope: "organization", filter: { ownerOrganizationId: organizationId } });
+  targets.push({ scope: "personal", filter: { ownerActorId: actorId } });
+
+  for (const target of targets) {
+    const entry: { scope: "organization" | "personal"; providers: Array<{ id: string; name: string; modelsTotal: number; enabledModelIds: string[]; secretFound: boolean; decryptOk: boolean | null; decryptError: string | null }> } = {
+      scope: target.scope,
+      providers: [],
+    };
+    let providers: ModelProviderRecord[] = [];
+    try {
+      providers = await repository.listModelProviders(target.filter);
+    } catch {
+      providers = [];
+    }
+    for (const provider of providers) {
+      providerCount++;
+      let models: Array<{ modelId: string; enabled: boolean }> = [];
+      try {
+        models = await repository.listProviderModels(provider.id);
+      } catch {
+        models = [];
+      }
+      const enabled = models.filter((m) => m.enabled);
+      enabledCount += enabled.length;
+
+      let secretFound = false;
+      let decryptOk: boolean | null = null;
+      let decryptError: string | null = null;
+      if (enabled.length > 0) {
+        try {
+          const secret = await repository.getSecret(provider.credentialRef);
+          secretFound = Boolean(secret);
+          if (secret) {
+            try {
+              secretStore.decrypt(secret.ciphertext);
+              decryptOk = true;
+            } catch (err) {
+              decryptOk = false;
+              decryptFailed++;
+              decryptError = err instanceof Error ? err.message : "decrypt failed";
+            }
+          } else {
+            secretMissing++;
+          }
+        } catch {
+          secretMissing++;
+        }
+      }
+
+      entry.providers.push({
+        id: provider.id,
+        name: provider.name,
+        modelsTotal: models.length,
+        enabledModelIds: enabled.map((m) => m.modelId),
+        secretFound,
+        decryptOk,
+        decryptError,
+      });
+    }
+    scopes.push(entry);
+  }
+
+  let reason: string | null = null;
+  if (providerCount === 0) reason = "no_providers";
+  else if (enabledCount === 0) reason = "no_enabled_models";
+  else if (secretMissing > 0 && decryptFailed === 0) reason = "secret_missing";
+  else if (decryptFailed > 0) reason = "decrypt_failed";
+  else if (prefer) reason = "prefer_not_found";
+
+  return { reason, scopes };
+}
+
 export default async function modelsRoutes(
   app: FastifyInstance,
   opts: RoutesOptions,
 ): Promise<void> {
   const { repository: rawRepository, secretStore } = opts;
   const repository = rawRepository as unknown as JamotRepository;
-
   /** Providers visible to the caller, with their models. No secrets. */
   app.get("/models/providers", { preHandler: requireAuth }, async (request) => {
     const actorId = request.session.actorId!;
@@ -400,77 +603,82 @@ export default async function modelsRoutes(
    */
   app.get("/models/runtime", { preHandler: requireAuth }, async (request) => {
     const actorId = request.session.actorId!;
-    const query = request.query as { organizationId?: string; agentId?: string; prefer?: string };
+    const { organizationId, prefer } = await resolveRuntimeContext(
+      repository,
+      actorId,
+      request.query as { organizationId?: string; agentId?: string; prefer?: string },
+    );
 
-    let organizationId: string | null = null;
-    if (query.organizationId) {
-      try {
-        const org = await repository.getOrganization(query.organizationId as Id);
-        if (org && (await canAccessOrg(repository, actorId, org.spaceId, ROLE_WEIGHT.member))) {
-          organizationId = query.organizationId;
-        }
-      } catch {
-        // Organization lookup failed — fall through without org scope
-      }
-    }
-
-    // A specific agent's assignment takes precedence when supplied. The model
-    // ref is non-sensitive; resolveEnabledModel only matches it within the
-    // caller's own provider scopes, so no extra authorization is needed.
-    let prefer = (query.prefer as string | undefined) ?? null;
-    if (!prefer && query.agentId) {
-      try {
-        const agent = await repository.getAgent(query.agentId as Id);
-        prefer = agent?.model ?? null;
-      } catch {
-        // Agent lookup failed — ignore
-      }
-    }
-
-    // Per-space orchestrator model preference.
-    if (!prefer) {
-      let spaceId: string | null = null;
-      if (organizationId) {
-        try {
-          const org = await repository.getOrganization(organizationId as Id);
-          spaceId = org?.spaceId ?? null;
-        } catch {
-          // Org re-lookup failed
-        }
-      }
-      if (!spaceId) {
-        try {
-          const actor = await repository.getActor(actorId);
-          spaceId = actor?.personalSpaceId ?? null;
-        } catch {
-          // Actor lookup failed
-        }
-      }
-      if (spaceId) {
-        try {
-          const config = await repository.getSpaceSettings(spaceId);
-          const om = config.orchestratorModel as string | null | undefined;
-          if (om) prefer = om;
-        } catch {
-          // No settings table or read failure — fall back to first-enabled.
-        }
-      }
-    }
-
+    let resolved: Awaited<ReturnType<typeof resolveEnabledModel>> = null;
     try {
-      const resolved = await resolveEnabledModel({
+      resolved = await resolveEnabledModel({
         repo: repository,
         store: secretStore,
         organizationId,
         actorId,
         prefer,
       });
-      if (!resolved) return { configured: false };
-      return { configured: true, ...resolved };
     } catch (err) {
       console.error("[models/runtime] resolution error:", err instanceof Error ? err.message : err);
-      return { configured: false };
+      return { configured: false, reason: "resolution_error" };
     }
+    if (resolved) return { configured: true, ...resolved };
+
+    // Explain WHY nothing resolved — the CopilotKit route surfaces this.
+    const report = await inspectModelResolution(
+      repository,
+      secretStore,
+      actorId,
+      organizationId,
+      prefer,
+    );
+    return { configured: false, reason: report.reason ?? "unknown" };
+  });
+
+  /**
+   * Authenticated, key-masked step-by-step report of model resolution.
+   * Use this to diagnose why the chat has no model.
+   */
+  app.get("/models/runtime/debug", { preHandler: requireAuth }, async (request) => {
+    const actorId = request.session.actorId!;
+    const ctx = await resolveRuntimeContext(
+      repository,
+      actorId,
+      request.query as { organizationId?: string; agentId?: string; prefer?: string },
+    );
+
+    const report = await inspectModelResolution(
+      repository,
+      secretStore,
+      actorId,
+      ctx.organizationId,
+      ctx.prefer,
+    );
+
+    const resolved = await resolveEnabledModel({
+      repo: repository,
+      store: secretStore,
+      organizationId: ctx.organizationId,
+      actorId,
+      prefer: ctx.prefer,
+    });
+
+    return {
+      organizationId: ctx.organizationId,
+      preferSource: ctx.preferSource,
+      prefer: ctx.prefer,
+      spaceSettings: ctx.spaceSettings,
+      scopes: report.scopes,
+      reason: resolved ? null : report.reason,
+      resolved: resolved
+        ? {
+            providerName: resolved.providerName,
+            model: resolved.model,
+            baseUrl: resolved.baseUrl,
+            kind: resolved.kind,
+          }
+        : null,
+    };
   });
 
   // Legacy guard: old clients used GET/PUT/DELETE /models directly.

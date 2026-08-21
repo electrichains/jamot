@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { JamotRepository } from "../repository.js";
 import {
   buildGoogleAuthUrl,
+  clearStaleHostOnlySessionCookie,
   exchangeGoogleCode,
   fetchGoogleProfile,
   provisionUser,
@@ -60,9 +61,11 @@ export default async function oauthRoutes(
           provider: "google",
           providerId: profile.sub,
         });
+        clearStaleHostOnlySessionCookie(reply);
         request.session.set("actorId", result.actor.id);
         request.session.set("personId", result.person.id);
       } else {
+        clearStaleHostOnlySessionCookie(reply);
         request.session.set("actorId", user.actor.id);
         request.session.set("personId", user.person.id);
       }

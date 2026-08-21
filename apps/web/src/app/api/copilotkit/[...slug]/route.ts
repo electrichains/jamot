@@ -16,10 +16,6 @@ const BUILDER_PROMPT =
 const SKILLS_PROMPT =
   "You are the Jamot Skill Assistant. The user is authoring a Jamot Skill in Markdown — the Markdown document is the source of truth for the skill. Help them improve, complete, simplify or safety-check the skill. Good skills state a clear purpose, inputs, step-by-step process, constraints (what the skill must never do), and the expected output. When the user asks for a modification ('improve this', 'make it safer', 'add an approval step', 'make it work with WhatsApp', 'check whether this is complete'), produce the FULL revised Markdown and call the applySkillSuggestion tool with the complete proposed Markdown plus a one-line summary of what changed. NEVER claim you saved or applied anything: your suggestion is only staged for preview, and the user decides whether to accept it. If the user just asks a question about the skill, answer concisely without calling the tool.";
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL
-  ? `openai/${process.env.OPENAI_MODEL}`
-  : "openai/gpt-4o";
-
 interface RuntimeModelResponse {
   configured: boolean;
   kind?: "openai" | "anthropic";
@@ -27,83 +23,120 @@ interface RuntimeModelResponse {
   baseUrl?: string;
   apiKey?: string;
   providerName?: string;
+  reason?: string;
 }
 
+const REASON_HINTS: Record<string, string> = {
+  no_providers:
+    "No model provider is configured. Add one in Settings > Models (Add provider).",
+  no_enabled_models:
+    "A provider exists but no model is enabled. Enable a model in Settings > Models.",
+  secret_missing:
+    "The provider's API key could not be found in the vault. Re-add the provider in Settings > Models.",
+  decrypt_failed:
+    "The provider's API key could not be decrypted. Re-add the provider in Settings > Models.",
+  prefer_not_found:
+    "The selected orchestrator model no longer exists. Pick another one in Settings > Models.",
+  resolution_error: "The model service hit an internal error. Check the API logs.",
+};
+
+type ResolveResult =
+  | { ok: true; model: string; apiKey: string; source: string }
+  | { ok: false; reason: string };
+
 /**
- * Resolve the chat model from the platform's model configuration.
- * Tries the API's /api/models/runtime first (per-space orchestrator
- * preference → first-enabled model), falls back to env config.
+ * Resolve the chat model from the platform's model configuration: the API's
+ * /api/models/runtime endpoint (per-space orchestrator preference → first
+ * enabled model of a configured provider). Env vars are only a last-resort
+ * fallback when explicitly set — settings-based configuration is primary.
  */
-async function resolveChatModel(
-  req: NextRequest,
-): Promise<{ model: string; apiKey: string; source: string } | null> {
+async function resolveChatModel(req: NextRequest): Promise<ResolveResult> {
   const orgId = req.cookies.get("jamot_active_org")?.value;
   const cookieHeader = req.headers.get("cookie") ?? "";
 
-  console.log("[copilotkit] resolveChatModel called:", {
-    hasCookie: !!cookieHeader,
-    hasOrgCookie: !!orgId,
-  });
-
   if (!cookieHeader) {
-    // No cookies — might be internal fetch without auth context.
-    return null;
+    console.warn("[copilotkit] no cookies on request — cannot authenticate to the API");
+    return { ok: false, reason: "no_cookies" };
+  }
+  const hasSessionCookie = /(^|;\s*)jamot_session=/.test(cookieHeader);
+  if (!hasSessionCookie) {
+    console.warn(
+      "[copilotkit] jamot_session cookie missing from request (cookie forwarding problem — session cookie not shared with the app domain)",
+    );
   }
 
   const url = new URL(`${API_URL}/api/models/runtime`);
   if (orgId) url.searchParams.set("organizationId", orgId);
 
   try {
-    console.log("[copilotkit] fetching runtime from:", url.toString());
     const res = await fetch(url.toString(), {
       headers: { cookie: cookieHeader },
       cache: "no-store",
     });
-    console.log("[copilotkit] runtime response status:", res.status);
-    if (res.ok) {
-      const data = (await res.json()) as RuntimeModelResponse;
-      console.log("[copilotkit] runtime configured:", data.configured, "data:", JSON.stringify(data).slice(0, 500));
-      if (data.configured && data.apiKey && data.kind && data.model) {
-        console.log("[copilotkit] using model provider:", data.providerName ?? data.model);
-        return {
-          model: `${data.kind}/${data.model}`,
-          apiKey: data.apiKey,
-          source: "provider",
-        };
-      }
-      console.log("[copilotkit] runtime returned configured=false, falling back to env");
-    } else {
-      const text = await res.text();
-      console.log("[copilotkit] runtime failed:", res.status, "-", text.slice(0, 500));
+    if (res.status === 401) {
+      console.error(
+        "[copilotkit] API returned 401 — the session cookie was not accepted. " +
+          "This usually means the jamot_session cookie is not shared with the app domain " +
+          "(set COOKIE_DOMAIN on the API service).",
+      );
+      return { ok: false, reason: "api_unauthorized" };
     }
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("[copilotkit] runtime endpoint error:", res.status, text.slice(0, 300));
+      return { ok: false, reason: `api_error_${res.status}` };
+    }
+    const data = (await res.json()) as RuntimeModelResponse;
+    if (data.configured && data.apiKey && data.kind && data.model) {
+      console.log(
+        "[copilotkit] using model provider:",
+        data.providerName ?? data.model,
+        `(${data.kind}/${data.model})`,
+      );
+      return {
+        ok: true,
+        model: `${data.kind}/${data.model}`,
+        apiKey: data.apiKey,
+        source: "provider",
+      };
+    }
+    console.warn("[copilotkit] runtime configured=false, reason:", data.reason ?? "unknown");
+    return { ok: false, reason: data.reason ?? "unknown" };
   } catch (err) {
-    console.log("[copilotkit] runtime fetch error:", err instanceof Error ? err.message : err);
+    console.error(
+      "[copilotkit] cannot reach the API at",
+      API_URL,
+      "—",
+      err instanceof Error ? err.message : err,
+    );
+    return { ok: false, reason: "api_unreachable" };
   }
-
-  // Fall back to env vars — ensures copilot works even when no provider is configured yet
-  if (process.env.OPENAI_API_KEY) {
-    console.log("[copilotkit] using env OPENAI_API_KEY for gpt-4o");
-    return {
-      model: process.env.OPENAI_MODEL
-        ? `openai/${process.env.OPENAI_MODEL}`
-        : "openai/gpt-4o",
-      apiKey: process.env.OPENAI_API_KEY,
-      source: "env",
-    };
-  }
-
-  console.warn("[copilotkit] NO API KEY CONFIGURED — neither models/runtime nor OPENAI_API_KEY available");
-  return null;
 }
 
 async function buildHandler(req: NextRequest) {
   const resolved = await resolveChatModel(req);
-  // Graceful degradation: if no model found, throw with clear message —
-  // copilot page fails visibly instead of giving a silent 502.
-  if (!resolved) {
-    console.error("[copilotkit] no model available — copilot will fail on first message");
+
+  // Last-resort env fallback (only when explicitly set; settings are primary).
+  if (!resolved.ok && process.env.OPENAI_API_KEY) {
+    console.log("[copilotkit] falling back to env OPENAI_API_KEY");
+    const model = process.env.OPENAI_MODEL
+      ? `openai/${process.env.OPENAI_MODEL}`
+      : "openai/gpt-4o";
+    const runtime = new CopilotRuntime({
+      agents: {
+        default: new BuiltInAgent({ model, apiKey: process.env.OPENAI_API_KEY, prompt: DEFAULT_PROMPT, maxSteps: 5 }),
+        builder: new BuiltInAgent({ model, apiKey: process.env.OPENAI_API_KEY, prompt: BUILDER_PROMPT, maxSteps: 6 }),
+        skills: new BuiltInAgent({ model, apiKey: process.env.OPENAI_API_KEY, prompt: SKILLS_PROMPT, maxSteps: 4 }),
+      },
+      a2ui: {},
+    });
+    return createCopilotRuntimeHandler({ runtime, basePath: "/api/copilotkit" });
+  }
+
+  if (!resolved.ok) {
+    const hint = REASON_HINTS[resolved.reason] ?? "";
     throw new Error(
-      "No chat model configured. Please set OPENAI_API_KEY in Render or configure a model in Settings > Models.",
+      `Chat model unavailable (${resolved.reason}). ${hint}`.trim(),
     );
   }
 
@@ -146,10 +179,7 @@ async function handle(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[copilotkit] handler error:", message);
-    return NextResponse.json(
-      { error: message },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }
 

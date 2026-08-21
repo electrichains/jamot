@@ -56,6 +56,11 @@ projects:
                 generateValue: true
               - key: SECRET_ENCRYPTION_KEY
                 generateValue: true
+              # Share the session cookie across all jamot.pro subdomains so the
+              # web app's server-side routes (CopilotKit chat) can forward the
+              # user's session to the API.
+              - key: COOKIE_DOMAIN
+                value: .jamot.pro
               - key: CORS_ORIGIN
                 value: https://jamot-web.onrender.com
               - key: FRONTEND_URL
@@ -98,10 +103,6 @@ projects:
               # Root domain used to detect per-org subdomains (e.g. org.jamot.pro).
               - key: NEXT_PUBLIC_ROOT_DOMAIN
                 value: jamot.pro
-              # Fallback LLM key when no model provider is configured in Settings > Models.
-              # Set your OpenAI key here for basic copilot functionality during migration.
-              - key: OPENAI_API_KEY
-                sync: false
 
           - type: worker
             name: jamot-scheduler

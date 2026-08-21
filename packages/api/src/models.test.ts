@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import type { LightMyRequestResponse } from "fastify";
 import { buildApp } from "./app.js";
 import { createMemoryRepository } from "./repository.js";
@@ -120,5 +120,148 @@ describe("model providers", () => {
       headers: { cookie: bob },
     });
     expect(bobList.json().items).toHaveLength(0);
+  });
+});
+
+describe("model runtime diagnostics", () => {
+  it("returns reason=no_providers when nothing is configured", async () => {
+    const app = await buildApp({ repository: createMemoryRepository(), secret: "test" });
+    const cookie = await registerAndLogin(app, "alice@example.com");
+
+    const runtime = await app.inject({
+      method: "GET",
+      url: "/api/models/runtime",
+      headers: { cookie },
+    });
+    expect(runtime.statusCode).toBe(200);
+    expect(runtime.json()).toMatchObject({ configured: false, reason: "no_providers" });
+  });
+
+  it("returns reason=no_enabled_models when a provider has no enabled model", async () => {
+    const app = await buildApp({ repository: createMemoryRepository(), secret: "test" });
+    const cookie = await registerAndLogin(app, "alice@example.com");
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/models/providers",
+      headers: { cookie },
+      payload: { name: "gw", baseUrl: DEAD_BASE_URL, apiKey: "sk-test" },
+    });
+    const providerId = created.json().provider.id as string;
+    const added = await app.inject({
+      method: "POST",
+      url: `/api/models/providers/${providerId}/models`,
+      headers: { cookie },
+      payload: { modelId: "some-model" },
+    });
+    const modelRowId = added.json().id as string;
+    // Leave it disabled.
+    await app.inject({
+      method: "PATCH",
+      url: `/api/models/providers/${providerId}/models/${modelRowId}`,
+      headers: { cookie },
+      payload: { enabled: false },
+    });
+
+    const runtime = await app.inject({
+      method: "GET",
+      url: "/api/models/runtime",
+      headers: { cookie },
+    });
+    expect(runtime.json()).toMatchObject({ configured: false, reason: "no_enabled_models" });
+  });
+
+  it("debug endpoint reports scopes and never leaks keys", async () => {
+    const app = await buildApp({ repository: createMemoryRepository(), secret: "test" });
+    const cookie = await registerAndLogin(app, "alice@example.com");
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/api/models/providers",
+      headers: { cookie },
+      payload: { name: "gw", baseUrl: DEAD_BASE_URL, apiKey: "sk-super-secret" },
+    });
+    const providerId = created.json().provider.id as string;
+    const added = await app.inject({
+      method: "POST",
+      url: `/api/models/providers/${providerId}/models`,
+      headers: { cookie },
+      payload: { modelId: "some-model" },
+    });
+    const modelRowId = added.json().id as string;
+    await app.inject({
+      method: "PATCH",
+      url: `/api/models/providers/${providerId}/models/${modelRowId}`,
+      headers: { cookie },
+      payload: { enabled: true },
+    });
+
+    const debug = await app.inject({
+      method: "GET",
+      url: "/api/models/runtime/debug",
+      headers: { cookie },
+    });
+    expect(debug.statusCode).toBe(200);
+    const body = debug.json();
+    expect(body.resolved).not.toBeNull();
+    expect(body.resolved.model).toBe("some-model");
+    expect(body.reason).toBeNull();
+    // The personal scope should list the provider with decryptOk.
+    const personal = body.scopes.find((s: { scope: string }) => s.scope === "personal");
+    expect(personal).toBeTruthy();
+    expect(personal.providers[0].decryptOk).toBe(true);
+    // No key material anywhere in the report.
+    expect(JSON.stringify(body)).not.toContain("sk-super-secret");
+    expect(JSON.stringify(body)).not.toContain("apiKey");
+  });
+});
+
+describe("session cookie domain", () => {
+  afterEach(() => {
+    delete process.env.COOKIE_DOMAIN;
+  });
+
+  it("sets the cookie Domain when COOKIE_DOMAIN is configured", async () => {
+    process.env.COOKIE_DOMAIN = ".jamot.pro";
+    const app = await buildApp({ repository: createMemoryRepository(), secret: "test" });
+    await app.inject({
+      method: "POST",
+      url: "/api/people",
+      payload: { email: "carol@example.com", password: "password123", displayName: "Carol" },
+    });
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "carol@example.com", password: "password123" },
+    });
+    const raw = login.headers["set-cookie"];
+    const cookies = Array.isArray(raw) ? raw : [raw];
+    // Skip the stale host-only clearing cookie (empty value) — find the real one.
+    const session = cookies.find((c) => {
+      if (!c?.startsWith("jamot_session=")) return false;
+      const value = c.slice("jamot_session=".length).split(";")[0] ?? "";
+      return value.length > 0;
+    });
+    expect(session).toBeTruthy();
+    expect(session?.toLowerCase()).toContain("domain=.jamot.pro");
+  });
+
+  it("omits the cookie Domain when COOKIE_DOMAIN is unset", async () => {
+    const app = await buildApp({ repository: createMemoryRepository(), secret: "test" });
+    await app.inject({
+      method: "POST",
+      url: "/api/people",
+      payload: { email: "dave@example.com", password: "password123", displayName: "Dave" },
+    });
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "dave@example.com", password: "password123" },
+    });
+    const raw = login.headers["set-cookie"];
+    const cookies = Array.isArray(raw) ? raw : [raw];
+    const session = cookies.find((c) => c?.startsWith("jamot_session="));
+    expect(session).toBeTruthy();
+    expect(session?.toLowerCase()).not.toContain("domain=");
   });
 });

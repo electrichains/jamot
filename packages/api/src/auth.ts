@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import type { Actor, Person, Space } from "@jamot/contracts";
 import type { FastifySessionOptions } from "@fastify/session";
+import type { FastifyReply } from "fastify";
 import type { JamotRepository } from "./repository.js";
 
 const KEY_LENGTH = 64;
@@ -34,6 +35,10 @@ export function sessionOptions(
   store?: FastifySessionOptions["store"],
 ): FastifySessionOptions {
   const key = secret.length >= 32 ? secret : createHash("sha256").update(secret).digest("hex");
+  // COOKIE_DOMAIN (e.g. ".jamot.pro") shares the session cookie across all
+  // subdomains so server-side Next.js routes on the app host can forward the
+  // user's session to the API. Unset → host-only cookie (local dev).
+  const domain = process.env.COOKIE_DOMAIN || undefined;
   return {
     secret: key,
     cookieName: "jamot_session",
@@ -45,6 +50,7 @@ export function sessionOptions(
       httpOnly: true,
       sameSite: "lax",
       path: "/",
+      ...(domain ? { domain } : {}),
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   };
@@ -54,6 +60,21 @@ export interface RegisterInput {
   email: string;
   password: string;
   displayName?: string;
+}
+
+/**
+ * When COOKIE_DOMAIN is set, older deployments may have left a HOST-ONLY
+ * `jamot_session` cookie on the API host (no Domain attribute). A host-only
+ * cookie and the new domain-wide cookie coexist and the stale one can shadow
+ * the fresh session, logging the user out. Emit an expired host-only cookie
+ * to clear it. Call right before establishing a new session on login.
+ */
+export function clearStaleHostOnlySessionCookie(reply: FastifyReply): void {
+  if (!process.env.COOKIE_DOMAIN) return;
+  void reply.header(
+    "set-cookie",
+    "jamot_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax",
+  );
 }
 
 export interface ProvisionInput {
