@@ -374,6 +374,18 @@ export function createMemoryRepository(): JamotRepository {
       return null;
     },
 
+    async deletePerson(id) {
+      people.delete(id);
+      for (const [identityId, identity] of identityStore.entries()) {
+        if (identity.personId === id) identityStore.delete(identityId);
+      }
+      for (const [candidateId, candidate] of mergeCandidateStore.entries()) {
+        if (candidate.personAId === id || candidate.personBId === id) {
+          mergeCandidateStore.delete(candidateId);
+        }
+      }
+    },
+
     async createLeadPerson(input: NewLeadPerson) {
       const actor = await this.createActor({
         type: "human",

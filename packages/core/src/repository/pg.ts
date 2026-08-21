@@ -1081,6 +1081,10 @@ export function createPgRepository(db: Db): JamotRepository {
       return row ? toPerson(row) : null;
     },
 
+    async deletePerson(id) {
+      await q.delete(people).where(eq(people.id, id));
+    },
+
     async createLeadPerson(input: NewLeadPerson) {
       const [actorRow] = await q
         .insert(actors)
