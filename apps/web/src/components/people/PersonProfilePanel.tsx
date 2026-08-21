@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { listMemory, storeMemory, forgetMemory } from "@/lib/api-client";
+import { listMemory, storeMemory, forgetMemory, updateMemory } from "@/lib/api-client";
 import { listTasks } from "@/components/tasks/tasks-api";
 import { EditableField } from "./EditableField";
 import {
@@ -345,6 +345,8 @@ function MemoryTab({ personId }: { personId: string }) {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -408,28 +410,66 @@ function MemoryTab({ personId }: { personId: string }) {
         <p className="text-sm text-muted-foreground">No memories yet.</p>
       ) : (
         <ul className="flex flex-col gap-1.5">
-          {notes.map((note) => (
-            <li
-              key={note.id}
-              className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm"
-            >
-              <Sparkles className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 whitespace-pre-wrap">
-                {String((note.content as { note?: unknown }).note ?? JSON.stringify(note.content))}
-              </span>
-              <button
-                type="button"
-                onClick={async () => {
-                  await forgetMemory(note.id);
-                  await load();
-                }}
-                className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-red-600"
-                aria-label="Forget memory"
+          {notes.map((note) => {
+            const text = String(
+              (note.content as { note?: unknown }).note ?? JSON.stringify(note.content),
+            );
+            const isEditing = editingId === note.id;
+            const commitEdit = async () => {
+              setEditingId(null);
+              const next = editDraft.trim();
+              if (!next || next === text) return;
+              await updateMemory(note.id, {
+                content: { note: next },
+                provenance: { source: "self_declared", confidence: 1 },
+              });
+              await load();
+            };
+            return (
+              <li
+                key={note.id}
+                className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm"
               >
-                <Trash2 className="size-3.5" />
-              </button>
-            </li>
-          ))}
+                <Sparkles className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                {isEditing ? (
+                  <input
+                    autoFocus
+                    value={editDraft}
+                    onChange={(event) => setEditDraft(event.target.value)}
+                    onBlur={() => void commitEdit()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void commitEdit();
+                      if (event.key === "Escape") setEditingId(null);
+                    }}
+                    className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-sm outline-none focus:ring-1 focus:ring-space-accent"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingId(note.id);
+                      setEditDraft(text);
+                    }}
+                    className="min-w-0 flex-1 cursor-text whitespace-pre-wrap text-left hover:bg-muted/50 rounded px-0.5"
+                    title="Click to edit"
+                  >
+                    {text}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await forgetMemory(note.id);
+                    await load();
+                  }}
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-red-600"
+                  aria-label="Forget memory"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

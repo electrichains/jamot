@@ -84,6 +84,37 @@ export default async function memoryRoutes(
     return entry;
   });
 
+  const UpdateMemoryBody = z.object({
+    content: z.record(z.string(), z.unknown()).optional(),
+    provenance: ProvenanceInput.optional(),
+  });
+
+  app.patch("/memory/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const params = request.params as { id?: string };
+    const id = parse(Id, params.id, reply);
+    if (!id) return;
+    const body = parse(UpdateMemoryBody, request.body, reply);
+    if (!body) return;
+
+    const existing = await memoryProvider.get(id);
+    if (!existing) return fail(reply, 404, "memory not found");
+
+    const patch: Partial<Pick<typeof existing, "content" | "provenance">> = {};
+    if (body.content) patch.content = body.content;
+    patch.provenance = {
+      ...existing.provenance,
+      ...(body.provenance?.source ? { source: body.provenance.source } : {}),
+      ...(body.provenance?.confidence !== undefined
+        ? { confidence: body.provenance.confidence }
+        : {}),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updated = await memoryProvider.update(id, patch);
+    if (!updated) return fail(reply, 404, "memory not found");
+    return updated;
+  });
+
   app.delete(
     "/memory/:id",
     { preHandler: requireAuth },

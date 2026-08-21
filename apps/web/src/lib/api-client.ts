@@ -848,6 +848,19 @@ export async function forgetMemory(id: string): Promise<void> {
   await api<void>(`/api/memory/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+export async function updateMemory(
+  id: string,
+  patch: {
+    content?: Record<string, unknown>;
+    provenance?: { source?: string; confidence?: number };
+  },
+): Promise<ApiMemoryEntry> {
+  return api<ApiMemoryEntry>(`/api/memory/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
 export interface ApiKnowledgeEntity {
   id: string;
   type: string;
