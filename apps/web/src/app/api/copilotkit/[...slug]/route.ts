@@ -4,56 +4,6 @@ import {
   CopilotRuntime,
   createCopilotRuntimeHandler,
 } from "@copilotkit/runtime/v2";
-import { createOpenAI } from "@ai-sdk/openai";
-
-/** LanguageModel produced by the AI SDK provider (same type BuiltInAgent accepts). */
-type SdkLanguageModel = ReturnType<ReturnType<typeof createOpenAI>>;
-
-/**
- * Build the agent model for BuiltInAgent. Providers configured in
- * Settings > Models usually live on a custom OpenAI-compatible endpoint
- * (base URL), which a plain "openai/<model>" string cannot express — so we
- * construct a LanguageModel bound to that base URL. Without a base URL we
- * fall back to the provider-prefixed string, letting CopilotKit resolve it.
- */
-function buildAgentModel(input: {
-  modelId: string;
-  kind: "openai" | "anthropic";
-  apiKey: string;
-  baseUrl: string | null;
-}): SdkLanguageModel | string {
-  console.log(
-    "[buildAgentModel] input:",
-    JSON.stringify({ modelId: input.modelId, kind: input.kind, baseUrl: input.baseUrl }),
-  );
-  if (input.baseUrl) {
-    console.log("[buildAgentModel] building LanguageModel via createOpenAI with baseURL:", input.baseUrl);
-    const provider = createOpenAI({
-      apiKey: input.apiKey.slice(0, 8) + "..." + input.apiKey.slice(-4), // mask key in logs
-      baseURL: input.baseUrl,
-    });
-    const lm = provider(input.modelId);
-    console.log("[buildAgentModel] LanguageModel built, keys:", Object.keys(lm));
-    return lm;
-  }
-  const str = `${input.kind}/${input.modelId}`;
-  console.log("[buildAgentModel] returning string model:", str);
-  return str;
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
-// Shortened prompts to reduce bundle size — the full prompt strings remain below
-const PROMPT_PREFIX =
-  "You are the Jamot Main Manager. You help a person or organization plan, delegate and track work. Be concise and concrete.";
-const BUILDER_PROMPT_SHORT =
-  "You are the Jamot Agent Builder. Your only job is to help the user design and create a new agent.";
-const SKILLS_PROMPT_SHORT =
-  "You are the Jamot Skill Assistant. Help the user improve, complete, simplify or safety-check their skill.";
-
-const DEFAULT_PROMPT = `${PROMPT_PREFIX} When asked to find or research people or agents, delegate to the searchPeople and searchAgents tools when available. Handle supplier network procurement and payments: register suppliers, search suppliers, review POs. High-risk actions must wait for explicit confirmation.`;
-const BUILDER_PROMPT = `${BUILDER_PROMPT_SHORT} Ask for name, role, autonomy level (suggest/approve/autonomous), and channels. Then call createAgent.`;
-const SKILLS_PROMPT = `${SKILLS_PROMPT_SHORT} Good skills have clear purpose, inputs, step-by-step process, constraints. Produce FULL revised Markdown on modification requests.`;
 
 interface RuntimeModelResponse {
   configured: boolean;
@@ -65,62 +15,130 @@ interface RuntimeModelResponse {
   reason?: string;
 }
 
-const REASON_HINTS: Record<string, string> = {
-  no_providers: "No model provider configured. Add one in Settings > Models.",
-  no_enabled_models: "Provider exists but no model enabled. Enable one in Settings > Models.",
-  secret_missing: "Provider API key missing from vault. Re-add provider in Settings > Models.",
-  decrypt_failed: "Provider API key decryption failed. Re-add provider in Settings > Models.",
-  prefer_not_found: "Selected orchestrator model no longer exists. Pick another in Settings > Models.",
-  resolution_error: "Internal error resolving model. Check API logs.",
-  api_unauthorized: "Session cookie not forwarded — may need to log out/in once after deploys.",
-  api_error_500: "API returned server error. Check API logs.",
-};
-
 type ResolveResult =
   | { ok: true; modelId: string; kind: "openai" | "anthropic"; apiKey: string; baseUrl: string | null; source: string }
   | { ok: false; reason: string };
 
-async function resolveChatModel(req: NextRequest): Promise<ResolveResult> {
-  const orgId = req.cookies.get("jamot_active_org")?.value;
-  const cookieHeader = req.headers.get("cookie") ?? "";
+const REASON_HINTS: Record<string, string> = {
+  no_providers: "No provider configured — add one in Settings > Models.",
+  no_enabled_models: "Provider exists but no model enabled — enable one.",
+  secret_missing: "API key missing from vault — re-add provider.",
+  decrypt_failed: "API key decrypt failed — re-add provider.",
+  prefer_not_found: "Selected model no longer exists — pick another.",
+  resolution_error: "Internal error — check API logs.",
+  api_unauthorized: "Session rejected — log out, log back in once after deploys.",
+  api_error_500: "API returned server error — check API logs.",
+};
 
-  console.log("[copilotkit] === resolveChatModel START ===", { hasCookie: !!cookieHeader, orgId });
+const DEFAULT_PROMPT =
+  "You are the Jamot Main Manager. You help plan, delegate and track work. Delegate to searchPeople/searchAgents tools when available. Handle supplier procurement: register suppliers, review POs. High-risk actions (approving POs/payments/fulfilling PO) must wait for explicit confirmation.";
+
+const BUILDER_PROMPT =
+  "You are the Jamot Agent Builder. Help users design and create agents. Ask for name, role, autonomy (suggest/approve/autonomous), and channels. Call createAgent when ready.";
+
+const SKILLS_PROMPT =
+  "You are the Jamot Skill Assistant. Help users author and improve skills in Markdown. Produce FULL revised Markdown on modification requests. Good skills have purpose, inputs, process, constraints, output.";
+
+/**
+ * Build the LLM model for BuiltInAgent. Two strategies, tried in order:
+ *
+ * Strategy A (best): Use @ai-sdk/openai's createOpenAI to build a LanguageModel
+ *     with the provider's exact baseURL. This bypasses CopilotKit's resolver
+ *     so the request hits the real endpoint (e.g. Alibaba MaaS).
+ *
+ * Strategy B (fallback): Mutate OPENAI_BASE_URL env-var then return a plain
+ *     "openai/<model>" string. CopilotKit's resolver picks up the URL.
+ *     Race-safe because Node.js is single-threaded: the env-var persists
+ *     through the synchronous constructor block of THIS request.
+ */
+async function buildAgentModel(resolved: ResolveResult & { ok: true }) {
+  // --- Strategy A: createOpenAI + LanguageModel ---
+  try {
+    console.log("[model] Strategy A: loading @ai-sdk/openai via dynamic import...");
+    const openaiPkg = await import("@ai-sdk/openai");
+    const createOpenAI = openaiPkg.createOpenAI;
+
+    const provider = createOpenAI({
+      apiKey: resolved.apiKey,
+      baseURL: resolved.baseUrl ?? undefined,
+    });
+    const lm = provider(resolved.modelId);
+    console.log(
+      "[model] Strategy A OK — LanguageModel constructed",
+      typeof lm === "function" ? "callable" : JSON.stringify(lm),
+    );
+    return { strategy: "A", model: lm };
+  } catch (err) {
+    console.warn(
+      "[model] Strategy A FAILED — will try fallback:",
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  // --- Strategy B: OPENAI_BASE_URL env-var ---
+  console.log(
+    "[model] Strategy B: setting OPENAI_BASE_URL =",
+    resolved.baseUrl ?? "(none)",
+  );
+  process.env.OPENAI_BASE_URL = resolved.baseUrl ?? "";
+
+  console.log(
+    "[model] Strategy B: returning string model =",
+    `${resolved.kind}/${resolved.modelId}`,
+  );
+  return {
+    strategy: "B",
+    model: `${resolved.kind}/${resolved.modelId}`,
+  };
+}
+
+async function resolveChatModel(req: NextRequest): Promise<ResolveResult> {
+  const cookieHeader = req.headers.get("cookie") ?? "";
+  const orgId = req.cookies.get("jamot_active_org")?.value;
+  const apiHost = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+  console.log("[route] === START === cookies=", !!cookieHeader, "orgId=", orgId, "apiHost=", apiHost);
 
   if (!cookieHeader) {
-    console.warn("[copilotkit] no cookies");
+    console.warn("[route] no cookies");
     return { ok: false, reason: "no_cookies" };
   }
 
   const hasSession = /(^|;\s*)jamot_session=/.test(cookieHeader);
-  console.log("[copilotkit] jamot_session present:", hasSession);
+  console.log("[route] jamot_session present:", hasSession);
 
-  const url = new URL(`${API_URL}/api/models/runtime`);
+  const url = new URL(`${apiHost}/api/models/runtime`);
   if (orgId) url.searchParams.set("organizationId", orgId);
 
-  console.log("[copilotkit] fetching:", url.toString());
+  console.log("[route] fetching:", url.toString());
 
   try {
     const res = await fetch(url.toString(), {
       headers: { cookie: cookieHeader },
       cache: "no-store",
     });
-    console.log("[copilotkit] API response status:", res.status);
+    console.log("[route] API status:", res.status);
 
     if (res.status === 401) {
-      console.error("[copilotkit] API 401 — session cookie rejected.");
+      console.error("[route] API 401 — cookie rejected.");
       return { ok: false, reason: "api_unauthorized" };
     }
     if (!res.ok) {
       const text = await res.text();
-      console.error("[copilotkit] API error:", res.status, text.slice(0, 300));
+      console.error("[route] API error:", res.status, text.slice(0, 300));
       return { ok: false, reason: `api_error_${res.status}` };
     }
 
     const data = (await res.json()) as RuntimeModelResponse;
-    console.log("[copilotkit] API data:", JSON.stringify(data).slice(0, 500));
+    console.log("[route] API data:", JSON.stringify(data).slice(0, 600));
 
     if (data.configured && data.apiKey && data.kind && data.model) {
-      console.log("[copilotkit] SUCCESS: provider", data.providerName, "model", data.model);
+      console.log(
+        "[route] SUCCESS —",
+        data.providerName ?? "?",
+        data.model,
+        data.baseUrl ? "@" + data.baseUrl : "",
+      );
       return {
         ok: true,
         modelId: data.model,
@@ -131,70 +149,50 @@ async function resolveChatModel(req: NextRequest): Promise<ResolveResult> {
       };
     }
 
-    console.warn("[copilotkit] configured=false, reason:", data.reason);
+    console.warn("[route] configured=false, reason:", data.reason);
     return { ok: false, reason: data.reason ?? "unknown" };
   } catch (err) {
-    console.error("[copilotkit] fetch exception:", err instanceof Error ? err.message : err);
+    console.error("[route] fetch exception:", err instanceof Error ? err.message : String(err));
     return { ok: false, reason: "api_unreachable" };
   }
-}
-
-async function buildHandler(req: NextRequest) {
-  console.log("[copilotkit] === buildHandler START ===");
-  const resolved = await resolveChatModel(req);
-
-  if (!resolved.ok) {
-    const hint = REASON_HINTS[resolved.reason] ?? `Unknown reason: ${resolved.reason}`;
-    throw new Error(`Chat model unavailable (${resolved.reason}). ${hint}`.trim());
-  }
-
-  console.log("[copilotkit] About to buildAgentModel...");
-  const agentModel = buildAgentModel(resolved);
-  console.log("[copilotkit] Model type:", typeof agentModel, agentModel instanceof Function ? "provider-result" : typeof String(agentModel));
-
-  console.log("[copilotkit] Constructing CopilotRuntime...");
-  const runtime = new CopilotRuntime({
-    agents: {
-      default: new BuiltInAgent({
-        model: agentModel,
-        apiKey: resolved.apiKey,
-        prompt: DEFAULT_PROMPT,
-        maxSteps: 5,
-      }),
-      builder: new BuiltInAgent({
-        model: agentModel,
-        apiKey: resolved.apiKey,
-        prompt: BUILDER_PROMPT,
-        maxSteps: 6,
-      }),
-      skills: new BuiltInAgent({
-        model: agentModel,
-        apiKey: resolved.apiKey,
-        prompt: SKILLS_PROMPT,
-        maxSteps: 4,
-      }),
-    },
-    a2ui: {},
-  });
-  console.log("[copilotkit] CopilotRuntime constructed successfully");
-
-  console.log("[copilotkit] Creating handler...");
-  const handler = createCopilotRuntimeHandler({ runtime, basePath: "/api/copilotkit" });
-  console.log("[copilotkit] Handler created successfully");
-  return handler;
 }
 
 export const runtime = "nodejs";
 
 async function handle(req: NextRequest) {
   try {
-    console.log("[copilotkit] === handle CALL === method:", req.method, "path:", req.nextUrl.pathname);
-    const handler = await buildHandler(req);
+    console.log("[handler] === CALL === method:", req.method, "path:", req.nextUrl.pathname);
+
+    const resolved = await resolveChatModel(req);
+    if (!resolved.ok) {
+      const hint = REASON_HINTS[resolved.reason] ?? `Unknown: ${resolved.reason}`;
+      throw new Error(`Chat unavailable (${resolved.reason}). ${hint}`);
+    }
+
+    const { strategy, model } = await buildAgentModel(resolved as ResolveResult & { ok: true });
+    console.log("[handler] Model built via strategy:", strategy);
+
+    console.log("[handler] Creating CopilotRuntime...");
+    const runtime = new CopilotRuntime({
+      agents: {
+        default: new BuiltInAgent({ model, prompt: DEFAULT_PROMPT, maxSteps: 5 }),
+        builder: new BuiltInAgent({ model, prompt: BUILDER_PROMPT, maxSteps: 6 }),
+        skills: new BuiltInAgent({ model, prompt: SKILLS_PROMPT, maxSteps: 4 }),
+      },
+      a2ui: {},
+    });
+    console.log("[handler] CopilotRuntime created OK");
+
+    console.log("[handler] Creating handler...");
+    const handler = createCopilotRuntimeHandler({ runtime, basePath: "/api/copilotkit" });
+    console.log("[handler] Handler created OK");
     return handler(req);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[copilotkit] HANDLER ERROR:", message);
-    return NextResponse.json({ error: message }, { status: 502 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[handler] FATAL ERROR:", msg);
+    // Stack trace to logs for debugging
+    console.error("[handler] stack:", err instanceof Error ? err.stack : "");
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
 
