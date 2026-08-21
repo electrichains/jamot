@@ -3,9 +3,9 @@
  * @description Main entry point for @jamot/archetype-engine
  */
 
-export * from './synthesizer.js';
-export * from './markdown-generator.js';
-export * from './narrative-generator.js';
-export { geneKeyArchetypes } from './data/gene-key-archetypes.js';
-export { typeNarratives, authorityNarratives, profileNarratives } from './data/hd-type-narratives.js';
-export { centerThemes } from './data/center-themes.js';
+export * from './synthesizer.ts';
+export * from './markdown-generator.ts';
+export * from './narrative-generator.ts';
+export { geneKeyArchetypes } from './data/gene-key-archetypes.ts';
+export { typeNarratives, authorityNarratives, profileNarratives } from './data/hd-type-narratives.ts';
+export { centerThemes } from './data/center-themes.ts';

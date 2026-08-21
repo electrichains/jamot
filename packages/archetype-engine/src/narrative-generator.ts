@@ -3,8 +3,8 @@
  * @description Generates bespoke personality synthesis narratives combining HD chart and Gene Keys output.
  */
 
-import { typeNarratives, authorityNarratives, profileNarratives } from './data/hd-type-narratives.js';
-import { geneKeyArchetypes } from './data/gene-key-archetypes.js';
+import { typeNarratives, authorityNarratives, profileNarratives } from './data/hd-type-narratives.ts';
+import { geneKeyArchetypes } from './data/gene-key-archetypes.ts';
 
 export function generateNarrative(hd: any, gk: any, scoring?: any) {
   const typeName = (hd.type?.name?.replace(/\s+/g, '') || 'Generator') as keyof typeof typeNarratives;

@@ -6,10 +6,10 @@
 
 // @ts-ignore - natalengine does not have bundled TS declaration files
 import { calculateHumanDesign, calculateGeneKeys } from 'natalengine';
-import { generateNarrative } from './narrative-generator.js';
-import { generateProfileMarkdown } from './markdown-generator.js';
-import { geneKeyArchetypes } from './data/gene-key-archetypes.js';
-import { centerThemes } from './data/center-themes.js';
+import { generateNarrative } from './narrative-generator.ts';
+import { generateProfileMarkdown } from './markdown-generator.ts';
+import { geneKeyArchetypes } from './data/gene-key-archetypes.ts';
+import { centerThemes } from './data/center-themes.ts';
 
 export interface SynthesizeOptions {
   birthDate: string; // YYYY-MM-DD
