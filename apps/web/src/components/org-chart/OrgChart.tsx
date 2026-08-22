@@ -65,6 +65,8 @@ import { NodeDrawer } from "./NodeDrawer";
 import { ContextMenu, type ContextAction, type ContextMenuState } from "./ContextMenu";
 import { RelationPicker, type RelationPick } from "./RelationPicker";
 import { ReadinessPanel } from "./ReadinessPanel";
+import { ChartErrorBoundary } from "./ChartErrorBoundary";
+import { installGlobalErrorReporting } from "@/lib/report-error";
 
 const NODE_WIDTH = 208;
 const NODE_HEIGHT = 72;
@@ -182,7 +184,10 @@ function computeLayout(nodes: OrgFlowNode[]): Map<string, { x: number; y: number
   const roots = nodes.filter((node) => !parentOf.get(node.id));
 
   const depthOf = new Map<string, number>();
+  const visited = new Set<string>();
   const assignDepth = (node: OrgFlowNode, depth: number) => {
+    if (visited.has(node.id)) return; // guard against parent cycles
+    visited.add(node.id);
     depthOf.set(node.id, depth);
     for (const child of childrenOf.get(node.id) ?? []) assignDepth(child, depth + 1);
   };
@@ -190,13 +195,16 @@ function computeLayout(nodes: OrgFlowNode[]): Map<string, { x: number; y: number
 
   let cursor = 0;
   const xOf = new Map<string, number>();
+  const placed = new Set<string>();
   const place = (node: OrgFlowNode): number => {
     const kids = childrenOf.get(node.id) ?? [];
     let center: number;
-    if (kids.length === 0) {
+    if (kids.length === 0 || placed.has(node.id)) {
       center = cursor + NODE_WIDTH / 2;
       cursor += NODE_WIDTH + H_GAP;
+      placed.add(node.id);
     } else {
+      placed.add(node.id);
       const xs = kids.map(place);
       center = (xs[0] + xs[xs.length - 1]) / 2;
     }
@@ -309,10 +317,16 @@ function Legend() {
 }
 
 export function OrgChart({ orgId }: { orgId: string }) {
+  useEffect(() => {
+    installGlobalErrorReporting();
+  }, []);
+
   return (
-    <ReactFlowProvider>
-      <OrgChartInner orgId={orgId} />
-    </ReactFlowProvider>
+    <ChartErrorBoundary>
+      <ReactFlowProvider>
+        <OrgChartInner orgId={orgId} />
+      </ReactFlowProvider>
+    </ChartErrorBoundary>
   );
 }
 

@@ -47,6 +47,7 @@ import { googleConnectorRoutes } from "./routes/google-connect.js";
 import { eventsRoutes } from "./routes/events.js";
 import waRoutes from "./routes/wa.js";
 import notificationsRoutes from "./routes/notifications.js";
+import { clientLogRoutes } from "./routes/client-log.js";
 import type { MemoryProvider } from "@jamot/core/memory";
 import type { KnowledgeStore } from "@jamot/core/knowledge";
 import { createInMemoryMemoryProvider } from "@jamot/core/memory";
@@ -258,6 +259,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(oauthRoutes, { prefix: "/api", repository: opts.repository });
   await app.register(googleConnectorRoutes(opts.repository, secretStore), { prefix: "/api" });
   await app.register(eventsRoutes(opts.repository), { prefix: "/api" });
+  await app.register(clientLogRoutes, { prefix: "/api" });
   await app.register(waRoutes, { prefix: "/api", repository: opts.repository, whatsAppManager: opts.whatsAppManager });
   await app.register(suppliersRoutes, { prefix: "/api", commerce });
   await app.register(catalogRoutes, { prefix: "/api", commerce });
