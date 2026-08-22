@@ -1851,3 +1851,194 @@ export async function enrichLead(
     { method: "POST" },
   );
 }
+
+// --- Vibe DREAM Configurator: organizational graph ---------------------------
+
+export type OrgNodeKind =
+  | "dream"
+  | "team"
+  | "human"
+  | "agent"
+  | "responsibility"
+  | "tool"
+  | "heartbeat";
+
+export type OrgEdgeRelation =
+  | "requires"
+  | "owns"
+  | "member_of"
+  | "responsible_for"
+  | "uses"
+  | "has_access_to"
+  | "monitors"
+  | "invokes"
+  | "depends_on";
+
+export interface OrgNodePosition {
+  x: number;
+  y: number;
+}
+
+export interface OrgNode {
+  id: string;
+  organizationId: string;
+  kind: OrgNodeKind;
+  name: string;
+  refId: string | null;
+  config: Record<string, unknown>;
+  position: OrgNodePosition;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrgEdge {
+  id: string;
+  organizationId: string;
+  fromNodeId: string;
+  toNodeId: string;
+  relation: OrgEdgeRelation;
+  metadata: Record<string, unknown>;
+  validFrom: string;
+  validTo: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrgGraph {
+  nodes: OrgNode[];
+  edges: OrgEdge[];
+}
+
+export interface CreateOrgNodeInput {
+  kind: OrgNodeKind;
+  name: string;
+  refId?: string | null;
+  config?: Record<string, unknown>;
+  position?: OrgNodePosition;
+}
+
+export interface UpdateOrgNodeInput {
+  name?: string;
+  config?: Record<string, unknown>;
+  position?: OrgNodePosition;
+}
+
+export interface CreateOrgEdgeInput {
+  fromNodeId: string;
+  toNodeId: string;
+  relation: OrgEdgeRelation;
+  metadata?: Record<string, unknown>;
+}
+
+export interface HeartbeatConfig {
+  schedule: string;
+  monitors: string[];
+  actions: string[];
+  enabled: boolean;
+}
+
+export interface ReadinessDimension {
+  key: string;
+  label: string;
+  score: number;
+  missing: string[];
+}
+
+export interface ReadinessReport {
+  dimensions: ReadinessDimension[];
+  overall: number;
+  jamot: boolean;
+  updatedAt: string;
+}
+
+export async function getOrgGraph(orgId: string): Promise<OrgGraph> {
+  return api<OrgGraph>(
+    `/api/organizations/${encodeURIComponent(orgId)}/graph`,
+  );
+}
+
+export async function createOrgNode(
+  orgId: string,
+  input: CreateOrgNodeInput,
+): Promise<OrgNode> {
+  return api<OrgNode>(
+    `/api/organizations/${encodeURIComponent(orgId)}/graph/nodes`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export async function updateOrgNode(
+  orgId: string,
+  nodeId: string,
+  patch: UpdateOrgNodeInput,
+): Promise<OrgNode> {
+  return api<OrgNode>(
+    `/api/organizations/${encodeURIComponent(orgId)}/graph/nodes/${encodeURIComponent(nodeId)}`,
+    { method: "PATCH", body: JSON.stringify(patch) },
+  );
+}
+
+export async function deleteOrgNode(
+  orgId: string,
+  nodeId: string,
+): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>(
+    `/api/organizations/${encodeURIComponent(orgId)}/graph/nodes/${encodeURIComponent(nodeId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function createOrgEdge(
+  orgId: string,
+  input: CreateOrgEdgeInput,
+): Promise<OrgEdge> {
+  return api<OrgEdge>(
+    `/api/organizations/${encodeURIComponent(orgId)}/graph/edges`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export async function deleteOrgEdge(
+  orgId: string,
+  edgeId: string,
+): Promise<{ ok: boolean }> {
+  return api<{ ok: boolean }>(
+    `/api/organizations/${encodeURIComponent(orgId)}/graph/edges/${encodeURIComponent(edgeId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function getReadiness(orgId: string): Promise<ReadinessReport> {
+  return api<ReadinessReport>(
+    `/api/organizations/${encodeURIComponent(orgId)}/readiness`,
+  );
+}
+
+export async function getJamot(orgId: string): Promise<{
+  jamot: boolean;
+  overall: number;
+}> {
+  return api<{ jamot: boolean; overall: number }>(
+    `/api/organizations/${encodeURIComponent(orgId)}/jamot`,
+  );
+}
+
+export interface DreamConfig {
+  objective: string;
+  outcomes: string[];
+  kpis: Array<{ name: string; target: string; unit: string }>;
+  constraints: string[];
+  timeline: Array<{ milestone: string; by: string }>;
+  requiredCapabilities: string[];
+  requiredResponsibilities: string[];
+}
+
+export async function updateDreamConfig(
+  orgId: string,
+  config: DreamConfig,
+): Promise<{ node: OrgNode; dream: DreamConfig }> {
+  return api<{ node: OrgNode; dream: DreamConfig }>(
+    `/api/organizations/${encodeURIComponent(orgId)}/dream`,
+    { method: "PUT", body: JSON.stringify(config) },
+  );
+}

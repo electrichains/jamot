@@ -356,6 +356,127 @@ The Blueprint is versioned.
 
 A proposed organizational change must have provenance.
 
+## 4.3 The Vibe DREAM Configurator
+
+The Organization Visual / organigram is the **Vibe DREAM Configurator**: a visual
+operating environment, not a static org chart. The canvas represents a living
+system:
+
+```text
+DREAM → TEAMS → HUMANS + AGENTS → RESPONSIBILITIES → TOOLS → HEARTBEATS
+```
+
+The **DREAM** is the central purpose and supervisory intelligence. Everything else
+exists to make the DREAM achievable.
+
+### 4.3.1 Core ontology
+
+| Entity | Definition |
+| --- | --- |
+| `DREAM` | The ultimate objective and supervisory intelligence. Visually dominant root object. Selecting it opens a conversational configuration experience. |
+| `TEAM` | A first-class entity: a group of Humans and Agents responsible for a specific mission, with its own purpose, responsibilities, KPIs, tools, authority, autonomy and escalation rules. Reports toward the DREAM. |
+| `HUMAN` | A human actor. |
+| `AGENT` | Any AI/software actor — bots, automations, autonomous workers. **There is no separate Bot entity.** |
+| `RESPONSIBILITY` | A required outcome that must have an owner (human, agent, team, or human+agent). Drives responsibility-first reasoning. |
+| `HEARTBEAT` | A recurring `Monitor → Evaluate → Act → Verify` mechanism. **Never "Loop".** First-class configurable visual object. |
+| `TOOL` | MCP servers/tools, APIs, SaaS, internal applications, databases, workflows, integrations. **Tools are capabilities, not organizational actors.** |
+
+`HUMAN`/`AGENT` map onto the existing `Person`/`Actor(type=human|agent)`/`Agent`
+models; `TOOL` maps onto existing Skills/Connectors/Capabilities/App registry.
+No duplicate actor or integration model is introduced.
+
+### 4.3.2 Relationship types
+
+```text
+DREAM      --requires-->      RESPONSIBILITY
+TEAM       --owns-->          RESPONSIBILITY
+HUMAN      --member of-->     TEAM
+AGENT      --member of-->     TEAM
+AGENT      --responsible for--> RESPONSIBILITY
+AGENT      --uses-->          TOOL
+TEAM       --has access to--> TOOL
+HEARTBEAT  --monitors-->      TEAM
+HEARTBEAT  --monitors-->      DREAM
+HEARTBEAT  --invokes-->       TOOL
+DREAM      --depends on-->    TEAM
+TEAM       --depends on-->    TEAM
+```
+
+### 4.3.3 Responsibility-first architecture
+
+The system reasons **DREAM → Required Responsibilities → Responsible Actors**.
+Every important responsibility must have an owner. Uncovered responsibilities
+are detected and surfaced visually (e.g. `Product ✅`, `Sales ✅`,
+`Marketing ⚠️ Missing Owner`), resolvable directly from the canvas.
+
+### 4.3.4 DREAM as central entity
+
+Users describe the DREAM naturally (e.g. "Build a €1M ARR AI consulting company")
+and it is translated into structured requirements: objectives, outcomes, KPIs,
+constraints, timeline, required capabilities, required responsibilities,
+required teams, actors, tools and heartbeats. The underlying **DREAM skill is
+platform-controlled**: users configure their DREAM but cannot modify the
+orchestration skill. Only the platform creator may change that skill.
+
+### 4.3.5 Organizational resilience
+
+The DREAM must not permanently depend on specific humans:
+
+```text
+HEARTBEAT detects inactivity
+  → DREAM identifies organizational gap
+  → Agents investigate
+  → Agents determine required human capability
+  → Outreach / recruitment workflow initiated
+  → Potential Humans identified
+  → Human approval gates applied where required
+  → New Human joins Team
+  → Responsibility restored
+  → DREAM continues
+```
+
+Humans may change. Teams may change. Agents may adapt. **The DREAM continues.**
+Autonomous outreach/recruitment respects permissions, privacy, security and
+approval policies.
+
+### 4.3.6 DREAM Readiness and JAMOT
+
+A computed **DREAM Readiness** state is derived from actual configuration —
+never hard-coded — considering: DREAM configuration, responsibility coverage,
+actor configuration, team configuration, tool availability, permissions,
+dependencies, heartbeats, recovery mechanisms and escalation paths. Missing
+requirements are exposed visually.
+
+**JAMOT — Just A Matter Of Time** is exposed when the DREAM is sufficiently
+configured and operational. It means operational readiness: the organization is
+configured to continuously pursue the DREAM, detect problems, adapt and recover.
+It does **not** mean guaranteed success.
+
+```text
+DREAM READY
+Responsibilities: 100%
+Actors: 100%
+Tools: 100%
+Heartbeats: 100%
+Recovery: 100%
+[ JAMOT — Just A Matter Of Time ]
+```
+
+### 4.3.7 Contextual AI
+
+The CopilotKit/chat experience understands the entire organizational graph, not
+only the currently selected object. Selected entities supply relevant context
+(DREAM relationship, team, responsibilities, members, tools, heartbeats,
+dependencies, tasks, memory, current state, history). The AI can **perform
+configuration actions**, not just answer questions:
+
+> "Create a Sales Agent for this Team."
+> "Give this Team access to our CRM."
+> "Why is this Team blocking the DREAM?"
+> "Which responsibilities are uncovered?"
+> "What changed since yesterday?"
+> "Find someone to replace the inactive human responsible for this mission."
+
 ---
 
 # 5. People and Personal Intelligence
@@ -487,13 +608,60 @@ Graph should represent:
 - outcomes;
 - relationships;
 - temporal validity;
-- provenance.
+- provenance;
+- organizational graph nodes (DREAM, TEAM, RESPONSIBILITY, HEARTBEAT, TOOL);
+- organizational graph edges and their history.
 
 ## 6.6 Event history
 
 Raw important experience is represented as canonical events.
 
 Memory and knowledge are derived projections.
+
+## 6.7 Organization Graph Memory
+
+The Vibe DREAM organization is a dynamic graph, and important organizational
+relationships must be represented consistently in the memory layer. The
+organizational graph (see §4.3) is projected into memory so the DREAM can reason
+over both **current organizational state** and **organizational history**.
+
+The memory system understands relationships such as:
+
+```text
+DREAM    --requires-->      Responsibility
+TEAM     --owns-->          Responsibility
+HUMAN    --member of-->     Team
+AGENT    --member of-->     Team
+AGENT    --responsible for--> Responsibility
+AGENT    --uses-->          Tool
+TEAM     --uses-->          Tool
+HEARTBEAT --monitors-->     Team
+HEARTBEAT --monitors-->     DREAM
+DREAM    --depends on-->    Team
+TEAM     --depends on-->    Team
+```
+
+Ownership/association edges are stored with **temporal validity**
+(`valid_from` / `valid_to`), so history is preserved rather than overwritten:
+
+- who was responsible for something;
+- which Agent replaced which Human;
+- when a Human disengaged;
+- why a Team was reorganized;
+- which Agent performed an action;
+- which Tool was used;
+- which Heartbeat detected a problem;
+- what decision was made;
+- how the organization responded.
+
+**Source of truth split:** Postgres `org_nodes` / `org_edges` (and the existing
+actors/roles/members tables) are the live current-state source of truth. The
+memory layer (`knowledge_entities`/`knowledge_edges` with `valid_from`/`valid_to`,
+and the Graphiti dual-write projection) preserves history and derived knowledge.
+These two layers are kept consistent: every org-graph mutation writes a scoped
+organization memory event, and the dual-write mirror receives the same payload.
+Reads of current state come from the live graph; reads of history come from
+memory. No conflicting source of truth is created.
 
 ---
 
@@ -1448,6 +1616,30 @@ Global Network
 ## 33.3 GPU rendering
 
 Large graphs should use WebGL/Canvas for geometry and React/DOM overlays only for selected/high-value objects.
+
+## 33.4 DREAM Configurator canvas
+
+The organizational canvas (React Flow / xyflow) is the primary DREAM
+configuration surface, evolving the existing drag-and-drop organigram:
+
+- **Preserve** the existing drag-and-drop architecture.
+- Users can: create entities, drag entities, connect entities, assign
+  responsibilities, move Humans/Agents into Teams, connect Tools, create
+  Heartbeats, inspect dependencies, view organizational health, configure
+  entities, ask contextual AI questions, and execute configuration actions
+  through AI.
+- **Right-click contextual `+` menu:** New Agent, Add Human, Create Team,
+  Create Heartbeat, Add Tool / MCP, Add Internal App, Connect Existing.
+  Creation is immediate and visual; configuration happens through contextual
+  panels and conversational UI.
+- Node kinds map to §4.3.1 (DREAM, TEAM, HUMAN, AGENT, RESPONSIBILITY, TOOL,
+  HEARTBEAT). The DREAM is the visually dominant root. Agent is drawn with a
+  distinct visual treatment; Tools are capabilities (not actors).
+- Node/edge mutations persist via the org-graph API and are projected to memory
+  (§6.7). Drag-to-reparent (team membership) and edge creation persist server-side
+  instead of being client-only.
+- A **DREAM Readiness / JAMOT panel** (§4.3.6) exposes readiness dimensions and
+  missing requirements, with a JAMOT badge when all dimensions are green.
 
 ---
 

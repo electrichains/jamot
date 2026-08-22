@@ -429,6 +429,80 @@ export const relationships = pgTable(
   ],
 );
 
+export const orgNodeKindEnum = pgEnum("org_node_kind", [
+  "dream",
+  "team",
+  "human",
+  "agent",
+  "responsibility",
+  "tool",
+  "heartbeat",
+]);
+
+export const orgEdgeRelationEnum = pgEnum("org_edge_relation", [
+  "requires",
+  "owns",
+  "member_of",
+  "responsible_for",
+  "uses",
+  "has_access_to",
+  "monitors",
+  "invokes",
+  "depends_on",
+]);
+
+export const orgNodes = pgTable(
+  "org_nodes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").references(() => spaces.id),
+    kind: orgNodeKindEnum("kind").notNull(),
+    name: text("name").notNull(),
+    /** Optional reference to an existing actor/entity (people, agents, skills, connectors...). */
+    refId: uuid("ref_id"),
+    config: jsonb("config").notNull().default(sql`'{}'::jsonb`),
+    positionX: real("position_x").notNull().default(0),
+    positionY: real("position_y").notNull().default(0),
+    ...timestamps(),
+  },
+  (table) => [
+    index("org_nodes_org_idx").on(table.organizationId),
+    index("org_nodes_space_idx").on(table.spaceId),
+  ],
+);
+
+export const orgEdges = pgTable(
+  "org_edges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    spaceId: uuid("space_id").references(() => spaces.id),
+    fromNodeId: uuid("from_node_id")
+      .notNull()
+      .references(() => orgNodes.id, { onDelete: "cascade" }),
+    toNodeId: uuid("to_node_id")
+      .notNull()
+      .references(() => orgNodes.id, { onDelete: "cascade" }),
+    relation: orgEdgeRelationEnum("relation").notNull(),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    validFrom: timestamp("valid_from", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    validTo: timestamp("valid_to", { withTimezone: true }),
+    ...timestamps(),
+  },
+  (table) => [
+    index("org_edges_org_idx").on(table.organizationId),
+    index("org_edges_from_idx").on(table.fromNodeId),
+    index("org_edges_to_idx").on(table.toNodeId),
+  ],
+);
+
 export const organicCharts = pgTable("organic_charts", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")

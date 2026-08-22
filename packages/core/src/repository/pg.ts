@@ -26,6 +26,8 @@ import type {
   LeadList,
   LeadListMember,
   MergeCandidate,
+  OrgEdge,
+  OrgNode,
   Organization,
   OutreachCampaign,
   OutreachList,
@@ -91,6 +93,8 @@ import {
   tasks,
   leadLists,
   leadListMembers,
+  orgEdges,
+  orgNodes,
 } from "../schema/index.js";
 import type {
   JamotRepository,
@@ -156,6 +160,37 @@ type OutreachListRow = typeof outreachLists.$inferSelect;
 type OutreachCampaignRow = typeof outreachCampaigns.$inferSelect;
 type OutreachStepRow = typeof outreachSteps.$inferSelect;
 type OutreachSendRow = typeof outreachSends.$inferSelect;
+type OrgNodeRow = typeof orgNodes.$inferSelect;
+type OrgEdgeRow = typeof orgEdges.$inferSelect;
+
+function toOrgNode(row: OrgNodeRow): OrgNode {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    organizationId: row.organizationId as Id,
+    kind: row.kind,
+    name: row.name,
+    refId: (row.refId as Id | null) ?? null,
+    config: (row.config ?? {}) as Record<string, unknown>,
+    position: { x: row.positionX, y: row.positionY },
+  };
+}
+
+function toOrgEdge(row: OrgEdgeRow): OrgEdge {
+  return {
+    id: row.id as Id,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    organizationId: row.organizationId as Id,
+    fromNodeId: row.fromNodeId as Id,
+    toNodeId: row.toNodeId as Id,
+    relation: row.relation,
+    metadata: (row.metadata ?? {}) as Record<string, unknown>,
+    validFrom: row.validFrom.toISOString(),
+    validTo: row.validTo ? row.validTo.toISOString() : null,
+  };
+}
 
 function toActor(row: ActorRow): Actor {
   return {
@@ -3089,6 +3124,115 @@ export function createPgRepository(db: Db): JamotRepository {
     },
     async deleteChannelAccount(id) {
       await db.pool.query(`DELETE FROM channel_accounts WHERE id = $1`, [id]);
+    },
+
+    async listOrgNodes(organizationId) {
+      const { rows } = await db.pool.query<OrgNodeRow>(
+        `SELECT id, organization_id, space_id, kind, name, ref_id, config, position_x, position_y, created_at::text, updated_at::text
+         FROM org_nodes WHERE organization_id = $1 ORDER BY created_at ASC`,
+        [organizationId],
+      );
+      return rows.map(toOrgNode);
+    },
+
+    async getOrgNode(id) {
+      const { rows } = await db.pool.query<OrgNodeRow>(
+        `SELECT id, organization_id, space_id, kind, name, ref_id, config, position_x, position_y, created_at::text, updated_at::text
+         FROM org_nodes WHERE id = $1 LIMIT 1`,
+        [id],
+      );
+      return rows[0] ? toOrgNode(rows[0]) : null;
+    },
+
+    async createOrgNode(input) {
+      const { rows } = await db.pool.query<OrgNodeRow>(
+        `INSERT INTO org_nodes (organization_id, space_id, kind, name, ref_id, config, position_x, position_y)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+         RETURNING id, organization_id, space_id, kind, name, ref_id, config, position_x, position_y, created_at::text, updated_at::text`,
+        [
+          input.organizationId,
+          input.spaceId ?? null,
+          input.kind,
+          input.name,
+          input.refId ?? null,
+          JSON.stringify(input.config ?? {}),
+          input.position?.x ?? 0,
+          input.position?.y ?? 0,
+        ],
+      );
+      if (!rows[0]) throw new Error("failed to create org node");
+      return toOrgNode(rows[0]);
+    },
+
+    async updateOrgNode(id, patch) {
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      if (patch.name !== undefined) {
+        params.push(patch.name);
+        sets.push(`name = $${params.length}`);
+      }
+      if (patch.config !== undefined) {
+        params.push(JSON.stringify(patch.config));
+        sets.push(`config = $${params.length}::jsonb`);
+      }
+      if (patch.position !== undefined) {
+        params.push(patch.position.x);
+        sets.push(`position_x = $${params.length}`);
+        params.push(patch.position.y);
+        sets.push(`position_y = $${params.length}`);
+      }
+      if (sets.length === 0) return this.getOrgNode(id);
+      params.push(id);
+      const { rows } = await db.pool.query<OrgNodeRow>(
+        `UPDATE org_nodes SET ${sets.join(", ")}, updated_at = now()
+         WHERE id = $${params.length}
+         RETURNING id, organization_id, space_id, kind, name, ref_id, config, position_x, position_y, created_at::text, updated_at::text`,
+        params,
+      );
+      return rows[0] ? toOrgNode(rows[0]) : null;
+    },
+
+    async deleteOrgNode(id) {
+      await db.pool.query(`DELETE FROM org_nodes WHERE id = $1`, [id]);
+    },
+
+    async listOrgEdges(organizationId) {
+      const { rows } = await db.pool.query<OrgEdgeRow>(
+        `SELECT id, organization_id, space_id, from_node_id, to_node_id, relation, metadata, valid_from, valid_to, created_at::text, updated_at::text
+         FROM org_edges WHERE organization_id = $1 ORDER BY created_at ASC`,
+        [organizationId],
+      );
+      return rows.map(toOrgEdge);
+    },
+
+    async createOrgEdge(input) {
+      const endpoints = await db.pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM org_nodes WHERE id = ANY($1::uuid[])`,
+        [[input.fromNodeId, input.toNodeId]],
+      );
+      const count = Number(endpoints.rows[0]?.count ?? 0);
+      if (count !== 2) {
+        throw new Error("both edge endpoints must reference existing nodes");
+      }
+      const { rows } = await db.pool.query<OrgEdgeRow>(
+        `INSERT INTO org_edges (organization_id, space_id, from_node_id, to_node_id, relation, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+         RETURNING id, organization_id, space_id, from_node_id, to_node_id, relation, metadata, valid_from, valid_to, created_at::text, updated_at::text`,
+        [
+          input.organizationId,
+          input.spaceId ?? null,
+          input.fromNodeId,
+          input.toNodeId,
+          input.relation,
+          JSON.stringify(input.metadata ?? {}),
+        ],
+      );
+      if (!rows[0]) throw new Error("failed to create org edge");
+      return toOrgEdge(rows[0]);
+    },
+
+    async deleteOrgEdge(id) {
+      await db.pool.query(`DELETE FROM org_edges WHERE id = $1`, [id]);
     },
   };
 

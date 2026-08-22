@@ -12,6 +12,8 @@ import {
   LeadList,
   LeadListMember,
   MergeCandidate,
+  OrgEdge,
+  OrgNode,
   Organization,
   OutreachCampaign,
   OutreachList,
@@ -123,6 +125,8 @@ export function createMemoryRepository(): JamotRepository {
   const mergeCandidateStore = new Map<string, MergeCandidate>();
   const modelProviderStore = new Map<string, ModelProviderRecord>();
   const providerModelStore = new Map<string, ProviderModelRecord>();
+  const orgNodes = new Map<string, OrgNode>();
+  const orgEdges = new Map<string, OrgEdge>();
 
   const repo: JamotRepository = {
     async createModelProvider(input: NewModelProvider) {
@@ -1858,6 +1862,85 @@ export function createMemoryRepository(): JamotRepository {
 
     async deleteChannelAccount(id) {
       channelAccounts.delete(id);
+    },
+
+    async listOrgNodes(organizationId) {
+      return [...orgNodes.values()].filter(
+        (n) => n.organizationId === organizationId,
+      );
+    },
+
+    async getOrgNode(id) {
+      return orgNodes.get(id) ?? null;
+    },
+
+    async createOrgNode(input) {
+      const node = OrgNode.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        organizationId: input.organizationId,
+        kind: input.kind,
+        name: input.name,
+        refId: input.refId ?? null,
+        config: input.config ?? {},
+        position: input.position ?? { x: 0, y: 0 },
+      });
+      orgNodes.set(node.id, node);
+      return node;
+    },
+
+    async updateOrgNode(id, patch) {
+      const existing = orgNodes.get(id);
+      if (!existing) return null;
+      const updated = OrgNode.parse({
+        ...existing,
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.config !== undefined ? { config: patch.config } : {}),
+        ...(patch.position !== undefined ? { position: patch.position } : {}),
+        updatedAt: now(),
+      });
+      orgNodes.set(id, updated);
+      return updated;
+    },
+
+    async deleteOrgNode(id) {
+      orgNodes.delete(id);
+      for (const [edgeId, edge] of orgEdges) {
+        if (edge.fromNodeId === id || edge.toNodeId === id) {
+          orgEdges.delete(edgeId);
+        }
+      }
+    },
+
+    async listOrgEdges(organizationId) {
+      return [...orgEdges.values()].filter(
+        (e) => e.organizationId === organizationId,
+      );
+    },
+
+    async createOrgEdge(input) {
+      if (!orgNodes.has(input.fromNodeId) || !orgNodes.has(input.toNodeId)) {
+        throw new Error("both edge endpoints must reference existing nodes");
+      }
+      const edge = OrgEdge.parse({
+        id: uuid(),
+        createdAt: now(),
+        updatedAt: now(),
+        organizationId: input.organizationId,
+        fromNodeId: input.fromNodeId,
+        toNodeId: input.toNodeId,
+        relation: input.relation,
+        metadata: input.metadata ?? {},
+        validFrom: now(),
+        validTo: null,
+      });
+      orgEdges.set(edge.id, edge);
+      return edge;
+    },
+
+    async deleteOrgEdge(id) {
+      orgEdges.delete(id);
     },
   };
 

@@ -11,6 +11,8 @@ import type {
   LeadList,
   LeadListMember,
   MergeCandidate,
+  OrgEdge,
+  OrgNode,
   Organization,
   OutreachCampaign,
   OutreachList,
@@ -1032,4 +1034,36 @@ export interface JamotRepository {
     },
   ): Promise<ChannelAccountRecord | null>;
   deleteChannelAccount(id: string): Promise<void>;
+
+  // org graph (Vibe DREAM)
+  listOrgNodes(organizationId: string): Promise<OrgNode[]>;
+  getOrgNode(id: string): Promise<OrgNode | null>;
+  createOrgNode(input: {
+    organizationId: string;
+    spaceId?: string | null;
+    kind: OrgNode["kind"];
+    name: string;
+    refId?: string | null;
+    config?: Record<string, unknown>;
+    position?: { x: number; y: number };
+  }): Promise<OrgNode>;
+  updateOrgNode(
+    id: string,
+    patch: Partial<{
+      name: string;
+      config: Record<string, unknown>;
+      position: { x: number; y: number };
+    }>,
+  ): Promise<OrgNode | null>;
+  deleteOrgNode(id: string): Promise<void>;
+  listOrgEdges(organizationId: string): Promise<OrgEdge[]>;
+  createOrgEdge(input: {
+    organizationId: string;
+    spaceId?: string | null;
+    fromNodeId: string;
+    toNodeId: string;
+    relation: OrgEdge["relation"];
+    metadata?: Record<string, unknown>;
+  }): Promise<OrgEdge>;
+  deleteOrgEdge(id: string): Promise<void>;
 }

@@ -1,14 +1,20 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { AtSign, Paperclip, Plus } from "lucide-react";
 
-import { CopilotChat, useAgentContext } from "@copilotkit/react-core/v2";
+import {
+  CopilotChat,
+  useAgent,
+  useAgentContext,
+} from "@copilotkit/react-core/v2";
 import "@copilotkit/react-core/v2/styles.css";
 import { CommerceToolBridge } from "@/components/commerce/use-commerce-tools";
 import { LeadToolBridge } from "@/components/leads/LeadToolBridge";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
+import { DREAM_CONFIG_EVENT } from "@/lib/dream-config";
+import { DreamToolBridge } from "./DreamToolBridge";
 import { MentionTextarea } from "./MentionTextarea";
 
 function Hint() {
@@ -53,10 +59,31 @@ function ChatContent() {
     value: orgContext,
   });
 
+  const { agent } = useAgent({});
+
+  useEffect(() => {
+    const onDreamConfig = (event: Event) => {
+      const detail = (event as CustomEvent<{ objective?: string }>).detail;
+      const objective = detail?.objective;
+      const prompt = objective
+        ? `Help me configure the DREAM for ${orgContext.spaceName}. Current objective: "${objective}". Let's refine the outcomes, KPIs, constraints and required responsibilities.`
+        : `Help me configure the DREAM for ${orgContext.spaceName}: define the objective, measurable outcomes, KPIs, constraints, timeline, required capabilities and required responsibilities.`;
+      agent.addMessage({
+        id: `dream-${Date.now()}`,
+        role: "user",
+        content: prompt,
+      });
+      void agent.runAgent();
+    };
+    window.addEventListener(DREAM_CONFIG_EVENT, onDreamConfig);
+    return () => window.removeEventListener(DREAM_CONFIG_EVENT, onDreamConfig);
+  }, [agent, orgContext.spaceName]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <CommerceToolBridge />
       <LeadToolBridge />
+      <DreamToolBridge />
       <div className="min-h-0 flex-1 overflow-hidden">
         <CopilotChat
           className="h-full"

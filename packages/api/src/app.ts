@@ -18,6 +18,7 @@ import { healthRoutes } from "./routes/health.js";
 import { actorsRoutes } from "./routes/actors.js";
 import { peopleRoutes } from "./routes/people.js";
 import { organizationsRoutes } from "./routes/organizations.js";
+import { dreamRoutes } from "./routes/dream.js";
 import { spacesRoutes } from "./routes/spaces.js";
 import { rolesRoutes } from "./routes/roles.js";
 import { tasksRoutes } from "./routes/tasks.js";
@@ -218,6 +219,7 @@ export async function buildApp(opts: BuildAppOptions) {
   await app.register(actorsRoutes(opts.repository), { prefix: "/api" });
   await app.register(peopleRoutes(opts.repository), { prefix: "/api" });
   await app.register(organizationsRoutes(opts.repository, { memoryProvider, apps }), { prefix: "/api" });
+  await app.register(dreamRoutes(opts.repository, { memoryProvider }), { prefix: "/api" });
   await app.register(spacesRoutes(opts.repository), { prefix: "/api" });
   await app.register(rolesRoutes(opts.repository), { prefix: "/api" });
   await app.register(tasksRoutes(opts.repository), { prefix: "/api" });

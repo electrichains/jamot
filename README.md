@@ -119,6 +119,41 @@ pnpm -r build       # build all packages
 
 `/api/health`, `/actors`, `/people`, `/organizations`, `/spaces`, `/roles`, `/tasks`, `/auth` (login/logout/me + `/auth/google` OAuth), `/agents` (+ `/agents/import-mcp`), `/skills`, `/connectors`, `/capabilities`, `/vault`, `/channels`, `/apps` (+ `/apps/resolve`), `/memory`, `/knowledge`, `/reputation`, `/treasury`, `/routing/intent`, `/tasks/:id/assign`.
 
+## Vibe DREAM Configurator (org graph)
+
+The Organization Visual is the **Vibe DREAM Configurator**: a living system of
+`DREAM → TEAMS → HUMANS + AGENTS → RESPONSIBILITIES → TOOLS → HEARTBEATS`
+represented as typed graph nodes and edges, persisted in `org_nodes` /
+`org_edges` (migration `0021_dream_graph.sql`, schema `orgNodes`/`orgEdges` in
+`packages/core/src/schema/index.ts`, contracts in
+`packages/contracts/src/dream.ts`). Every mutation is written to organization
+memory (events like `node.created`, `edge.created`, `dream.configured`,
+`heartbeat.fired`), which the Graphiti dual-write projection mirrors.
+
+DREAM graph endpoints (RBAC: reads = org access, writes = org admin for DREAM
+config / deletes, org access for node/edge mutations):
+
+- `GET /organizations/:id/graph` — full graph (auto-creates the org's DREAM node on first read)
+- `POST|PATCH|DELETE /organizations/:id/graph/nodes[/:nodeId]`
+- `POST|DELETE /organizations/:id/graph/edges[/:edgeId]`
+- `PUT /organizations/:id/dream` — structured DREAM config (objective, outcomes, KPIs, constraints, timeline, capabilities, responsibilities)
+- `GET /organizations/:id/readiness` — computed DREAM Readiness (never hard-coded)
+- `GET /organizations/:id/jamot` — `{ jamot, overall }` (JAMOT = Just A Matter Of Time, operational readiness)
+
+DREAM Readiness is computed by `packages/core/src/dream/readiness.ts` across
+10 dimensions (dream objective, responsibility coverage, actors, teams, tools,
+permissions, dependencies, heartbeats, recovery, escalation). JAMOT means the
+organization is configured to continuously pursue the DREAM, detect problems,
+adapt and recover. The underlying **DREAM orchestration skill is platform-owned**
+(`packages/core/src/dream/skill.ts`) and not user-editable.
+
+Org-graph **Heartbeats** are executed by the scheduler worker
+(`packages/core/src/dream/heartbeat.ts`, wired in `packages/workers`): each due
+heartbeat runs Monitor → Evaluate → Act → Verify and records
+`heartbeat.fired` / `heartbeat.detected` organizational memory events (used by
+the resilience/recruitment flow via the existing outreach + policy-engine
+infrastructure).
+
 ## Environment variables
 
 See `.env.example`. Key vars: `DATABASE_URL`, `SESSION_SECRET`, `SECRET_ENCRYPTION_KEY`, `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` (LLM), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`/`FRONTEND_URL` (OAuth), `WHATSAPP_SESSION_DIR`/`MATRIX_*` (channels).

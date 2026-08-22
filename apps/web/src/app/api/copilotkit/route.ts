@@ -11,6 +11,8 @@ const BUILDER_PROMPT =
   "You are the Jamot Agent Builder. Help users design and create agents. Ask for name, role, autonomy level (suggest/approve/autonomous), and channels. Then call createAgent.";
 const SKILLS_PROMPT =
   "You are the Jamot Skill Assistant. Help users author and improve skills in Markdown. Produce FULL revised Markdown on modification requests.";
+const DREAM_PROMPT =
+  "You are the Vibe DREAM Configurator. You configure the organization's DREAM and its surrounding org graph (TEAMS, HUMANS+AGENTS, RESPONSIBILITIES, TOOLS, HEARTBEATS). Help users define the DREAM naturally (objectives, outcomes, KPIs, constraints, timeline, required capabilities and responsibilities) and turn it into a configured, resilient organization. You can PERFORM configuration actions via the frontend tools: configureDream, createTeam, createHeartbeat, createResponsibility, addTool, connectNodes, assignResponsibility, moveMemberToTeam, createAgent. Reason responsibility-first: DREAM -> required responsibilities -> owners. Uncover missing owners, missing heartbeats, and gaps, and act to resolve them. The DREAM orchestration skill is platform-owned and not user-editable.";
 
 interface RuntimeModelResponse {
   configured: boolean;
@@ -97,6 +99,7 @@ async function buildRuntime(req: NextRequest) {
       default: new BuiltInAgent({ model, apiKey: resolved.apiKey, prompt: DEFAULT_PROMPT, maxSteps: 5 }),
       builder: new BuiltInAgent({ model, apiKey: resolved.apiKey, prompt: BUILDER_PROMPT, maxSteps: 6 }),
       skills: new BuiltInAgent({ model, apiKey: resolved.apiKey, prompt: SKILLS_PROMPT, maxSteps: 4 }),
+      dream: new BuiltInAgent({ model, apiKey: resolved.apiKey, prompt: DREAM_PROMPT, maxSteps: 8 }),
     },
     a2ui: {},
   });

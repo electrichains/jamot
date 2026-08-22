@@ -15,3 +15,4 @@ export * from "./commerce.js";
 export * from "./payments.js";
 export * from "./lead.js";
 export * from "./outreach.js";
+export * from "./dream.js";

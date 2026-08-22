@@ -8,6 +8,8 @@ import {
   withAdvisoryLock,
   DEFAULT_HEARTBEAT_ACTIONS,
 } from "@jamot/core/scheduler";
+import { createPostgresMemoryProvider } from "@jamot/core/memory";
+import { runOrgHeartbeats } from "@jamot/core/dream";
 
 export interface SchedulerWorkerOptions {
   databaseUrl?: string;
@@ -22,6 +24,36 @@ export async function startSchedulerWorker(
   const repo = createPgRepository(dbHandle);
   const scheduler = createScheduler();
   const outreach = createOutreachProcessor(repo);
+  const memoryProvider = createPostgresMemoryProvider(dbHandle);
+
+  scheduler.register({
+    id: "org-heartbeats",
+    cron: "* * * * *",
+    async run() {
+      const now = new Date();
+      const organizations = await repo.listOrganizations();
+      for (const organization of organizations) {
+        try {
+          const nodes = await repo.listOrgNodes(organization.id);
+          const edges = await repo.listOrgEdges(organization.id);
+          const runs = await runOrgHeartbeats(
+            organization.id,
+            { nodes, edges },
+            memoryProvider,
+            now,
+          );
+          for (const run of runs) {
+            console.log("[org-heartbeat]", run.nodeName, {
+              monitors: run.monitors,
+              gaps: run.gaps,
+            });
+          }
+        } catch (err) {
+          console.error("[org-heartbeat] error for org", organization.id, err);
+        }
+      }
+    },
+  });
 
   scheduler.register({
     id: "outreach",

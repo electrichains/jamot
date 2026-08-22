@@ -1,17 +1,74 @@
-export type OrgKind = "dream" | "manager" | "dept" | "human" | "agent";
+import type {
+  OrgEdgeRelation,
+  OrgGraph,
+  OrgNodeKind,
+} from "@/lib/api-client";
 
-export interface OrgNode {
-  id: string;
-  label: string;
-  kind: OrgKind;
-  parentId: string | null;
-  role?: string;
-  skills?: string[];
-  taskCount?: number;
-  memory?: string;
-  currentTasks?: string[];
-  performance?: string;
-}
+export type {
+  OrgEdge,
+  OrgEdgeRelation,
+  OrgGraph,
+  OrgNode,
+  OrgNodeKind as OrgKind,
+} from "@/lib/api-client";
+
+export const KIND_LABEL: Record<OrgNodeKind, string> = {
+  dream: "Dream",
+  team: "Team",
+  human: "Human",
+  agent: "Agent",
+  responsibility: "Responsibility",
+  tool: "Tool",
+  heartbeat: "Heartbeat",
+};
+
+export const KIND_ACCENT: Record<OrgNodeKind, string> = {
+  dream: "#8b5cf6",
+  team: "#14b8a6",
+  human: "#0ea5e9",
+  agent: "#10b981",
+  responsibility: "#f59e0b",
+  tool: "#a1a1aa",
+  heartbeat: "#f43f5e",
+};
+
+export const RELATION_LABEL: Record<OrgEdgeRelation, string> = {
+  requires: "requires",
+  owns: "owns",
+  member_of: "member of",
+  responsible_for: "responsible for",
+  uses: "uses",
+  has_access_to: "has access to",
+  monitors: "monitors",
+  invokes: "invokes",
+  depends_on: "depends on",
+};
+
+export const RELATIONS: OrgEdgeRelation[] = [
+  "requires",
+  "owns",
+  "member_of",
+  "responsible_for",
+  "uses",
+  "has_access_to",
+  "monitors",
+  "invokes",
+  "depends_on",
+];
+
+/**
+ * Which relations are meaningful to draw FROM a given source node kind. Used by
+ * the relation picker that opens when a user drags a new connection.
+ */
+export const ALLOWED_RELATIONS_FROM: Record<OrgNodeKind, OrgEdgeRelation[]> = {
+  dream: ["requires", "owns", "depends_on"],
+  team: ["owns", "requires", "uses", "depends_on"],
+  human: ["responsible_for", "uses", "has_access_to", "member_of", "invokes", "owns"],
+  agent: ["responsible_for", "uses", "has_access_to", "member_of", "invokes", "owns"],
+  responsibility: ["requires", "depends_on", "uses"],
+  tool: ["has_access_to", "invokes", "requires"],
+  heartbeat: ["monitors", "invokes", "depends_on"],
+};
 
 export interface ChangeRequest {
   nodeId: string;
@@ -20,141 +77,178 @@ export interface ChangeRequest {
   newParentLabel: string;
 }
 
-export const KIND_LABEL: Record<OrgKind, string> = {
-  dream: "Dream",
-  manager: "Manager",
-  dept: "Department",
-  human: "Human",
-  agent: "Agent",
-};
-
-export const orgNodes: OrgNode[] = [
-  {
-    id: "dream",
-    label: "DREAM",
-    kind: "dream",
-    parentId: null,
-    role: "North star and purpose",
-    skills: ["Vision", "Alignment", "Stewardship"],
-    memory: "The long-term mission that every role ultimately serves.",
-    currentTasks: ["Reaffirm quarterly direction"],
-    performance: "Guiding — no completion metric",
-  },
-  {
-    id: "manager",
-    label: "Main Manager",
-    kind: "manager",
-    parentId: "dream",
-    role: "Coordinates all departments",
-    skills: ["Delegation", "Coordination", "Reporting"],
-    taskCount: 6,
-    memory: "Owns the day-to-day cadence across Sales, Operations and Finance.",
-    currentTasks: ["Weekly standup", "Roadmap review", "Hiring screen"],
-    performance: "6 open items on track",
-  },
-  {
-    id: "sales",
-    label: "Sales",
-    kind: "dept",
-    parentId: "manager",
-    role: "Revenue generation",
-    skills: ["Pipeline", "Outbound", "Closing"],
-    memory: "Goal: grow recurring revenue while keeping outreach human.",
-    currentTasks: ["Q3 pipeline review"],
-    performance: "104% of quota",
-  },
-  {
-    id: "operations",
-    label: "Operations",
-    kind: "dept",
-    parentId: "manager",
-    role: "Process and delivery",
-    skills: ["Process design", "Logistics", "Vendor management"],
-    memory: "Keeps delivery reliable as the team scales.",
-    currentTasks: ["Vendor contract renewal"],
-    performance: "All SLAs green",
-  },
-  {
-    id: "finance",
-    label: "Finance",
-    kind: "dept",
-    parentId: "manager",
-    role: "Budgeting and reporting",
-    skills: ["FP&A", "Invoicing", "Reconciliation"],
-    memory: "Single source of truth for money in and out.",
-    currentTasks: ["Close books for last month"],
-    performance: "On schedule",
-  },
-  {
-    id: "maria",
-    label: "Maria",
-    kind: "human",
-    parentId: "sales",
-    role: "Sales Lead",
-    skills: ["CRM", "Pipeline", "Cold outreach"],
-    taskCount: 4,
-    memory: "Prefers concise updates; owns key accounts.",
-    currentTasks: ["Follow up Acme deal", "Draft Q3 forecast"],
-    performance: "112% of quota (30d)",
-  },
-  {
-    id: "outreach-agent",
-    label: "Outreach Agent",
-    kind: "agent",
-    parentId: "sales",
-    role: "Outbound prospecting agent",
-    skills: ["Prospecting", "Email sequencing", "Enrichment"],
-    taskCount: 12,
-    memory: "Trained on Maria's tone; respects quiet hours.",
-    currentTasks: ["Sequence: 40 new leads", "Refresh contact data"],
-    performance: "31% reply rate",
-  },
-  {
-    id: "maria-assistant",
-    label: "Maria Assistant",
-    kind: "agent",
-    parentId: "sales",
-    role: "Executive assistant for Maria",
-    skills: ["Scheduling", "Summaries", "CRM hygiene"],
-    taskCount: 3,
-    memory: "Keeps Maria's calendar and inbox tidy.",
-    currentTasks: ["Prep Monday brief", "Log call notes"],
-    performance: "All summaries on time",
-  },
-  {
-    id: "luca",
-    label: "Luca",
-    kind: "human",
-    parentId: "operations",
-    role: "Operations Manager",
-    skills: ["Process design", "Logistics", "Vendor management"],
-    taskCount: 5,
-    memory: "Owns the runbook; careful with scope creep.",
-    currentTasks: ["Ship Q3 OKRs", "Vendor audit"],
-    performance: "100% SLAs (30d)",
-  },
-  {
-    id: "andrea",
-    label: "Andrea",
-    kind: "human",
-    parentId: "finance",
-    role: "Founder & Owner",
-    skills: ["FP&A", "Invoicing", "Budgeting"],
-    taskCount: 4,
-    memory: "Owns the treasury and monthly close.",
-    currentTasks: ["Close books", "Update cash forecast"],
-    performance: "Close on schedule",
-  },
-  {
-    id: "finance-ai",
-    label: "Finance AI",
-    kind: "agent",
-    parentId: "finance",
-    role: "Bookkeeping & reconciliation agent",
-    skills: ["Reconciliation", "Expense coding", "Forecasting"],
-    taskCount: 9,
-    memory: "Flags anomalies and drafts reports for Andrea.",
-    currentTasks: ["Reconcile bank feed", "Code 60 expenses"],
-    performance: "99.2% match rate",
-  },
+/** Parent-forming relations used to derive a deterministic tree for layout. */
+export const PARENT_RELATIONS: OrgEdgeRelation[] = [
+  "member_of",
+  "owns",
+  "depends_on",
 ];
+
+/** A small sample graph used when OrgChart renders without a live orgId. */
+export const sampleGraph: OrgGraph = {
+  nodes: [
+    {
+      id: "dream",
+      organizationId: "sample",
+      kind: "dream",
+      name: "DREAM",
+      refId: null,
+      config: {
+        objective: "€1M ARR AI consulting company",
+        outcomes: ["Repeatable delivery", "Defensible moat"],
+        kpis: [
+          { name: "ARR", target: "€1M", unit: "EUR" },
+          { name: "Net retention", target: ">110%", unit: "percent" },
+        ],
+      },
+      position: { x: 0, y: 0 },
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "team-core",
+      organizationId: "sample",
+      kind: "team",
+      name: "Core Team",
+      refId: null,
+      config: { mission: "Deliver client outcomes end to end." },
+      position: { x: 0, y: 0 },
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "hum-owner",
+      organizationId: "sample",
+      kind: "human",
+      name: "Andrea",
+      refId: null,
+      config: { title: "Founder & Owner" },
+      position: { x: 0, y: 0 },
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "ag-sales",
+      organizationId: "sample",
+      kind: "agent",
+      name: "Sales Agent",
+      refId: null,
+      config: { autonomy: "approve" },
+      position: { x: 0, y: 0 },
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "resp-delivery",
+      organizationId: "sample",
+      kind: "responsibility",
+      name: "Delivery",
+      refId: null,
+      config: {},
+      position: { x: 0, y: 0 },
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "tool-crm",
+      organizationId: "sample",
+      kind: "tool",
+      name: "CRM",
+      refId: null,
+      config: { provider: "mcp" },
+      position: { x: 0, y: 0 },
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "hb-pulse",
+      organizationId: "sample",
+      kind: "heartbeat",
+      name: "Weekly pulse",
+      refId: null,
+      config: {
+        schedule: "0 9 * * 1",
+        monitors: ["pipeline", "NPS"],
+        actions: ["escalate"],
+        enabled: true,
+      },
+      position: { x: 0, y: 0 },
+      createdAt: "",
+      updatedAt: "",
+    },
+  ],
+  edges: [
+    {
+      id: "e1",
+      organizationId: "sample",
+      fromNodeId: "team-core",
+      toNodeId: "dream",
+      relation: "member_of",
+      metadata: {},
+      validFrom: "",
+      validTo: null,
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "e2",
+      organizationId: "sample",
+      fromNodeId: "hum-owner",
+      toNodeId: "team-core",
+      relation: "member_of",
+      metadata: {},
+      validFrom: "",
+      validTo: null,
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "e3",
+      organizationId: "sample",
+      fromNodeId: "ag-sales",
+      toNodeId: "team-core",
+      relation: "member_of",
+      metadata: {},
+      validFrom: "",
+      validTo: null,
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "e4",
+      organizationId: "sample",
+      fromNodeId: "hum-owner",
+      toNodeId: "resp-delivery",
+      relation: "owns",
+      metadata: {},
+      validFrom: "",
+      validTo: null,
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "e5",
+      organizationId: "sample",
+      fromNodeId: "ag-sales",
+      toNodeId: "tool-crm",
+      relation: "uses",
+      metadata: {},
+      validFrom: "",
+      validTo: null,
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      id: "e6",
+      organizationId: "sample",
+      fromNodeId: "hb-pulse",
+      toNodeId: "team-core",
+      relation: "monitors",
+      metadata: {},
+      validFrom: "",
+      validTo: null,
+      createdAt: "",
+      updatedAt: "",
+    },
+  ],
+};

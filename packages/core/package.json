@@ -23,6 +23,7 @@
     "./ingest": "./src/ingest/index.ts",
     "./memory": "./src/memory/index.ts",
     "./knowledge": "./src/knowledge/index.ts",
+    "./dream": "./src/dream/index.ts",
     "./scheduler": "./src/scheduler/index.ts",
     "./apps": "./src/apps/index.ts",
     "./resolver": "./src/resolver/index.ts",
