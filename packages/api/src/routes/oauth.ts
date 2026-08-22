@@ -30,6 +30,15 @@ export default async function oauthRoutes(
     if (!clientId || !redirectUri) {
       return reply.code(501).send({ error: "Google OAuth is not configured" });
     }
+    // Start a fresh session: regenerating the id invalidates any stale
+    // pre-COOKIE_DOMAIN host-only session cookie and guarantees the OAuth
+    // start→callback round-trip uses one consistent session. Two coexisting
+    // jamot_session cookies would otherwise cause an "invalid oauth state"
+    // mismatch in the callback.
+    await new Promise<void>((resolve) => {
+      request.session.regenerate(() => resolve());
+    });
+    clearStaleHostOnlySessionCookie(reply);
     const state = randomBytes(16).toString("hex");
     request.session.set("oauthState", state);
     return reply.redirect(buildGoogleAuthUrl(clientId, redirectUri, state));

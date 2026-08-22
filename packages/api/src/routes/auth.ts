@@ -27,6 +27,12 @@ export function authRoutes(repo: JamotRepository) {
       const valid = await verifyPassword(body.password, user.passwordHash);
       if (!valid) return fail(reply, 401, "invalid credentials");
 
+      // Fresh session id + clear stale host-only cookie: guarantees a single
+      // consistent session after login even if the browser still holds an old
+      // pre-COOKIE_DOMAIN jamot_session cookie.
+      await new Promise<void>((resolve) => {
+        request.session.regenerate(() => resolve());
+      });
       clearStaleHostOnlySessionCookie(reply);
       request.session.set("actorId", user.actor.id);
       request.session.set("personId", user.person.id);
