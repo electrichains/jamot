@@ -194,9 +194,9 @@ function toOrgEdge(row: OrgEdgeRow): OrgEdge {
 
 // The org graph is queried with raw SQL (Drizzle schema is schema-only), so the
 // snake_case columns are aliased back to the camelCase row shape the mappers
-// read. `created_at`/`updated_at` are cast to text to match the schema's
-// { mode: "string" } timestamps; `valid_from`/`valid_to` stay timestamps so
-// `toOrgEdge` can call `.toISOString()`.
+// read. `created_at`/`updated_at` are formatted as ISO-8601 strings to match the
+// schema's { mode: "string" } timestamps (and Zod's z.string().datetime());
+// `valid_from`/`valid_to` stay timestamps so `toOrgEdge` can call `.toISOString()`.
 const ORG_NODE_SELECT = `
   id,
   organization_id AS "organizationId",
@@ -207,8 +207,8 @@ const ORG_NODE_SELECT = `
   config,
   position_x AS "positionX",
   position_y AS "positionY",
-  created_at::text AS "createdAt",
-  updated_at::text AS "updatedAt"
+  to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt",
+  to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "updatedAt"
 `;
 const ORG_EDGE_SELECT = `
   id,
@@ -220,8 +220,8 @@ const ORG_EDGE_SELECT = `
   metadata,
   valid_from AS "validFrom",
   valid_to AS "validTo",
-  created_at::text AS "createdAt",
-  updated_at::text AS "updatedAt"
+  to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "createdAt",
+  to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "updatedAt"
 `;
 
 function toActor(row: ActorRow): Actor {
