@@ -32,15 +32,32 @@ export async function actorRoleInSpace(
   actorId: Id,
   spaceId: Id,
 ): Promise<RoleKind | null> {
-  const space = await repo.getSpace(spaceId);
+  // The app shell uses the literal "personal" id for the personal space; it is
+  // not a UUID, so resolve it to the actor's real personal space before
+  // querying the DB (otherwise getSpace("personal") throws a uuid cast error).
+  const resolved = await resolveSpaceIdForActor(repo, actorId, spaceId);
+  if (!resolved) return null;
+  const space = await repo.getSpace(resolved);
   if (space && space.ownerActorId === actorId) return "owner";
   const roles = await repo.listRolesForActor(actorId);
-  const inSpace = roles.filter((r) => r.spaceId === spaceId);
+  const inSpace = roles.filter((r) => r.spaceId === resolved);
   if (inSpace.length === 0) return null;
   return inSpace.reduce<RoleKind>(
     (max, r) => (ROLE_WEIGHT[r.kind] > ROLE_WEIGHT[max] ? r.kind : max),
     inSpace[0]!.kind,
   );
+}
+
+/** Map the literal "personal" space id to the actor's actual personal space id. */
+async function resolveSpaceIdForActor(
+  repo: JamotRepository,
+  actorId: Id,
+  spaceId: Id,
+): Promise<Id | null> {
+  if (spaceId !== ("personal" as Id)) return spaceId;
+  const spaces = await repo.listSpaces();
+  const personal = spaces.find((s) => s.kind === "personal" && s.ownerActorId === actorId);
+  return (personal?.id ?? null) as Id | null;
 }
 
 export async function loadUser(

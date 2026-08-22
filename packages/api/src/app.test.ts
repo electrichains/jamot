@@ -176,6 +176,23 @@ describe("tasks", () => {
   });
 });
 
+describe("personal space id alias", () => {
+  it("resolves the literal 'personal' spaceId to the actor's personal space instead of 500ing", async () => {
+    const app = await makeApp();
+    const cookie = await registerAndLogin(app, "personal@example.com", "password123", "Personal");
+
+    // The app shell sends spaceId="personal" for the personal space. This used
+    // to hit getSpace("personal") -> invalid uuid cast -> 500.
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/wa/accounts?spaceId=personal",
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(res.json().items)).toBe(true);
+  });
+});
+
 describe("composio key", () => {
   it("lets any authenticated user set and read the global composio key", async () => {
     const app = await makeApp();
