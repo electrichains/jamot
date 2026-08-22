@@ -1,60 +1,113 @@
 import type { NextRequest } from "next/server";
-import {
-  CopilotRuntime,
-  copilotRuntimeNextJSAppRouterEndpoint,
-} from "@copilotkit/runtime";
+import { CopilotRuntime, copilotRuntimeNextJSAppRouterEndpoint } from "@copilotkit/runtime";
 import { BuiltInAgent } from "@copilotkit/runtime/v2";
+import { createOpenAI } from "@ai-sdk/openai";
 
-// --- Module-level runtime (runs ONCE at server startup) ---
-const MODEL = process.env.OPENAI_MODEL || "openai/gpt-4o-mini";
-const API_KEY = process.env.OPENAI_API_KEY ?? "";
-const BASE_URL = process.env.OPENAI_BASE_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-console.log("[copilotkit] STARTUP model=%s apiKeyLen=%d baseUrl=%s", MODEL, API_KEY.length, BASE_URL || "(none)");
+const DEFAULT_PROMPT =
+  "You are the Jamot Main Manager. Help plan, delegate and track work. Delegate to searchPeople/searchAgents tools when available. Handle supplier procurement: register suppliers, review POs. High-risk actions must wait for explicit confirmation.";
+const BUILDER_PROMPT =
+  "You are the Jamot Agent Builder. Help users design and create agents. Ask for name, role, autonomy level (suggest/approve/autonomous), and channels. Then call createAgent.";
+const SKILLS_PROMPT =
+  "You are the Jamot Skill Assistant. Help users author and improve skills in Markdown. Produce FULL revised Markdown on modification requests.";
 
-if (BASE_URL) {
-  process.env.OPENAI_BASE_URL = BASE_URL;
+interface RuntimeModelResponse {
+  configured: boolean;
+  kind?: "openai" | "anthropic";
+  model?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  providerName?: string;
+  reason?: string;
 }
 
-const copilotRuntime = new CopilotRuntime({
-  agents: {
-    default: new BuiltInAgent({
-      model: MODEL,
-      apiKey: API_KEY,
-      prompt:
-        "You are the Jamot Main Manager. Help plan, delegate and track work. Delegate to searchPeople/searchAgents tools when available. Handle supplier procurement: register suppliers, review POs. High-risk actions must wait for explicit confirmation.",
-      maxSteps: 5,
-    }),
-    builder: new BuiltInAgent({
-      model: MODEL,
-      apiKey: API_KEY,
-      prompt:
-        "You are the Jamot Agent Builder. Help users design and create agents. Ask for name, role, autonomy level (suggest/approve/autonomous), and channels. Then call createAgent.",
-      maxSteps: 6,
-    }),
-    skills: new BuiltInAgent({
-      model: MODEL,
-      apiKey: API_KEY,
-      prompt:
-        "You are the Jamot Skill Assistant. Help users author and improve skills in Markdown. Produce FULL revised Markdown on modification requests.",
-      maxSteps: 4,
-    }),
-  },
-  a2ui: {},
-});
+/**
+ * Resolve the chat model from the platform's Settings configuration
+ * (Settings > Models) by calling the API's /models/runtime with the user's
+ * session cookie. Falls back to env vars when the API is unreachable.
+ */
+async function resolveChatModel(req: NextRequest): Promise<{
+  modelId: string;
+  kind: "openai" | "anthropic";
+  apiKey: string;
+  baseUrl: string | null;
+}> {
+  const cookieHeader = req.headers.get("cookie") ?? "";
+  const orgId = req.cookies.get("jamot_active_org")?.value;
 
-console.log("[copilotkit] CopilotRuntime created OK");
+  try {
+    if (cookieHeader) {
+      const url = new URL(`${API_URL}/api/models/runtime`);
+      if (orgId) url.searchParams.set("organizationId", orgId);
+      const res = await fetch(url.toString(), {
+        headers: { cookie: cookieHeader },
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = (await res.json()) as RuntimeModelResponse;
+        if (data.configured && data.apiKey && data.kind && data.model) {
+          console.log(
+            "[copilotkit] resolved model:",
+            data.providerName ?? data.model,
+            data.baseUrl ? "@" + data.baseUrl : "",
+          );
+          return {
+            modelId: data.model,
+            kind: data.kind,
+            apiKey: data.apiKey,
+            baseUrl: data.baseUrl ?? null,
+          };
+        }
+        console.warn("[copilotkit] runtime not configured, reason:", data.reason ?? "unknown");
+      } else {
+        console.warn("[copilotkit] runtime status:", res.status);
+      }
+    }
+  } catch (err) {
+    console.error("[copilotkit] resolve error:", err instanceof Error ? err.message : String(err));
+  }
 
-const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
-  runtime: copilotRuntime,
-  endpoint: "/api/copilotkit",
-});
+  // Fallback to env vars.
+  console.log("[copilotkit] using env fallback");
+  const modelId = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  return {
+    modelId,
+    kind: "openai",
+    apiKey: process.env.OPENAI_API_KEY ?? "",
+    baseUrl: process.env.OPENAI_BASE_URL ?? null,
+  };
+}
 
-console.log("[copilotkit] Next.js App Router endpoint bound OK");
+function buildModel(input: { modelId: string; kind: string; apiKey: string; baseUrl: string | null }) {
+  // Custom OpenAI-compatible endpoint -> use @ai-sdk/openai with baseURL.
+  if (input.baseUrl && input.apiKey) {
+    const provider = createOpenAI({ apiKey: input.apiKey, baseURL: input.baseUrl });
+    return provider(input.modelId);
+  }
+  return `${input.kind}/${input.modelId}`;
+}
+
+async function buildRuntime(req: NextRequest) {
+  const resolved = await resolveChatModel(req);
+  const model = buildModel(resolved);
+
+  const runtime = new CopilotRuntime({
+    agents: {
+      default: new BuiltInAgent({ model, apiKey: resolved.apiKey, prompt: DEFAULT_PROMPT, maxSteps: 5 }),
+      builder: new BuiltInAgent({ model, apiKey: resolved.apiKey, prompt: BUILDER_PROMPT, maxSteps: 6 }),
+      skills: new BuiltInAgent({ model, apiKey: resolved.apiKey, prompt: SKILLS_PROMPT, maxSteps: 4 }),
+    },
+    a2ui: {},
+  });
+
+  return copilotRuntimeNextJSAppRouterEndpoint({ runtime, endpoint: "/api/copilotkit" });
+}
 
 async function handler(req: NextRequest) {
   try {
     console.log("[copilotkit] REQUEST method=", req.method, "path=", req.nextUrl.pathname);
+    const { handleRequest } = await buildRuntime(req);
     const result = await handleRequest(req);
     console.log("[copilotkit] RESPONSE status=", result?.status);
     return result;
