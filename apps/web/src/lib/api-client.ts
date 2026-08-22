@@ -842,6 +842,17 @@ export async function listComposioToolkits(): Promise<ComposioToolkit[]> {
   return data.items;
 }
 
+export async function getComposioKeyConfigured(): Promise<{ configured: boolean }> {
+  return api("/api/composio/key");
+}
+
+export async function setComposioKey(apiKey: string): Promise<{ configured: boolean }> {
+  return api("/api/composio/key", {
+    method: "PUT",
+    body: JSON.stringify({ apiKey }),
+  });
+}
+
 export async function listComposioConnections(
   organizationId?: string,
 ): Promise<ComposioConnection[]> {

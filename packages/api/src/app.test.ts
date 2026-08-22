@@ -175,3 +175,47 @@ describe("tasks", () => {
     expect(patched.json().status).toBe("completed");
   });
 });
+
+describe("composio key", () => {
+  it("lets any authenticated user set and read the global composio key", async () => {
+    const app = await makeApp();
+    const cookie = await registerAndLogin(app, "alice@example.com", "password123", "Alice");
+
+    const before = await app.inject({
+      method: "GET",
+      url: "/api/composio/key",
+      headers: { cookie },
+    });
+    expect(before.statusCode).toBe(200);
+    expect(before.json().configured).toBe(false);
+
+    const put = await app.inject({
+      method: "PUT",
+      url: "/api/composio/key",
+      headers: { cookie },
+      payload: { apiKey: "composio_test_key" },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.json().configured).toBe(true);
+
+    const after = await app.inject({
+      method: "GET",
+      url: "/api/composio/key",
+      headers: { cookie },
+    });
+    expect(after.statusCode).toBe(200);
+    expect(after.json().configured).toBe(true);
+  });
+
+  it("rejects an empty key", async () => {
+    const app = await makeApp();
+    const cookie = await registerAndLogin(app, "bob@example.com", "password123", "Bob");
+    const put = await app.inject({
+      method: "PUT",
+      url: "/api/composio/key",
+      headers: { cookie },
+      payload: { apiKey: "" },
+    });
+    expect(put.statusCode).toBe(400);
+  });
+});

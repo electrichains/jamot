@@ -20,9 +20,11 @@ import {
   createComposioConnection,
   deleteComposioConnection,
   executeComposioTool,
+  getComposioKeyConfigured,
   listComposioConnections,
   listComposioToolkits,
   listConnectionTools,
+  setComposioKey,
   type ComposioConnection,
   type ComposioTool,
   type ComposioToolkit,
@@ -50,6 +52,12 @@ export function ComposioConnectors({ mode }: { mode: "personal" | "org" }) {
   const [orgKeyOpen, setOrgKeyOpen] = useState(false);
   const [orgKeyValue, setOrgKeyValue] = useState("");
   const [orgKeyBusy, setOrgKeyBusy] = useState(false);
+
+  const [keyConfigured, setKeyConfigured] = useState(true);
+  const [globalKeyOpen, setGlobalKeyOpen] = useState(false);
+  const [globalKeyValue, setGlobalKeyValue] = useState("");
+  const [globalKeyBusy, setGlobalKeyBusy] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [tools, setTools] = useState<Record<string, ComposioTool[]>>({});
@@ -85,6 +93,10 @@ export function ComposioConnectors({ mode }: { mode: "personal" | "org" }) {
     let cancelled = false;
     void (async () => {
       const results = await Promise.all([
+        getComposioKeyConfigured().then(
+          (r) => ({ ok: true as const, configured: r.configured }),
+          () => ({ ok: false as const, configured: true }),
+        ),
         listComposioToolkits().then(
           (items) => ({ ok: true as const, items }),
           () => ({ ok: false as const, items: [] as ComposioToolkit[] }),
@@ -95,7 +107,8 @@ export function ComposioConnectors({ mode }: { mode: "personal" | "org" }) {
         ),
       ]);
       if (cancelled) return;
-      const [toolkitResult, connectionResult] = results;
+      const [keyResult, toolkitResult, connectionResult] = results;
+      setKeyConfigured(keyResult.configured);
       setToolkits(toolkitResult.items);
       setToolkitsError(!toolkitResult.ok);
       setConnections(connectionResult.items);
@@ -213,6 +226,23 @@ export function ComposioConnectors({ mode }: { mode: "personal" | "org" }) {
     }
   };
 
+  const saveGlobalKey = async () => {
+    if (!globalKeyValue.trim()) return;
+    setGlobalKeyBusy(true);
+    setKeyError(null);
+    try {
+      await setComposioKey(globalKeyValue.trim());
+      setGlobalKeyOpen(false);
+      setGlobalKeyValue("");
+      setKeyConfigured(true);
+      await reloadToolkits();
+    } catch (cause) {
+      setKeyError(cause instanceof Error ? cause.message : "Could not save Composio API key.");
+    } finally {
+      setGlobalKeyBusy(false);
+    }
+  };
+
   const filtered = search.trim()
     ? toolkits.filter(
         (t) =>
@@ -246,8 +276,46 @@ export function ComposioConnectors({ mode }: { mode: "personal" | "org" }) {
         <Card className="max-w-xl">
           <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">
-              No Composio API key is configured yet. {isAdmin ? "Set the organization key below." : "Ask an org admin to configure it."}
+              {toolkitsError
+                ? "Could not load Composio connectors."
+                : "No Composio API key is configured yet. Set one to browse and connect the available connectors."}
             </p>
+
+            {!keyConfigured ? (
+              globalKeyOpen ? (
+                <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                  <Field label="Composio API key" hint="Stored encrypted as the platform key. Get it from app.composio.dev.">
+                    <TextInput
+                      autoFocus
+                      type="password"
+                      placeholder="composio_…"
+                      value={globalKeyValue}
+                      onChange={(event) => setGlobalKeyValue(event.target.value)}
+                    />
+                  </Field>
+                  {keyError ? <p className="text-sm text-destructive">{keyError}</p> : null}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setGlobalKeyOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={!globalKeyValue.trim() || globalKeyBusy}
+                      onClick={() => void saveGlobalKey()}
+                    >
+                      {globalKeyBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button size="sm" onClick={() => setGlobalKeyOpen(true)}>
+                  <KeyRound className="size-4" />
+                  Set Composio API key
+                </Button>
+              )
+            ) : null}
+
             {isAdmin && mode === "org" && effectiveOrg ? (
               orgKeyOpen ? (
                 <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
@@ -276,7 +344,7 @@ export function ComposioConnectors({ mode }: { mode: "personal" | "org" }) {
                   </div>
                 </div>
               ) : (
-                <Button size="sm" onClick={() => setOrgKeyOpen(true)}>
+                <Button variant="ghost" size="sm" onClick={() => setOrgKeyOpen(true)}>
                   <KeyRound className="size-4" />
                   Set organization API key
                 </Button>

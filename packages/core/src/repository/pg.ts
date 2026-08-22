@@ -192,6 +192,38 @@ function toOrgEdge(row: OrgEdgeRow): OrgEdge {
   };
 }
 
+// The org graph is queried with raw SQL (Drizzle schema is schema-only), so the
+// snake_case columns are aliased back to the camelCase row shape the mappers
+// read. `created_at`/`updated_at` are cast to text to match the schema's
+// { mode: "string" } timestamps; `valid_from`/`valid_to` stay timestamps so
+// `toOrgEdge` can call `.toISOString()`.
+const ORG_NODE_SELECT = `
+  id,
+  organization_id AS "organizationId",
+  space_id AS "spaceId",
+  kind,
+  name,
+  ref_id AS "refId",
+  config,
+  position_x AS "positionX",
+  position_y AS "positionY",
+  created_at::text AS "createdAt",
+  updated_at::text AS "updatedAt"
+`;
+const ORG_EDGE_SELECT = `
+  id,
+  organization_id AS "organizationId",
+  space_id AS "spaceId",
+  from_node_id AS "fromNodeId",
+  to_node_id AS "toNodeId",
+  relation,
+  metadata,
+  valid_from AS "validFrom",
+  valid_to AS "validTo",
+  created_at::text AS "createdAt",
+  updated_at::text AS "updatedAt"
+`;
+
 function toActor(row: ActorRow): Actor {
   return {
     id: row.id as Id,
@@ -3128,7 +3160,7 @@ export function createPgRepository(db: Db): JamotRepository {
 
     async listOrgNodes(organizationId) {
       const { rows } = await db.pool.query<OrgNodeRow>(
-        `SELECT id, organization_id, space_id, kind, name, ref_id, config, position_x, position_y, created_at::text, updated_at::text
+        `SELECT ${ORG_NODE_SELECT}
          FROM org_nodes WHERE organization_id = $1 ORDER BY created_at ASC`,
         [organizationId],
       );
@@ -3137,7 +3169,7 @@ export function createPgRepository(db: Db): JamotRepository {
 
     async getOrgNode(id) {
       const { rows } = await db.pool.query<OrgNodeRow>(
-        `SELECT id, organization_id, space_id, kind, name, ref_id, config, position_x, position_y, created_at::text, updated_at::text
+        `SELECT ${ORG_NODE_SELECT}
          FROM org_nodes WHERE id = $1 LIMIT 1`,
         [id],
       );
@@ -3148,7 +3180,7 @@ export function createPgRepository(db: Db): JamotRepository {
       const { rows } = await db.pool.query<OrgNodeRow>(
         `INSERT INTO org_nodes (organization_id, space_id, kind, name, ref_id, config, position_x, position_y)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
-         RETURNING id, organization_id, space_id, kind, name, ref_id, config, position_x, position_y, created_at::text, updated_at::text`,
+         RETURNING ${ORG_NODE_SELECT}`,
         [
           input.organizationId,
           input.spaceId ?? null,
@@ -3186,7 +3218,7 @@ export function createPgRepository(db: Db): JamotRepository {
       const { rows } = await db.pool.query<OrgNodeRow>(
         `UPDATE org_nodes SET ${sets.join(", ")}, updated_at = now()
          WHERE id = $${params.length}
-         RETURNING id, organization_id, space_id, kind, name, ref_id, config, position_x, position_y, created_at::text, updated_at::text`,
+         RETURNING ${ORG_NODE_SELECT}`,
         params,
       );
       return rows[0] ? toOrgNode(rows[0]) : null;
@@ -3198,7 +3230,7 @@ export function createPgRepository(db: Db): JamotRepository {
 
     async listOrgEdges(organizationId) {
       const { rows } = await db.pool.query<OrgEdgeRow>(
-        `SELECT id, organization_id, space_id, from_node_id, to_node_id, relation, metadata, valid_from, valid_to, created_at::text, updated_at::text
+        `SELECT ${ORG_EDGE_SELECT}
          FROM org_edges WHERE organization_id = $1 ORDER BY created_at ASC`,
         [organizationId],
       );
@@ -3217,7 +3249,7 @@ export function createPgRepository(db: Db): JamotRepository {
       const { rows } = await db.pool.query<OrgEdgeRow>(
         `INSERT INTO org_edges (organization_id, space_id, from_node_id, to_node_id, relation, metadata)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-         RETURNING id, organization_id, space_id, from_node_id, to_node_id, relation, metadata, valid_from, valid_to, created_at::text, updated_at::text`,
+         RETURNING ${ORG_EDGE_SELECT}`,
         [
           input.organizationId,
           input.spaceId ?? null,

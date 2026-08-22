@@ -229,6 +229,7 @@ export async function buildApp(opts: BuildAppOptions) {
     prefix: "/api",
     repository: opts.repository,
     composioService,
+    secretStore,
   });
   await app.register(capabilitiesRoutes, { prefix: "/api", ...routeOpts });
   await app.register(skillsRoutes, { prefix: "/api", ...routeOpts });

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { ConnectorSharing, Id } from "@jamot/contracts";
 import type { ComposioService } from "@jamot/core/composio";
+import { COMPOSIO_KEY_REF } from "@jamot/core/composio";
 import type { JamotRepository } from "../repository.js";
 import { requireAuth } from "../rbac.js";
 import { actorRoleInSpace, ROLE_WEIGHT } from "../rbac.js";
@@ -10,12 +11,17 @@ import { fail, parse } from "../util.js";
 export interface ComposioRoutesOptions {
   repository: JamotRepository;
   composioService: ComposioService;
+  secretStore: { encrypt(plaintext: string): string };
 }
 
 const ConnectBody = z.object({
   toolkit: z.string().min(1),
   sharing: ConnectorSharing.default("user"),
   organizationId: Id.nullable().optional(),
+});
+
+const SetKeyBody = z.object({
+  apiKey: z.string().trim().min(1).max(500),
 });
 
 const ExecuteBody = z.object({
@@ -39,7 +45,7 @@ export default async function composioRoutes(
   app: FastifyInstance,
   opts: ComposioRoutesOptions,
 ): Promise<void> {
-  const { repository: repo, composioService } = opts;
+  const { repository: repo, composioService, secretStore } = opts;
 
   async function hasOrgAccess(
     actorId: string,
@@ -87,6 +93,26 @@ export default async function composioRoutes(
 
   app.get("/composio/toolkits", { preHandler: requireAuth }, async () => {
     return { items: await composioService.listToolkits() };
+  });
+
+  // Global Composio key management. Any authenticated user may set the
+  // platform-level Composio key (ref composio/api-key) so the connector
+  // catalog is usable. Only that exact ref is writable here.
+  app.get("/composio/key", { preHandler: requireAuth }, async () => {
+    return { configured: await composioService.keyConfigured() };
+  });
+
+  app.put("/composio/key", { preHandler: requireAuth }, async (request, reply) => {
+    const body = parse(SetKeyBody, request.body, reply);
+    if (!body) return;
+    await repo.putSecret({
+      ref: COMPOSIO_KEY_REF,
+      scope: "system",
+      ownerActorId: null,
+      ownerOrganizationId: null,
+      ciphertext: secretStore.encrypt(body.apiKey),
+    });
+    return { configured: true };
   });
 
   app.get(
