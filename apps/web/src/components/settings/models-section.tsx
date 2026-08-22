@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useAppShell } from "@/components/app-shell/app-shell-context";
+import { useAuth } from "@/components/auth/auth-context";
 import { Card, Field, SectionHeading, TextInput } from "./section-primitives";
 import { ModelPicker } from "./model-picker";
 import {
@@ -266,8 +267,17 @@ function ProviderCard({
 
 export function ModelsSection() {
   const { space } = useAppShell();
+  const { user } = useAuth();
   const organizationId = space.organizationId ?? null;
   const isAdmin = space.role === "owner" || space.role === "admin";
+
+  // The real space id for per-space settings. Org spaces use the workspace's
+  // space id; the personal space's `space.id` is the literal "personal", so we
+  // resolve the actor's real personal space id instead.
+  const settingsSpaceId =
+    space.kind === "organization"
+      ? space.spaceId ?? space.id
+      : user?.actor?.personalSpaceId ?? null;
 
   const [providers, setProviders] = useState<ApiModelProvider[] | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -284,17 +294,19 @@ export function ModelsSection() {
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
-    getSpaceSettings(space.id)
+    if (!settingsSpaceId) return;
+    getSpaceSettings(settingsSpaceId)
       .then((s) => setOrchestratorModel(s.orchestratorModel ?? null))
       .catch(() => {})
       .finally(() => setLoadingSettings(false));
-  }, [space.id]);
+  }, [settingsSpaceId]);
 
   const saveOrchestratorModel = async (value: string | null) => {
+    if (!settingsSpaceId) return;
     setOrchestratorModel(value);
     setSavingSettings(true);
     try {
-      await updateSpaceSettings(space.id, { orchestratorModel: value });
+      await updateSpaceSettings(settingsSpaceId, { orchestratorModel: value });
     } catch {
       // Revert on error — user keeps old selection shown
     } finally {

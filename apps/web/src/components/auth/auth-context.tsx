@@ -13,7 +13,7 @@ import type { MePerson } from "@/lib/api-client";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export interface AuthUser {
-  actor: { id: string; type: string; displayName: string };
+  actor: { id: string; type: string; displayName: string; personalSpaceId?: string | null };
   person: MePerson | null;
   isSuperAdmin: boolean;
 }
