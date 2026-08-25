@@ -239,7 +239,7 @@ function DesktopShell() {
             <LeftSidebar />
           </div>
           {/* Icon-only rail in compact mode — never expanded */}
-          <div className="w-12 shrink-0 border-r border-border/40">
+          <div className="shrink-0 border-r border-border/40">
             <AppRail onSelectSection={handleSelectSection} />
           </div>
           <div
@@ -316,7 +316,7 @@ function DesktopShell() {
               id="right"
               defaultSize={DEFAULT_RIGHT_SIZE}
               minSize={0}
-              maxSize={2000}
+              maxSize="65%"
               collapsible
               collapsedSize={0}
               panelRef={rightRef}
@@ -327,8 +327,8 @@ function DesktopShell() {
             </Panel>
           </Group>
 
-          {/* AppRail: permanently narrow, anchored at the far right */}
-          <div className="w-14 shrink-0 border-l border-border/40">
+          {/* AppRail: narrow by default, widens inline when its add-apps menu opens */}
+          <div className="shrink-0 border-l border-border/40">
             <AppRail onSelectSection={handleSelectSection} />
           </div>
         </div>

@@ -234,8 +234,12 @@ export function AppRail({
   return (
     <div
       className={cn(
-        "relative flex h-full w-full flex-col border-l border-border/40 bg-sidebar/80 py-2 text-sidebar-foreground backdrop-blur-md",
-        expanded ? "items-stretch gap-0.5" : "items-center gap-1",
+        "relative flex h-full flex-col border-l border-border/40 bg-sidebar/80 py-2 text-sidebar-foreground backdrop-blur-md transition-[width] duration-200",
+        expanded
+          ? "w-full items-stretch gap-0.5"
+          : open
+            ? "w-80 items-center gap-1"
+            : "w-14 items-center gap-1",
       )}
     >
       {expanded ? (
@@ -323,10 +327,7 @@ export function AppRail({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -4 }}
             transition={{ duration: 0.15 }}
-            className={cn(
-              "glass-card glass-border absolute bottom-2 z-30 w-72 overflow-hidden rounded-xl p-2 shadow-xl",
-              expanded ? "left-full ml-1" : "right-full mr-1",
-            )}
+            className="glass-card glass-border mt-2 min-h-0 w-full flex-1 overflow-y-auto rounded-xl p-2 shadow-xl"
           >
             <div className="flex items-center justify-between border-b border-border/40 pb-1.5">
               <h3 className="text-sm font-semibold">Add apps</h3>
