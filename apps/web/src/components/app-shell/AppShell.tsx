@@ -262,7 +262,10 @@ function DesktopShell() {
         </div>
       ) : (
         <div className="relative flex h-full w-full overflow-hidden">
-          {/* Main resizable panels: Left + Center */}
+          {/* One resizable group: Left | Center | Right dock. The dock shares
+              the group with the center so dragging it all the way squeezes the
+              center; below CHAT_COMPACT_WIDTH the chat collapses into the
+              floating bubble (chatCompact branch below). */}
           <Group
             id="jamot-shell"
             orientation="horizontal"
@@ -303,40 +306,31 @@ function DesktopShell() {
                 dockOpen={!dockCollapsed}
               />
             </Panel>
+
+            <Separator
+              id="sep-right"
+              className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
+            />
+
+            <Panel
+              id="right"
+              defaultSize={DEFAULT_RIGHT_SIZE}
+              minSize={0}
+              maxSize={2000}
+              collapsible
+              collapsedSize={0}
+              panelRef={rightRef}
+              onResize={handleRightResize}
+              className="h-full"
+            >
+              <AppDock />
+            </Panel>
           </Group>
 
-          {/* AppRail: permanently narrow 48px, NEVER expands, anchored LEFT of AppDock */}
-          <div className="w-12 shrink-0 border-l border-border/40">
+          {/* AppRail: permanently narrow, anchored at the far right */}
+          <div className="w-14 shrink-0 border-l border-border/40">
             <AppRail onSelectSection={handleSelectSection} />
           </div>
-
-          {/* AppDock: resizable right panel — only mounted when a section/app
-              is active, so the resting layout is exactly Left | Center | AppRail. */}
-          {activeSection || activeAppId ? (
-            <Group
-              id="jamot-dock"
-              orientation="horizontal"
-              className="h-full shrink-0"
-            >
-              <Separator
-                id="sep-right"
-                className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
-              />
-              <Panel
-                id="right"
-                defaultSize={DEFAULT_RIGHT_SIZE}
-                minSize={0}
-                maxSize={2000}
-                collapsible
-                collapsedSize={0}
-                panelRef={rightRef}
-                onResize={handleRightResize}
-                className="h-full"
-              >
-                <AppDock />
-              </Panel>
-            </Group>
-          ) : null}
         </div>
       )}
 
