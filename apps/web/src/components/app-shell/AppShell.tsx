@@ -314,8 +314,7 @@ function DesktopShell() {
           <Group
             id="jamot-dock"
             orientation="horizontal"
-            className="h-full"
-            style={{ width: dockCollapsed ? 0 : undefined }}
+            className="h-full shrink-0"
           >
             <Separator
               id="sep-right"
