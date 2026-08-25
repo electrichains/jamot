@@ -310,30 +310,33 @@ function DesktopShell() {
             <AppRail onSelectSection={handleSelectSection} />
           </div>
 
-          {/* AppDock: resizable right panel */}
-          <Group
-            id="jamot-dock"
-            orientation="horizontal"
-            className="h-full shrink-0"
-          >
-            <Separator
-              id="sep-right"
-              className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
-            />
-            <Panel
-              id="right"
-              defaultSize={DEFAULT_RIGHT_SIZE}
-              minSize={0}
-              maxSize={2000}
-              collapsible
-              collapsedSize={0}
-              panelRef={rightRef}
-              onResize={handleRightResize}
-              className="h-full"
+          {/* AppDock: resizable right panel — only mounted when a section/app
+              is active, so the resting layout is exactly Left | Center | AppRail. */}
+          {activeSection || activeAppId ? (
+            <Group
+              id="jamot-dock"
+              orientation="horizontal"
+              className="h-full shrink-0"
             >
-              <AppDock />
-            </Panel>
-          </Group>
+              <Separator
+                id="sep-right"
+                className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
+              />
+              <Panel
+                id="right"
+                defaultSize={DEFAULT_RIGHT_SIZE}
+                minSize={0}
+                maxSize={2000}
+                collapsible
+                collapsedSize={0}
+                panelRef={rightRef}
+                onResize={handleRightResize}
+                className="h-full"
+              >
+                <AppDock />
+              </Panel>
+            </Group>
+          ) : null}
         </div>
       )}
 
