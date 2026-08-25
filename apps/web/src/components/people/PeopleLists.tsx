@@ -59,6 +59,43 @@ export function PeopleLists({
     };
   }, [spaceId]);
 
+  // CopilotKit natural language action listener
+  useEffect(() => {
+    if (!spaceId) return;
+    const handleAddToList = async (e: Event) => {
+      const detail = (e as CustomEvent<{ personName: string; listName: string }>).detail;
+      if (!detail?.listName) return;
+      try {
+        let list = lists.find((l) => l.name.toLowerCase() === detail.listName.toLowerCase());
+        if (!list) {
+          list = await createOutreachList({ spaceId, name: detail.listName });
+          setLists((prev) => [list!, ...prev]);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    const handleRenameList = async (e: Event) => {
+      const detail = (e as CustomEvent<{ oldName: string; newName: string }>).detail;
+      if (!detail?.oldName || !detail?.newName) return;
+      setLists((prev) =>
+        prev.map((l) =>
+          l.name.toLowerCase() === detail.oldName.toLowerCase()
+            ? { ...l, name: detail.newName }
+            : l,
+        ),
+      );
+    };
+
+    window.addEventListener("jamot:people:addToList", handleAddToList);
+    window.addEventListener("jamot:people:renameList", handleRenameList);
+    return () => {
+      window.removeEventListener("jamot:people:addToList", handleAddToList);
+      window.removeEventListener("jamot:people:renameList", handleRenameList);
+    };
+  }, [spaceId, lists]);
+
   const handleCreate = async () => {
     const name = listName.trim();
     if (!name || !spaceId) return;

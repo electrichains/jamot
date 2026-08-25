@@ -238,12 +238,9 @@ function DesktopShell() {
           <div className="flex h-full w-60 shrink-0">
             <LeftSidebar />
           </div>
-          <div className="flex h-full w-60 shrink-0">
-            <AppRail
-              expanded
-              onRestoreChat={restoreChat}
-              onSelectSection={handleSelectSection}
-            />
+          {/* Icon-only rail in compact mode — never expanded */}
+          <div className="w-12 shrink-0 border-r border-border/40">
+            <AppRail onSelectSection={handleSelectSection} />
           </div>
           <div
             role="separator"
@@ -264,11 +261,12 @@ function DesktopShell() {
           </div>
         </div>
       ) : (
-        <div className="relative flex h-full w-full">
+        <div className="relative flex h-full w-full overflow-hidden">
+          {/* Main resizable panels: Left + Center */}
           <Group
             id="jamot-shell"
             orientation="horizontal"
-            className="h-full flex-1"
+            className="h-full min-w-0 flex-1"
           >
             <Panel
               id="left"
@@ -305,12 +303,24 @@ function DesktopShell() {
                 dockOpen={!dockCollapsed}
               />
             </Panel>
+          </Group>
 
+          {/* AppRail: permanently narrow 48px, NEVER expands, anchored LEFT of AppDock */}
+          <div className="w-12 shrink-0 border-l border-border/40">
+            <AppRail onSelectSection={handleSelectSection} />
+          </div>
+
+          {/* AppDock: resizable right panel */}
+          <Group
+            id="jamot-dock"
+            orientation="horizontal"
+            className="h-full"
+            style={{ width: dockCollapsed ? 0 : undefined }}
+          >
             <Separator
               id="sep-right"
               className="w-px bg-border/40 transition-colors hover:bg-space-accent/40 data-[separator=active]:bg-space-accent/50"
             />
-
             <Panel
               id="right"
               defaultSize={DEFAULT_RIGHT_SIZE}
@@ -325,10 +335,6 @@ function DesktopShell() {
               <AppDock />
             </Panel>
           </Group>
-
-          <div className="w-14 shrink-0">
-            <AppRail />
-          </div>
         </div>
       )}
 
@@ -352,8 +358,8 @@ function DesktopShell() {
           >
             <Button
               size="icon"
-              className="size-12 rounded-full shadow-lg"
-              aria-label={chatPopupOpen ? "Close chat" : "Open chat"}
+              className="size-12 rounded-full bg-space-accent text-space-accent-foreground shadow-xl transition-transform hover:scale-105"
+              aria-label={chatPopupOpen ? "Close AI assistant" : "Open AI assistant"}
               onClick={() => setChatPopupOpen((value) => !value)}
             >
               {chatPopupOpen ? (
@@ -374,19 +380,24 @@ function DesktopShell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-24 z-50 flex h-[520px] w-[400px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+            className="glass-card glass-border fixed bottom-24 z-50 flex h-[540px] w-[420px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-3xl shadow-2xl backdrop-blur-xl"
             style={
               dockLeft != null
-                ? { left: dockLeft - 400 - BUBBLE_GAP, transition: "left 200ms ease" }
+                ? { left: dockLeft - 420 - BUBBLE_GAP, transition: "left 200ms ease" }
                 : { right: 20 }
             }
           >
-            <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
-              <span className="text-sm font-medium">Chat</span>
+            <div className="flex h-11 shrink-0 items-center justify-between border-b border-border/40 px-3.5">
+              <div className="flex items-center gap-2">
+                <span className="size-2 rounded-full bg-space-accent animate-pulse" />
+                <span className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  AI Control
+                </span>
+              </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7"
+                className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
                 aria-label="Minimize chat"
                 onClick={() => setChatPopupOpen(false)}
               >

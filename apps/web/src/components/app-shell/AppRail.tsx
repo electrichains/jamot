@@ -57,7 +57,7 @@ const SECTION_ITEMS: RailItem[] = [
   { id: "people", label: "People", icon: Users },
   { id: "agents", label: "Agents", icon: Bot },
   { id: "organization", label: "Organization", icon: Building2 },
-  { id: "canvas", label: "Canvas", icon: LayoutGrid },
+  { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "suppliers", label: "Suppliers", icon: Truck },

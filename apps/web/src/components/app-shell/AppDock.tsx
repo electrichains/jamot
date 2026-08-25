@@ -113,7 +113,7 @@ export function AppDock() {
     case "organization":
       content = <OrganizationWorkspace />;
       break;
-    case "canvas":
+    case "dashboard":
       content = <CanvasWorkspace />;
       break;
     case "whatsapp":

@@ -1,15 +1,31 @@
 /**
- * Shared types for the docking canvas.
+ * Shared types for the Company Dashboard (formerly "Canvas").
  *
- * These are intentionally serializable (no React / Lucide values) so the same
- * shapes can be reconciled with the backend `App` / `AppResolver` later.
+ * Block kinds cover both app-connector tiles and live-data intelligence blocks.
  */
 
+/** App-connector tile kinds (existing) */
 export type CanvasTileKind = "app" | "mcp" | "harness" | "channel";
+
+/** Live dashboard block kinds */
+export type DashboardBlockKind =
+  | "people"
+  | "tasks"
+  | "agents"
+  | "notifications"
+  | "whatsapp"
+  | "activity"
+  | "approvals"
+  | "finance"
+  | "leads"
+  | "calendar";
+
+/** Union of all block types renderable in the Dashboard */
+export type AnyBlockKind = CanvasTileKind | DashboardBlockKind;
 
 export interface CanvasTile {
   id: string;
-  kind: CanvasTileKind;
+  kind: AnyBlockKind;
   name: string;
   /** Icon key resolved to a lucide-react icon by the UI layer. */
   icon?: string;

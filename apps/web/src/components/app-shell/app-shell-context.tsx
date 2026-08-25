@@ -79,7 +79,7 @@ export type SectionId =
   | "people"
   | "agents"
   | "organization"
-  | "canvas"
+  | "dashboard"
   | "whatsapp"
   | "calendar"
   | "inventory"
@@ -94,7 +94,7 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   people: "People",
   agents: "Agents",
   organization: "Organization",
-  canvas: "Canvas",
+  dashboard: "Dashboard",
   whatsapp: "WhatsApp",
   calendar: "Calendar",
   suppliers: "Suppliers",

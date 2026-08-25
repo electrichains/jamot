@@ -16,6 +16,7 @@ import { useAppShell } from "@/components/app-shell/app-shell-context";
 import { DREAM_CONFIG_EVENT } from "@/lib/dream-config";
 import { DreamToolBridge } from "./DreamToolBridge";
 import { MentionTextarea } from "./MentionTextarea";
+import { UseCopilotUIActions } from "./use-copilot-ui-actions";
 
 function Hint() {
   return (
@@ -81,6 +82,7 @@ function ChatContent() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <UseCopilotUIActions />
       <CommerceToolBridge />
       <LeadToolBridge />
       <DreamToolBridge />

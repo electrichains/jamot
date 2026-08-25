@@ -60,7 +60,7 @@ const GROUPS: PaletteGroup[] = [
       { id: "sec-people", label: "People & Directory", icon: Users, keywords: "team members human employees", action: { type: "section", section: "people" } },
       { id: "sec-agents", label: "Agents & Bots", icon: Bot, keywords: "ai assistants subagents", action: { type: "section", section: "agents" } },
       { id: "sec-org", label: "Organization & Org Chart", icon: Building2, keywords: "structure hierarchy organic chart", action: { type: "section", section: "organization" } },
-      { id: "sec-canvas", label: "Canvas & Workspace", icon: LayoutGrid, keywords: "whiteboard visual blocks", action: { type: "section", section: "canvas" } },
+      { id: "sec-dashboard", label: "Dashboard & Workspace", icon: LayoutGrid, keywords: "whiteboard visual blocks dashboard metrics", action: { type: "section", section: "dashboard" } },
       { id: "sec-whatsapp", label: "WhatsApp Chat", icon: MessageCircle, keywords: "messaging channels chat", action: { type: "section", section: "whatsapp" } },
       { id: "sec-calendar", label: "Calendar & Schedule", icon: CalendarDays, keywords: "events meetings", action: { type: "section", section: "calendar" } },
       { id: "sec-suppliers", label: "Suppliers & Vendors", icon: Truck, keywords: "procurement inventory", action: { type: "section", section: "suppliers" } },

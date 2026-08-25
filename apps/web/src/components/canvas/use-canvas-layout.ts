@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useRef, useSyncExternalStore } from "react";
 
-import type { CanvasLayout, CanvasPane, CanvasTile } from "./canvas-types";
+import type { AnyBlockKind, CanvasLayout, CanvasPane, CanvasTile } from "./canvas-types";
 
 const STORAGE_KEY = "jamot.canvas.layout";
 const EMPTY: CanvasLayout = { panes: [] };
@@ -94,6 +94,13 @@ function subscribe(callback: () => void): () => void {
   };
 }
 
+/** Shared tile registry (live blocks + legacy canvas tiles) */
+let tileRegistry: CanvasTile[] = [];
+
+function getTiles(): CanvasTile[] {
+  return tileRegistry;
+}
+
 function write(layout: CanvasLayout): void {
   const normalized = { panes: normalize(layout.panes) };
   const raw = JSON.stringify(normalized);
@@ -111,14 +118,23 @@ export type MoveDirection = "up" | "down" | "left" | "right";
 
 export interface UseCanvasLayout {
   layout: CanvasLayout;
+  tiles: CanvasTile[];
   load: () => CanvasLayout;
   save: (layout: CanvasLayout) => void;
   addPane: (tile: CanvasTile) => void;
+  addLiveTile: (kind: AnyBlockKind, label?: string) => void;
+  removeTileByKind: (kind: AnyBlockKind) => void;
   removePane: (paneId: string) => void;
   movePane: (paneId: string, direction: MoveDirection) => void;
   /** Persist vertical sizes (percentages) for every pane in a column. */
   applyColumnSizes: (column: 0 | 1, sizes: Record<string, number>) => void;
+  handleDragStart: (paneId: string) => void;
+  handleDragOver: (event: React.DragEvent) => void;
+  handleDrop: (targetPaneId: string) => void;
 }
+
+// React DragEvent type (import inline)
+type ReactDragEvent = React.DragEvent<Element>;
 
 export function useCanvasLayout(): UseCanvasLayout {
   const layout = useSyncExternalStore(
@@ -127,6 +143,8 @@ export function useCanvasLayout(): UseCanvasLayout {
     getServerSnapshot,
   );
 
+  const dragSourceRef = useRef<string | null>(null);
+
   const load = useCallback(() => getSnapshot(), []);
 
   const save = useCallback((next: CanvasLayout) => {
@@ -134,6 +152,10 @@ export function useCanvasLayout(): UseCanvasLayout {
   }, []);
 
   const addPane = useCallback((tile: CanvasTile) => {
+    // Register tile globally
+    if (!tileRegistry.some((t) => t.id === tile.id)) {
+      tileRegistry = [...tileRegistry, tile];
+    }
     const prev = getSnapshot();
     const left = prev.panes.filter((p) => p.position.column === 0).length;
     const right = prev.panes.filter((p) => p.position.column === 1).length;
@@ -145,6 +167,31 @@ export function useCanvasLayout(): UseCanvasLayout {
       position: { column, order },
     };
     write({ panes: normalize([...prev.panes, pane]) });
+  }, []);
+
+  /**
+   * Add a live intelligence block (people, tasks, agents, etc.) by kind.
+   * Creates a synthetic tile and pane for it.
+   */
+  const addLiveTile = useCallback((kind: AnyBlockKind, label?: string) => {
+    const id = kind as string;
+    const name = label ?? (id.charAt(0).toUpperCase() + id.slice(1));
+    const tile: CanvasTile = { id, kind, name };
+    // Avoid duplicates
+    const prev = getSnapshot();
+    if (prev.panes.some((p) => p.tileId === id)) return;
+    addPane(tile);
+  }, [addPane]);
+
+  /**
+   * Remove all panes for a given tile kind.
+   */
+  const removeTileByKind = useCallback((kind: AnyBlockKind) => {
+    const id = kind as string;
+    const prev = getSnapshot();
+    write({
+      panes: normalize(prev.panes.filter((p) => p.tileId !== id)),
+    });
   }, []);
 
   const removePane = useCallback((paneId: string) => {
@@ -181,10 +228,10 @@ export function useCanvasLayout(): UseCanvasLayout {
       const targetIndex = direction === "up" ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= columnPanes.length) return;
 
-      const target = columnPanes[targetIndex];
+      const swapTarget = columnPanes[targetIndex];
       const order = pane.position.order;
-      pane.position.order = target.position.order;
-      target.position.order = order;
+      pane.position.order = swapTarget.position.order;
+      swapTarget.position.order = order;
       write({ panes: normalize(panes) });
     },
     [],
@@ -205,13 +252,43 @@ export function useCanvasLayout(): UseCanvasLayout {
     [],
   );
 
+  const handleDragStart = useCallback((paneId: string) => {
+    dragSourceRef.current = paneId;
+  }, []);
+
+  const handleDragOver = useCallback((event: ReactDragEvent) => {
+    event.preventDefault();
+  }, []);
+
+  const handleDrop = useCallback((targetPaneId: string) => {
+    const sourceId = dragSourceRef.current;
+    dragSourceRef.current = null;
+    if (!sourceId || sourceId === targetPaneId) return;
+    const prev = getSnapshot();
+    const source = prev.panes.find((p) => p.id === sourceId);
+    const target = prev.panes.find((p) => p.id === targetPaneId);
+    if (!source || !target) return;
+    const panes = prev.panes.map((p) => {
+      if (p.id === sourceId) return { ...p, position: { ...target.position } };
+      if (p.id === targetPaneId) return { ...p, position: { ...source.position } };
+      return p;
+    });
+    write({ panes: normalize(panes) });
+  }, []);
+
   return {
     layout,
+    tiles: getTiles(),
     load,
     save,
     addPane,
+    addLiveTile,
+    removeTileByKind,
     removePane,
     movePane,
     applyColumnSizes,
+    handleDragStart,
+    handleDragOver,
+    handleDrop,
   };
 }
