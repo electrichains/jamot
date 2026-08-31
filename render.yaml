@@ -62,9 +62,17 @@ projects:
               - key: COOKIE_DOMAIN
                 value: .jamot.pro
               - key: CORS_ORIGIN
-                value: https://jamot-web.onrender.com
+                value: https://mvp.jamot.pro
               - key: FRONTEND_URL
-                value: https://jamot-web.onrender.com
+                value: https://mvp.jamot.pro
+              - key: GOOGLE_CLIENT_ID
+                sync: false
+              - key: GOOGLE_CLIENT_SECRET
+                sync: false
+              - key: GOOGLE_REDIRECT_URI
+                value: https://api.jamot.pro/api/auth/google/callback
+              - key: GOOGLE_CONNECTOR_REDIRECT_URI
+                value: https://api.jamot.pro/api/google/callback
               - key: WA_WORKER_URL
                 value: ""
               - key: WHATSAPP_SESSION_DIR
