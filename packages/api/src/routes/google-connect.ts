@@ -20,7 +20,7 @@ function config(clientId?: string, clientSecret?: string, redirectUri?: string) 
   return {
     clientId: clientId ?? process.env.GOOGLE_CLIENT_ID,
     clientSecret: clientSecret ?? process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri: redirectUri ?? process.env.GOOGLE_REDIRECT_URI,
+    redirectUri: redirectUri ?? process.env.GOOGLE_CONNECTOR_REDIRECT_URI,
   };
 }
 
