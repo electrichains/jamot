@@ -5,6 +5,7 @@ import { Check, Puzzle, Server, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { AgentsWorkspace } from "@/components/agents/AgentsWorkspace";
 import { PeopleWorkspace } from "@/components/people/PeopleWorkspace";
 import { OrganizationWorkspace } from "@/components/organization/OrganizationWorkspace";
@@ -111,23 +112,11 @@ function AddAppsSection() {
                   >
                     Open
                   </button>
-                  <button
-                    role="switch"
-                    aria-checked={enabled}
-                    aria-label={`Pin ${app.name} to rail`}
-                    onClick={() => toggleRailApp(app.id)}
-                    className={cn(
-                      "relative h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors",
-                      enabled ? "bg-space-accent" : "bg-muted",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute top-0.5 size-3 rounded-full bg-white shadow transition-transform",
-                        enabled ? "translate-x-[14px]" : "translate-x-0.5",
-                      )}
-                    />
-                  </button>
+                  <Switch
+                    checked={enabled}
+                    onChange={() => toggleRailApp(app.id)}
+                    ariaLabel={`Pin ${app.name} to rail`}
+                  />
                 </div>
               );
             })
