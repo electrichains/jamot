@@ -7,8 +7,10 @@ import {
   FolderKanban,
   MessageSquare,
   Pencil,
-  Sparkles,
+  Plus,
+  Trash2,
   X,
+  MoreHorizontal,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -22,7 +24,7 @@ export interface ChatHistoryItem {
 interface Project {
   id: string;
   title: string;
-  /** Auto-derived project memory (summaries/facts from its conversations). */
+  /** Auto-derived project memory (summaries/facts from its conversations) - confined to each project. */
   memory: string[];
   chats: ChatHistoryItem[];
 }
@@ -93,6 +95,10 @@ interface ChatRowProps {
   onBeginEdit: () => void;
   onCommit: () => void;
   onCancel: () => void;
+  onDelete: () => void;
+  onMoveToProject: (chatId: string, projectId: string) => void;
+  projects: Project[];
+  isInProject?: boolean;
 }
 
 function ChatRow({
@@ -103,7 +109,13 @@ function ChatRow({
   onBeginEdit,
   onCommit,
   onCancel,
+  onDelete,
+  onMoveToProject,
+  projects,
+  isInProject,
 }: ChatRowProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   if (editing) {
     return (
       <div className="flex items-center gap-1 rounded-xl bg-muted/80 px-2 py-1">
@@ -142,7 +154,7 @@ function ChatRow({
   }
 
   return (
-    <div className="group flex items-center gap-2 rounded-xl px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground">
+    <div className="relative group flex items-center gap-2 rounded-xl px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground">
       <MessageSquare className="size-3.5 shrink-0 opacity-60 group-hover:opacity-100" />
       <button
         type="button"
@@ -162,8 +174,82 @@ function ChatRow({
       >
         <Pencil className="size-3" />
       </button>
+      <div className="relative">
+        <button
+          type="button"
+          aria-label="More actions"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen(!menuOpen);
+          }}
+          className={cn(
+            "rounded-md p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100",
+          )}
+        >
+          <MoreHorizontal className="size-3" />
+        </button>
+        {menuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-xl border border-border/40 bg-popover p-1 shadow-xl animate-in fade-in-0 zoom-in-95">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onBeginEdit();
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <Pencil className="size-3.5" />
+                Rename
+              </button>
+              {projects.length > 0 && !isInProject && (
+                <>
+                  <div className="h-px bg-border/40 my-0.5" />
+                  <span className="px-2 py-1 text-[11px] font-medium tracking-wide uppercase text-muted-foreground">
+                    Move to project
+                  </span>
+                  {projects.map((project) => (
+                    <button
+                      key={project.id}
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onMoveToProject(item.id, project.id);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <FolderKanban className="size-3.5 text-space-accent/80" />
+                      {project.title}
+                    </button>
+                  ))}
+                </>
+              )}
+              <div className="h-px bg-border/40 my-0.5" />
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete();
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-destructive hover:bg-accent hover:text-destructive"
+              >
+                <Trash2 className="size-3.5" />
+                Delete
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
+}
+
+function generateId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export function ChatHistory({ searchQuery = "" }: { searchQuery?: string }) {
@@ -172,6 +258,9 @@ export function ChatHistory({ searchQuery = "" }: { searchQuery?: string }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ p1: true });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [projectDraft, setProjectDraft] = useState("");
+  const [projectMenuOpen, setProjectMenuOpen] = useState<string | null>(null);
 
   const today = startOfDay(new Date());
 
@@ -228,57 +317,243 @@ export function ChatHistory({ searchQuery = "" }: { searchQuery?: string }) {
     setExpanded((current) => ({ ...current, [id]: !current[id] }));
   };
 
+  const deleteChat = (chatId: string) => {
+    setProjects((current) =>
+      current
+        .map((project) => ({
+          ...project,
+          chats: project.chats.filter((chat) => chat.id !== chatId),
+        }))
+        .filter((project) => project.chats.length > 0 || !query), // Keep projects even if empty when searching
+    );
+    setLooseChats((current) => current.filter((chat) => chat.id !== chatId));
+  };
+
+  const deleteProject = (projectId: string) => {
+    // Move chats to loose chats before deleting project
+    const project = projects.find((p) => p.id === projectId);
+    if (project) {
+      setLooseChats((current) => [...project.chats, ...current]);
+    }
+    setProjects((current) => current.filter((p) => p.id !== projectId));
+    setExpanded((current) => {
+      const next = { ...current };
+      delete next[projectId];
+      return next;
+    });
+    setProjectMenuOpen(null);
+  };
+
+  const moveChatToProject = (chatId: string, targetProjectId: string) => {
+    let chatToMove: ChatHistoryItem | undefined;
+    
+    // Find and remove from loose chats
+    setLooseChats((current) => {
+      chatToMove = current.find((c) => c.id === chatId);
+      return current.filter((c) => c.id !== chatId);
+    });
+
+    // Find and remove from other projects
+    setProjects((current) =>
+      current.map((project) => ({
+        ...project,
+        chats: project.chats.filter((chat) => chat.id !== chatId),
+      })),
+    );
+
+    // Add to target project
+    if (chatToMove) {
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === targetProjectId
+            ? { ...project, chats: [...project.chats, chatToMove!] }
+            : project,
+        ),
+      );
+    }
+  };
+
+  const createProject = () => {
+    const title = projectDraft.trim();
+    if (title) {
+      const newProject: Project = {
+        id: generateId("p"),
+        title,
+        memory: [],
+        chats: [],
+      };
+      setProjects((current) => [...current, newProject]);
+      setCreatingProject(false);
+      setProjectDraft("");
+    }
+  };
+
+  const cancelCreateProject = () => {
+    setCreatingProject(false);
+    setProjectDraft("");
+  };
+
+  const startProjectRename = (projectId: string, currentTitle: string) => {
+    setProjectMenuOpen(null);
+    setEditingId(projectId);
+    setDraft(currentTitle);
+  };
+
+  const handleProjectCommit = () => {
+    const next = draft.trim();
+    if (next && editingId && projects.some((p) => p.id === editingId)) {
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === editingId ? { ...project, title: next } : project,
+        ),
+      );
+    }
+    setEditingId(null);
+    setDraft("");
+  };
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto px-2 py-2">
-        {filteredProjects.length > 0 ? (
-          <section className="mb-3">
-            <h3 className="px-2 pb-1 text-[11px] font-medium tracking-wide uppercase text-muted-foreground/70">
+        {/* Projects Section */}
+        <section className="mb-3">
+          <div className="flex items-center justify-between px-2 pb-1">
+            <h3 className="text-[11px] font-medium tracking-wide uppercase text-muted-foreground/70">
               Projects
             </h3>
-            <ul className="flex flex-col gap-0.5">
-              {filteredProjects.map((project) => {
-                const open = expanded[project.id];
-                return (
-                  <li key={project.id}>
-                    <button
-                      type="button"
-                      onClick={() => toggleProject(project.id)}
-                      className="flex w-full items-center gap-2 rounded-xl px-2 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-muted/70"
-                    >
-                      <ChevronRight
-                        className={cn(
-                          "size-3 shrink-0 text-muted-foreground transition-transform duration-200",
-                          open && "rotate-90",
-                        )}
-                      />
-                      <FolderKanban className="size-3.5 shrink-0 text-space-accent/80" />
-                      <span className="min-w-0 flex-1 truncate text-left">
-                        {project.title}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
-                        {project.chats.length}
-                      </span>
-                    </button>
+            <button
+              type="button"
+              onClick={() => setCreatingProject(true)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-muted/50"
+              aria-label="Create new project"
+            >
+              <Plus className="size-3.5" />
+              New
+            </button>
+          </div>
 
-                    {open ? (
-                      <div className="ml-3.5 flex flex-col gap-0.5 border-l border-border/40 pl-2.5 pb-1">
-                        {project.memory.length > 0 ? (
-                          <div className="my-1 flex flex-col gap-0.5 rounded-xl border-l-2 border-space-accent/40 bg-gradient-to-r from-space-accent/8 to-transparent px-2 py-1.5">
-                            <span className="flex items-center gap-1 text-[10px] font-medium tracking-wide uppercase text-space-accent">
-                              <Sparkles className="size-2.5" />
-                              Memory
-                            </span>
-                            {project.memory.map((entry) => (
-                              <span
-                                key={entry}
-                                className="text-[11px] leading-snug text-muted-foreground"
-                              >
-                                {entry}
-                              </span>
-                            ))}
+          {creatingProject ? (
+            <div className="flex items-center gap-1 rounded-xl bg-muted/80 px-2 py-1">
+              <FolderKanban className="size-3.5 shrink-0 text-space-accent/80" />
+              <input
+                autoFocus
+                value={projectDraft}
+                onChange={(e) => setProjectDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") createProject();
+                  if (e.key === "Escape") cancelCreateProject();
+                }}
+                onBlur={createProject}
+                placeholder="Project name"
+                className="min-w-0 flex-1 bg-transparent text-xs outline-none"
+              />
+            </div>
+          ) : null}
+
+          <ul className="flex flex-col gap-0.5">
+            {filteredProjects.map((project) => {
+              const open = expanded[project.id];
+              const isEditingProject = editingId === project.id;
+              return (
+                <li key={project.id}>
+                  <div className="relative">
+                    {isEditingProject ? (
+                      <div className="flex items-center gap-1 rounded-xl bg-muted/80 px-2 py-1">
+                        <FolderKanban className="size-3.5 shrink-0 text-space-accent/80" />
+                        <input
+                          autoFocus
+                          value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleProjectCommit();
+                            if (e.key === "Escape") cancelEdit();
+                          }}
+                          onBlur={handleProjectCommit}
+                          className="min-w-0 flex-1 bg-transparent text-xs font-medium outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleProjectCommit}
+                          className="rounded-md p-0.5 text-muted-foreground hover:text-foreground"
+                        >
+                          <Check className="size-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="rounded-md p-0.5 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleProject(project.id)}
+                        className="flex w-full items-center gap-2 rounded-xl px-2 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-muted/70"
+                      >
+                        <ChevronRight
+                          className={cn(
+                            "size-3 shrink-0 text-muted-foreground transition-transform duration-200",
+                            open && "rotate-90",
+                          )}
+                        />
+                        <FolderKanban className="size-3.5 shrink-0 text-space-accent/80" />
+                        <span className="min-w-0 flex-1 truncate text-left">
+                          {project.title}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          {project.chats.length}
+                        </span>
+                      </button>
+                    )}
+
+                    <div className="relative">
+                      <button
+                        type="button"
+                        aria-label="Project actions"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProjectMenuOpen(projectMenuOpen === project.id ? null : project.id);
+                        }}
+                        className={cn(
+                          "absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100",
+                        )}
+                      >
+                        <MoreHorizontal className="size-3" />
+                      </button>
+                      {projectMenuOpen === project.id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => setProjectMenuOpen(null)}
+                          />
+                          <div className="absolute right-0 top-full z-20 mt-1 min-w-[160px] rounded-xl border border-border/40 bg-popover p-1 shadow-xl animate-in fade-in-0 zoom-in-95">
+                            <button
+                              type="button"
+                              onClick={() => startProjectRename(project.id, project.title)}
+                              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <Pencil className="size-3.5" />
+                              Rename
+                            </button>
+                            <div className="h-px bg-border/40 my-0.5" />
+                            <button
+                              type="button"
+                              onClick={() => deleteProject(project.id)}
+                              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-destructive hover:bg-accent hover:text-destructive"
+                            >
+                              <Trash2 className="size-3.5" />
+                              Delete project
+                            </button>
                           </div>
-                        ) : null}
+                        </>
+                      )}
+                    </div>
+
+                    {open && !isEditingProject && (
+                      <div className="ml-3.5 flex flex-col gap-0.5 border-l border-border/40 pl-2.5 pb-1">
+                        {/* Memory section removed from sidebar - kept internally per project */}
                         {project.chats.map((chat) => (
                           <ChatRow
                             key={chat.id}
@@ -289,17 +564,33 @@ export function ChatHistory({ searchQuery = "" }: { searchQuery?: string }) {
                             onBeginEdit={() => beginEdit(chat.id, chat.title)}
                             onCommit={commitEdit}
                             onCancel={cancelEdit}
+                            onDelete={() => deleteChat(chat.id)}
+                            onMoveToProject={moveChatToProject}
+                            projects={projects.filter((p) => p.id !== project.id)}
+                            isInProject={true}
                           />
                         ))}
+                        {project.chats.length === 0 && (
+                          <div className="text-[11px] text-muted-foreground/60 py-1">
+                            No chats in this project. Use chat menu → Move to project
+                          </div>
+                        )}
                       </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ) : null}
+                    )}
+                  </div>
+                </li>
+              );
+            })}
 
+            {filteredProjects.length === 0 && !creatingProject && (
+              <div className="text-center py-4 text-[12px] text-muted-foreground/60">
+                No projects yet. Click New to create one.
+              </div>
+            )}
+          </ul>
+        </section>
+
+        {/* Loose Chats Sections */}
         {groups.map((group) => (
           <section key={group.key} className="mb-3">
             <h3 className="px-2 pb-1 text-[11px] font-medium tracking-wide uppercase text-muted-foreground/70">
@@ -316,6 +607,10 @@ export function ChatHistory({ searchQuery = "" }: { searchQuery?: string }) {
                     onBeginEdit={() => beginEdit(item.id, item.title)}
                     onCommit={commitEdit}
                     onCancel={cancelEdit}
+                    onDelete={() => deleteChat(item.id)}
+                    onMoveToProject={moveChatToProject}
+                    projects={projects}
+                    isInProject={false}
                   />
                 </li>
               ))}

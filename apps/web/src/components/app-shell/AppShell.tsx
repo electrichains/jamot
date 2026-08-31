@@ -181,8 +181,13 @@ function DesktopShell() {
   const toggleDock = () => {
     const panel = rightRef.current;
     if (!panel) return;
-    if (panel.isCollapsed()) panel.expand();
-    else panel.collapse();
+    if (panel.isCollapsed()) {
+      panel.expand();
+      // Open Dashboard when expanding the dock
+      setActiveSection("dashboard");
+    } else {
+      panel.collapse();
+    }
   };
 
   const restoreChat = () => {
@@ -329,7 +334,13 @@ function DesktopShell() {
 
           {/* AppRail: narrow by default, widens inline when its add-apps menu opens */}
           <div className="shrink-0 border-l border-border/40">
-            <AppRail onSelectSection={handleSelectSection} />
+            <AppRail
+              onSelectSection={handleSelectSection}
+              onOpenAddApps={() => {
+                const panel = rightRef.current;
+                if (panel?.isCollapsed()) panel.expand();
+              }}
+            />
           </div>
         </div>
       )}

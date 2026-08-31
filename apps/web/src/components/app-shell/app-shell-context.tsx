@@ -87,7 +87,8 @@ export type SectionId =
   | "crm"
   | "leads"
   | "outreach"
-  | "finance";
+  | "finance"
+  | "add-apps";
 
 export const SECTION_TITLES: Record<SectionId, string> = {
   tasks: "Tasks",
@@ -103,9 +104,21 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   leads: "Leads",
   outreach: "Outreach",
   finance: "Finance",
+  "add-apps": "Add Apps",
 };
 
 export type OrganizationsLoader = () => Promise<OrganizationListItem[]>;
+
+export interface RailSectionPrefs {
+  order: SectionId[];
+  hidden: SectionId[];
+}
+
+export interface McpRailItem {
+  id: string;
+  label: string;
+  url: string;
+}
 
 interface AppShellState {
   leftSize: number;
@@ -131,6 +144,13 @@ interface AppShellState {
   closeApp: () => void;
   reorderRail: (from: number, to: number) => void;
   toggleRailApp: (id: string) => void;
+  // Rail sections & MCP items (shared between AppRail and Add Apps dock panel)
+  railPrefs: RailSectionPrefs;
+  mcpRailItems: McpRailItem[];
+  toggleRailSection: (id: SectionId) => void;
+  reorderRailSections: (from: number, to: number) => void;
+  addMcpRailItem: (label: string, url: string) => void;
+  removeMcpRailItem: (id: string) => void;
 }
 
 const AppShellContext = createContext<AppShellState | null>(null);
@@ -140,6 +160,62 @@ export const DEFAULT_RIGHT_SIZE = 320;
 export const DEFAULT_SECTION_WIDTH = 640;
 
 const SPACE_KEY = "jamot:space";
+const RAIL_PREFS_KEY = "jamot:rail";
+const MCP_KEY = "jamot:rail:mcp";
+
+const RAIL_SECTION_IDS: SectionId[] = [
+  "tasks",
+  "people",
+  "agents",
+  "organization",
+  "dashboard",
+  "whatsapp",
+  "calendar",
+  "suppliers",
+  "crm",
+  "leads",
+  "outreach",
+  "finance",
+];
+
+function loadRailPrefs(): RailSectionPrefs {
+  try {
+    const raw = window.localStorage.getItem(RAIL_PREFS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as RailSectionPrefs;
+      if (Array.isArray(parsed.order) && Array.isArray(parsed.hidden)) {
+        // Merge with defaults so sections shipped after the user saved their
+        // rail still appear (appended at the end), and stale ids are dropped.
+        const saved = parsed.order.filter((id): id is SectionId =>
+          RAIL_SECTION_IDS.includes(id),
+        );
+        const missing = RAIL_SECTION_IDS.filter((id) => !saved.includes(id));
+        return {
+          order: [...saved, ...missing],
+          hidden: parsed.hidden.filter((id) => RAIL_SECTION_IDS.includes(id)),
+        };
+      }
+    }
+  } catch {
+    // ignore malformed prefs
+  }
+  return { order: RAIL_SECTION_IDS, hidden: [] };
+}
+
+function loadMcpItems(): McpRailItem[] {
+  try {
+    const raw = window.localStorage.getItem(MCP_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as McpRailItem[];
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item) => item && item.id && item.label);
+      }
+    }
+  } catch {
+    // ignore malformed prefs
+  }
+  return [];
+}
 
 function spaceFromOrganization(item: OrganizationListItem, index: number): Space[] {
   const palette = ORG_ACCENTS[index % ORG_ACCENTS.length];
@@ -187,6 +263,54 @@ export function AppShellProvider({
   const [availableApps, setAvailableApps] = useState<AppManifest[]>([]);
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [railLoaded, setRailLoaded] = useState(false);
+
+  // Rail section prefs (order/hidden) + MCP items, shared between the rail
+  // and the "Add apps" dock panel.
+  const [railPrefs, setRailPrefs] = useState<RailSectionPrefs>(() => loadRailPrefs());
+  const [mcpRailItems, setMcpRailItems] = useState<McpRailItem[]>(() => loadMcpItems());
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RAIL_PREFS_KEY, JSON.stringify(railPrefs));
+    } catch {
+      // ignore storage errors
+    }
+  }, [railPrefs]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MCP_KEY, JSON.stringify(mcpRailItems));
+    } catch {
+      // ignore storage errors
+    }
+  }, [mcpRailItems]);
+
+  const toggleRailSection = useCallback((id: SectionId) => {
+    setRailPrefs((prev) => {
+      const hidden = prev.hidden.includes(id)
+        ? prev.hidden.filter((candidate) => candidate !== id)
+        : [...prev.hidden, id];
+      return { ...prev, hidden };
+    });
+  }, []);
+
+  const reorderRailSections = useCallback((from: number, to: number) => {
+    setRailPrefs((prev) => ({ ...prev, order: arrayMove(prev.order, from, to) }));
+  }, []);
+
+  const addMcpRailItem = useCallback((label: string, url: string) => {
+    const trimmedLabel = label.trim();
+    const trimmedUrl = url.trim();
+    if (!trimmedLabel || !trimmedUrl) return;
+    setMcpRailItems((prev) => [
+      ...prev,
+      { id: `mcp-${Date.now()}`, label: trimmedLabel, url: trimmedUrl },
+    ]);
+  }, []);
+
+  const removeMcpRailItem = useCallback((id: string) => {
+    setMcpRailItems((prev) => prev.filter((item) => item.id !== id));
+  }, []);
 
   const spaces = useMemo<Space[]>(() => {
     const orgSpaces = organizations.flatMap((item, index) =>
@@ -405,6 +529,12 @@ export function AppShellProvider({
       closeApp,
       reorderRail,
       toggleRailApp,
+      railPrefs,
+      mcpRailItems,
+      toggleRailSection,
+      reorderRailSections,
+      addMcpRailItem,
+      removeMcpRailItem,
     };
   }, [
     leftSize,
@@ -426,6 +556,12 @@ export function AppShellProvider({
     closeApp,
     reorderRail,
     toggleRailApp,
+    railPrefs,
+    mcpRailItems,
+    toggleRailSection,
+    reorderRailSections,
+    addMcpRailItem,
+    removeMcpRailItem,
   ]);
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;

@@ -1,8 +1,10 @@
 "use client";
 
-import { X } from "lucide-react";
+import { useState } from "react";
+import { Check, Puzzle, Server, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { AgentsWorkspace } from "@/components/agents/AgentsWorkspace";
 import { PeopleWorkspace } from "@/components/people/PeopleWorkspace";
 import { OrganizationWorkspace } from "@/components/organization/OrganizationWorkspace";
@@ -15,7 +17,9 @@ import { LeadsWorkspace } from "@/components/leads/LeadsWorkspace";
 import { OutreachWorkspace } from "@/components/outreach/OutreachWorkspace";
 
 import { SECTION_TITLES, useAppShell, type SectionId } from "./app-shell-context";
+import { SECTION_ITEMS } from "./AppRail";
 import type { AppManifest } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 
 const PLACEHOLDER_SECTIONS: SectionId[] = ["calendar", "crm"];
 
@@ -23,6 +27,169 @@ function PlaceholderSection({ title }: { title: string }) {
   return (
     <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
       {title} will appear here in a later phase.
+    </div>
+  );
+}
+
+function AddAppsSection() {
+  const {
+    railPrefs,
+    toggleRailSection,
+    availableApps,
+    railAppIds,
+    openApp,
+    toggleRailApp,
+    mcpRailItems,
+    addMcpRailItem,
+    removeMcpRailItem,
+  } = useAppShell();
+  const [mcpName, setMcpName] = useState("");
+  const [mcpUrl, setMcpUrl] = useState("");
+
+  const addMcp = () => {
+    addMcpRailItem(mcpName, mcpUrl);
+    setMcpName("");
+    setMcpUrl("");
+  };
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <div>
+        <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Apps
+        </h4>
+        <div className="flex flex-col gap-0.5">
+          {SECTION_ITEMS.map((item) => {
+            const enabled = !railPrefs.hidden.includes(item.id);
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => toggleRailSection(item.id)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+              >
+                <Icon className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                <span
+                  className={cn(
+                    "flex size-4 shrink-0 items-center justify-center rounded border",
+                    enabled
+                      ? "border-space-accent bg-space-accent text-space-accent-foreground"
+                      : "border-border",
+                  )}
+                >
+                  {enabled ? <Check className="size-3" /> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Launch apps
+        </h4>
+        <div className="flex flex-col gap-0.5">
+          {availableApps.length === 0 ? (
+            <p className="px-0.5 text-xs text-muted-foreground">No apps available.</p>
+          ) : (
+            availableApps.map((app) => {
+              const enabled = railAppIds.includes(app.id);
+              return (
+                <div
+                  key={app.id}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+                >
+                  <Puzzle className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{app.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => openApp(app.id)}
+                    className="rounded-md bg-space-accent/15 px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:bg-space-accent/25"
+                  >
+                    Open
+                  </button>
+                  <button
+                    role="switch"
+                    aria-checked={enabled}
+                    aria-label={`Pin ${app.name} to rail`}
+                    onClick={() => toggleRailApp(app.id)}
+                    className={cn(
+                      "relative h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors",
+                      enabled ? "bg-space-accent" : "bg-muted",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-0.5 size-3 rounded-full bg-white shadow transition-transform",
+                        enabled ? "translate-x-[14px]" : "translate-x-0.5",
+                      )}
+                    />
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          MCP servers
+        </h4>
+        <div className="flex flex-col gap-0.5">
+          {mcpRailItems.length === 0 ? (
+            <p className="px-0.5 text-xs text-muted-foreground">
+              No MCP servers added yet.
+            </p>
+          ) : (
+            mcpRailItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+              >
+                <Server className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate" title={item.url}>
+                  {item.label}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${item.label}`}
+                  onClick={() => removeMcpRailItem(item.id)}
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            ))
+          )}
+          <div className="mt-1 flex flex-col gap-1">
+            <Input
+              placeholder="Name"
+              value={mcpName}
+              onChange={(event) => setMcpName(event.target.value)}
+              className="h-8 text-xs"
+            />
+            <div className="flex gap-1">
+              <Input
+                placeholder="https://…/mcp"
+                value={mcpUrl}
+                onChange={(event) => setMcpUrl(event.target.value)}
+                className="h-8 flex-1 text-xs"
+              />
+              <Button variant="secondary" size="sm" onClick={addMcp}>
+                Add
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[11px] leading-tight text-muted-foreground">
+        Added MCP servers appear in the rail and open the Agents section.
+      </p>
     </div>
   );
 }
@@ -130,6 +297,9 @@ export function AppDock() {
       break;
     case "finance":
       content = <FinanceWorkspace />;
+      break;
+    case "add-apps":
+      content = <AddAppsSection />;
       break;
     default:
       content = PLACEHOLDER_SECTIONS.includes(activeSection) ? (
