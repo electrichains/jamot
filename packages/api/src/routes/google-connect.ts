@@ -20,7 +20,10 @@ function config(clientId?: string, clientSecret?: string, redirectUri?: string) 
   return {
     clientId: clientId ?? process.env.GOOGLE_CLIENT_ID,
     clientSecret: clientSecret ?? process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri: redirectUri ?? process.env.GOOGLE_CONNECTOR_REDIRECT_URI,
+    redirectUri:
+      redirectUri ??
+      process.env.GOOGLE_CONNECTOR_REDIRECT_URI ??
+      "https://api.jamot.pro/api/google/callback",
   };
 }
 
@@ -57,8 +60,11 @@ export function googleConnectorRoutes(
         overrides?.clientSecret,
         overrides?.redirectUri,
       );
-      if (!clientId || !redirectUri) {
-        return fail(reply, 501, "Google OAuth is not configured");
+      if (!clientId) {
+        return fail(reply, 501, "Google OAuth is not configured: missing GOOGLE_CLIENT_ID");
+      }
+      if (!redirectUri) {
+        return fail(reply, 501, "Google OAuth is not configured: missing GOOGLE_CONNECTOR_REDIRECT_URI");
       }
 
       const query = parse(z.object({ spaceId: Id }), request.query, reply);
@@ -79,9 +85,15 @@ export function googleConnectorRoutes(
         overrides?.clientSecret,
         overrides?.redirectUri,
       );
-      const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
-      if (!clientId || !clientSecret || !redirectUri) {
-        return fail(reply, 501, "Google OAuth is not configured");
+      const frontendUrl = process.env.FRONTEND_URL ?? "https://mvp.jamot.pro";
+      if (!clientId) {
+        return fail(reply, 501, "Google OAuth is not configured: missing GOOGLE_CLIENT_ID");
+      }
+      if (!clientSecret) {
+        return fail(reply, 501, "Google OAuth is not configured: missing GOOGLE_CLIENT_SECRET");
+      }
+      if (!redirectUri) {
+        return fail(reply, 501, "Google OAuth is not configured: missing GOOGLE_CONNECTOR_REDIRECT_URI");
       }
 
       const query = request.query as { code?: string; state?: string; error?: string };
@@ -163,6 +175,21 @@ export function googleConnectorRoutes(
         request.log.error(err, "google connector callback failed");
         return reply.redirect(`${frontendUrl}/settings?google=error`);
       }
+    });
+
+    app.get("/google/debug", async () => {
+      const { clientId, redirectUri } = config(
+        overrides?.clientId,
+        overrides?.clientSecret,
+        overrides?.redirectUri,
+      );
+      return {
+        hasClientId: Boolean(clientId),
+        hasClientSecret: Boolean(process.env.GOOGLE_CLIENT_SECRET),
+        hasRedirectUri: Boolean(redirectUri),
+        redirectUri: redirectUri ?? null,
+        envKeys: Object.keys(process.env).filter((k) => k.startsWith("GOOGLE_")),
+      };
     });
 
     app.get("/google/status", { preHandler: requireAuth }, async (request, reply) => {

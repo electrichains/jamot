@@ -23,12 +23,18 @@ export default async function oauthRoutes(
   const { repository } = opts;
   const clientId = opts.googleClientId ?? process.env.GOOGLE_CLIENT_ID;
   const clientSecret = opts.googleClientSecret ?? process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = opts.googleRedirectUri ?? process.env.GOOGLE_REDIRECT_URI;
-  const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+  const redirectUri =
+    opts.googleRedirectUri ??
+    process.env.GOOGLE_REDIRECT_URI ??
+    "https://api.jamot.pro/api/auth/google/callback";
+  const frontendUrl = process.env.FRONTEND_URL ?? "https://mvp.jamot.pro";
 
   app.get("/auth/google", async (request, reply) => {
-    if (!clientId || !redirectUri) {
-      return reply.code(501).send({ error: "Google OAuth is not configured" });
+    if (!clientId) {
+      return reply.code(501).send({ error: "Google OAuth is not configured: missing GOOGLE_CLIENT_ID" });
+    }
+    if (!redirectUri) {
+      return reply.code(501).send({ error: "Google OAuth is not configured: missing GOOGLE_REDIRECT_URI" });
     }
     // Start a fresh session: regenerating the id invalidates any stale
     // pre-COOKIE_DOMAIN host-only session cookie and guarantees the OAuth
@@ -45,8 +51,14 @@ export default async function oauthRoutes(
   });
 
   app.get("/auth/google/callback", async (request, reply) => {
-    if (!clientId || !clientSecret || !redirectUri) {
-      return reply.code(501).send({ error: "Google OAuth is not configured" });
+    if (!clientId) {
+      return reply.code(501).send({ error: "Google OAuth is not configured: missing GOOGLE_CLIENT_ID" });
+    }
+    if (!clientSecret) {
+      return reply.code(501).send({ error: "Google OAuth is not configured: missing GOOGLE_CLIENT_SECRET" });
+    }
+    if (!redirectUri) {
+      return reply.code(501).send({ error: "Google OAuth is not configured: missing GOOGLE_REDIRECT_URI" });
     }
 
     const query = request.query as { code?: string; state?: string };
